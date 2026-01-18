@@ -1,0 +1,93 @@
+{
+  "taskId": "BUY-704-1768620826375",
+  "type": "BUY",
+  "marketId": 704,
+  "title": "Will the Los Angeles Rams win Super Bowl 2026?",
+  "logSchemaVersion": "1.0.0",
+  "status": "UNWIND_COMPLETED",
+  "isSuccess": false,
+  "strategy": "MAKER",
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 18,
+  "totalSnapshots": 3,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 1,
+    "ORDER_SUBMITTED": 2,
+    "ORDER_FILLED": 2,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 6,
+    "HEDGE_FAILED": 1,
+    "UNWIND_STARTED": 1,
+    "UNWIND_ATTEMPT": 1,
+    "UNWIND_COMPLETED": 1,
+    "TASK_FAILED": 1
+  },
+  "startTime": 1768620826377,
+  "endTime": 1768651458366,
+  "durationMs": 30631989,
+  "predictFilledQty": 300,
+  "hedgedQty": 0,
+  "avgPredictPrice": 0.2,
+  "avgPolymarketPrice": 0,
+  "actualProfit": 0,
+  "profitPercent": 0,
+  "unwindLoss": 5.999999999999993,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1768620826380,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1768620827489,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768620828121,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768651447064,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 300"
+    },
+    {
+      "timestamp": 1768651447331,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 300"
+    },
+    {
+      "timestamp": 1768651452247,
+      "event": "HEDGE_FAILED",
+      "detail": "Hedge: 300"
+    },
+    {
+      "timestamp": 1768651453594,
+      "event": "UNWIND_STARTED"
+    },
+    {
+      "timestamp": 1768651454507,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768651458360,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 300"
+    },
+    {
+      "timestamp": 1768651458361,
+      "event": "UNWIND_COMPLETED"
+    },
+    {
+      "timestamp": 1768651458361,
+      "event": "TASK_FAILED",
+      "detail": "Hedge failed, unwound 300/300, loss: $6.00 (未知)"
+    }
+  ],
+  "generatedAt": 1768651458366
+}

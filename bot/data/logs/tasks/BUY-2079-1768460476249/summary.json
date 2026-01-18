@@ -1,0 +1,119 @@
+{
+  "taskId": "BUY-2079-1768460476249",
+  "type": "BUY",
+  "marketId": 2079,
+  "title": "LoL: Weibo Gaming vs Bilibili Gaming (BO3)",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 0.99,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 19,
+  "totalSnapshots": 3,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 10,
+    "ORDER_SUBMITTED": 2,
+    "ORDER_FILLED": 2,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 1,
+    "HEDGE_COMPLETED": 1,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1768460476250,
+  "endTime": 1768470441440,
+  "durationMs": 9965190,
+  "predictFilledQty": 250,
+  "hedgedQty": 250,
+  "avgPredictPrice": 0.69,
+  "avgPolymarketPrice": 0.3,
+  "actualProfit": 2.500000000000016,
+  "profitPercent": 1.4492753623188497,
+  "unwindLoss": 0,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1768460476254,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1768460477088,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768460479626,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768460865486,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768462046578,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768463551022,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768463864570,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768465275625,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768465485774,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768466384352,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768467162393,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768467437745,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768470438397,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 250"
+    },
+    {
+      "timestamp": 1768470438851,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 250"
+    },
+    {
+      "timestamp": 1768470440909,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768470441438,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 250"
+    },
+    {
+      "timestamp": 1768470441438,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 250"
+    },
+    {
+      "timestamp": 1768470441438,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $2.50"
+    }
+  ],
+  "generatedAt": 1768470441440
+}

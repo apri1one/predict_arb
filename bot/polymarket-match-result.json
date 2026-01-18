@@ -1,0 +1,3344 @@
+{
+  "timestamp": "2026-01-18T22:12:08.651Z",
+  "summary": {
+    "total": 196,
+    "matched": 196,
+    "failed": 0
+  },
+  "matches": [
+    {
+      "predict": {
+        "id": 704,
+        "title": "Los Angeles R",
+        "question": "Will the Los Angeles Rams win Super Bowl 2026?",
+        "conditionId": "0xbbeea8d9a6a6b0989437515f95d9e47c466f391575f5ccca5c8c5f46c7177821",
+        "feeRateBps": 200,
+        "categorySlug": "super-bowl-champion-2026-731"
+      },
+      "polymarket": {
+        "question": "Will the Los Angeles Rams win Super Bowl 2026?",
+        "conditionId": "0x2b57ed983eb34b5e081fc8dcc1372d688963fd4d9c9018b8d2ba36867b26b236",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 705,
+        "title": "Seattle",
+        "question": "Will the Seattle Seahawks win Super Bowl 2026?",
+        "conditionId": "0x18a0002ca813167e10fc0f58358904d36f2e94999f1c3d9273da7694b5698590",
+        "feeRateBps": 200,
+        "categorySlug": "super-bowl-champion-2026-731"
+      },
+      "polymarket": {
+        "question": "Will the Seattle Seahawks win Super Bowl 2026?",
+        "conditionId": "0xa0eafdfa7da17483796f77f4b287d28834ab97db4a9a6e999b52c1ba239bc2f3",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 707,
+        "title": "Denver",
+        "question": "Will the Denver Broncos win Super Bowl 2026?",
+        "conditionId": "0xa1cb3945f5a2f194811508d84bb8909da3b4927671172213841e91a75be4a3ac",
+        "feeRateBps": 200,
+        "categorySlug": "super-bowl-champion-2026-731"
+      },
+      "polymarket": {
+        "question": "Will the Denver Broncos win Super Bowl 2026?",
+        "conditionId": "0xa6468d69ef786a8ae325f9a7bda944fbea3984f3d8c6617ca321c804961999f9",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 709,
+        "title": "New England",
+        "question": "Will the New England Patriots win Super Bowl 2026?",
+        "conditionId": "0xd508ecc40b4568b503bba710398ff062d369f4ef96a971795ba8dd17e10f6da1",
+        "feeRateBps": 200,
+        "categorySlug": "super-bowl-champion-2026-731"
+      },
+      "polymarket": {
+        "question": "Will the New England Patriots win Super Bowl 2026?",
+        "conditionId": "0xc914317b14972d5d15f30740d3bdf32f4028877c13b9d7ccc78b4ba33f67fb1e",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 785,
+        "title": "Will Logan Paul’s PSA 10 Pokémon Illustrator Sale Price be over $6 million?",
+        "question": "Will Logan Paul’s PSA 10 Pokémon Illustrator Sale Price be over $6 million?",
+        "conditionId": "0x0db36ba15d204590223f47dd958e441d93fac271dc045b08676391c476af1203",
+        "feeRateBps": 200,
+        "categorySlug": "logan-pauls-psa-10-pokmon-illustrator-sale-price"
+      },
+      "polymarket": {
+        "question": "Will Logan Paul’s PSA 10 Pokémon Illustrator Sale Price be over $6 million?",
+        "conditionId": "0x9ae0f0d0f91a9491980c302502dc763626ec140a620a3a8018107a42fcdf5318",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1469,
+        "title": "Oklahoma City Thunder",
+        "question": "Will the Oklahoma City Thunder win the 2026 NBA Finals?",
+        "conditionId": "0x8b88a3985b14309417ee3c1f070e1e9f11f31d02000533035df0e7886140c5f0",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Oklahoma City Thunder win the 2026 NBA Finals?",
+        "conditionId": "0x22e7b5e35423e76842dd3a5e1a21d13793811080d5e7b2896d0c001bd5e97d54",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1470,
+        "title": "Denver Nuggets",
+        "question": "Will the Denver Nuggets win the 2026 NBA Finals?",
+        "conditionId": "0x42a537451582e26f51f1eece987acec0672d3c16bec518476ca63522c32dd6b7",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Denver Nuggets win the 2026 NBA Finals?",
+        "conditionId": "0x4e65282819c98c6aed529f357fbf5983b1ae9407a3c25bd50fe97b2906df68f9",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1471,
+        "title": "New York Knicks",
+        "question": "Will the New York Knicks win the 2026 NBA Finals?",
+        "conditionId": "0x0f5181f97e5d80a0aba1eb2f63907645612d8d1222f713ed945b87de2a04ad0f",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the New York Knicks win the 2026 NBA Finals?",
+        "conditionId": "0x713641f745d71f6ec61f906237ffca3c8583f251e49384429a63ceb0ccdb2d37",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1472,
+        "title": "San Antonio Spurs",
+        "question": "Will the San Antonio Spurs win the 2026 NBA Finals?",
+        "conditionId": "0x3bb0f7887f9508a32907b0c58b59cd8fc186ad64dd14c1cb000aea622bc16896",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the San Antonio Spurs win the 2026 NBA Finals?",
+        "conditionId": "0xb6b3d7a2037b3faa7e1306d741840d453432902d73cc9a146a035e40271eae73",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1473,
+        "title": "Houston Rockets",
+        "question": "Will the Houston Rockets win the 2026 NBA Finals?",
+        "conditionId": "0x01a91a1f43b9259ea5725db4bb382bc82c17032aa3f493de8a105b197beab84f",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Houston Rockets win the 2026 NBA Finals?",
+        "conditionId": "0x9b56568af78dd036b03c641e0673729d72cd7d63578eb0119cd23eb1f94f1b56",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1474,
+        "title": "Boston Celtics",
+        "question": "Will the Boston Celtics win the 2026 NBA Finals?",
+        "conditionId": "0x55eef3aa955f6e119de3c4f8c6b451fb18cf42086911be28fcf6d75529809d04",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Boston Celtics win the 2026 NBA Finals?",
+        "conditionId": "0x13e1cc703a120883a709d3bb29707097952845d61ca6793ea2b4328bae2a7451",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1476,
+        "title": "Detroit Pistons",
+        "question": "Will the Detroit Pistons win the 2026 NBA Finals?",
+        "conditionId": "0x363b81d0711ac39e9835dc426ef7349a0fe1c93cfadf9b522cf20eb36d917b55",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Detroit Pistons win the 2026 NBA Finals?",
+        "conditionId": "0xe202539dfbeced92dc4112f134a205c80ca6cf4db32bd82f05b291c297219fd8",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1477,
+        "title": "Los Angeles Lakers",
+        "question": "Will the Los Angeles Lakers win the 2026 NBA Finals?",
+        "conditionId": "0xf095fe0143b4eb69c88937886da31cceac526eb4d760eed099423147d0f646fa",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Los Angeles Lakers win the 2026 NBA Finals?",
+        "conditionId": "0x796e791e7058571e460278814fc7a3183752285338f1400087b98bef3c447908",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1478,
+        "title": "Cleveland Cavaliers",
+        "question": "Will the Cleveland Cavaliers win the 2026 NBA Finals?",
+        "conditionId": "0x3ae513674ea92831d020e1cabe36d69d4480dfef5d6d6a45cb8311eb4a14feca",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Cleveland Cavaliers win the 2026 NBA Finals?",
+        "conditionId": "0x6b44bd667fad6cb5b3b68d8bd1055a038c77d9176dbd51f123879797cc3368a7",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1479,
+        "title": "Minnesota Timberwolves",
+        "question": "Will the Minnesota Timberwolves win the 2026 NBA Finals?",
+        "conditionId": "0xef2bd0b58376863cfd66a92b3b4e9d17a88798e7e5cca36eed249a2b6e22e4a1",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Minnesota Timberwolves win the 2026 NBA Finals?",
+        "conditionId": "0x649ad05a2868343271fe82ea692031d567ca1af652e3529788933157e94aa088",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1480,
+        "title": "Golden State Warriors",
+        "question": "Will the Golden State Warriors win the 2026 NBA Finals?",
+        "conditionId": "0xdf4746f50e9906bf4e9677dc490e415a6ab3f857c40aa7ee9dcf13c9b9d24b5c",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Golden State Warriors win the 2026 NBA Finals?",
+        "conditionId": "0xfbf7ab9e6b6d324ffe436bab8c7a1e10aeb8200e10c1e1dbb35d2959becebc1e",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1482,
+        "title": "Orlando Magic",
+        "question": "Will the Orlando Magic win the 2026 NBA Finals?",
+        "conditionId": "0xe76189acd52203657b48ffe1058c3f4ee4a36051237cfcc1813a6e5e61088b5d",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Orlando Magic win the 2026 NBA Finals?",
+        "conditionId": "0x7338d9dea0de820ed621abdff3de2d4b07a573bc0c1a6f7128941f4d0c5606e3",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1484,
+        "title": "Miami Heat",
+        "question": "Will the Miami Heat win the 2026 NBA Finals?",
+        "conditionId": "0xa6604abea61574227c3004107e1724f1e6a40c75a5d8860c4badeff1b3aea760",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Miami Heat win the 2026 NBA Finals?",
+        "conditionId": "0xb76183fb9e7e80c5a8f983a87ceefd35c9c177f684dd001d7387dc7b70d596d6",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1485,
+        "title": "Philadelphia 76ers",
+        "question": "Will the Philadelphia 76ers win the 2026 NBA Finals?",
+        "conditionId": "0x7e09c5ac5988be9cd0be80c42b9bd7f895ddf8f55ab25f2af3f17e08528a761a",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Philadelphia 76ers win the 2026 NBA Finals?",
+        "conditionId": "0x567f1ff714731fafa702d454a105b064a7ec4d10f6fb71ad3221f4918681c709",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1486,
+        "title": "Phoenix Suns",
+        "question": "Will the Phoenix Suns win the 2026 NBA Finals?",
+        "conditionId": "0x11043e864ac0c45d067c469f9768f7cd00d1976b1b540f486ba0847db963d802",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Phoenix Suns win the 2026 NBA Finals?",
+        "conditionId": "0xa49fc89bfb87bb302bfc43567709850565161bdaed5bc506bff4b85fd3c5c2ee",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1487,
+        "title": "Dallas Mavericks",
+        "question": "Will the Dallas Mavericks win the 2026 NBA Finals?",
+        "conditionId": "0xa26363ecda7fa87e1d5c331ac6428aeb8531feb8122fd2e00f797a64c1badc65",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Dallas Mavericks win the 2026 NBA Finals?",
+        "conditionId": "0xf523e45d6bfe49d30e45e4e7794fd6e5f621b0304e07044fef156e6dd4d4b249",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1488,
+        "title": "Toronto Raptors",
+        "question": "Will the Toronto Raptors win the 2026 NBA Finals?",
+        "conditionId": "0x7b722a245c695d73e1e4f4b781bc440688849a4a6e59964562badafe04bc6f0d",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Toronto Raptors win the 2026 NBA Finals?",
+        "conditionId": "0x4405c62496c4fdd275d17ec31567a01534013c518c314ce61bb633b5e7cb6426",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1489,
+        "title": "Los Angeles Clippers",
+        "question": "Will the Los Angeles Clippers win the 2026 NBA Finals?",
+        "conditionId": "0xe4174de36b1e0f76da0e0ae0151b1a7d3e3550c4818ba6d1d69e45eb6d093c40",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Los Angeles Clippers win the 2026 NBA Finals?",
+        "conditionId": "0x543da007c2f149346cf9f9f21021f1b2e10c46c78fcd0c9297c0c21f10c94626",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1490,
+        "title": "Atlanta Hawks",
+        "question": "Will the Atlanta Hawks win the 2026 NBA Finals?",
+        "conditionId": "0xb0f1362586948403d087480897eb89181e47e74c9417f22a3a35addac2ba26ef",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Atlanta Hawks win the 2026 NBA Finals?",
+        "conditionId": "0xfda648d24cdad32dfe959195bd75ef4c81fbea5130eb6c7a4a0c18607a11ce63",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1493,
+        "title": "Milwaukee Bucks",
+        "question": "Will the Milwaukee Bucks win the 2026 NBA Finals?",
+        "conditionId": "0x9d6a7fdfd59f13585d61a88a47e876d8c81996134c7746e6aa4c6ed2973ecd7e",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Milwaukee Bucks win the 2026 NBA Finals?",
+        "conditionId": "0x7a18c03e9dd79943a25c65a5b696378e54b5b7d236140edb5d157685ce96476a",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1494,
+        "title": "Memphis Grizzlies",
+        "question": "Will the Memphis Grizzlies win the 2026 NBA Finals?",
+        "conditionId": "0x9625f98f5ebb0a19a41413c00f39222251144844d3f39c6995c230b068cd7624",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Memphis Grizzlies win the 2026 NBA Finals?",
+        "conditionId": "0xc094fd60c0a09ba0df48a086ef91e12390fa8777fcd9cb63c154e9622cb1d497",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1495,
+        "title": "Chicago Bulls",
+        "question": "Will the Chicago Bulls win the 2026 NBA Finals?",
+        "conditionId": "0x49af711834eaa05d27ff8ef542d4a07df5f82805c884a9dcc80233611c1a987e",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Chicago Bulls win the 2026 NBA Finals?",
+        "conditionId": "0xf374fb58698bccedf29399f9f5548a70370a11c0fece34f2570fb9b3885e8e5a",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1496,
+        "title": "Portland Trail Blazers",
+        "question": "Will the Portland Trail Blazers win the 2026 NBA Finals?",
+        "conditionId": "0xb2fe79f9179547efc98e0ae25fe21343eecdbdfd3bd8f133923b210b0f36957e",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Portland Trail Blazers win the 2026 NBA Finals?",
+        "conditionId": "0x6331a779482df72d904c3c1e12b6409ff836bc06f8c97945cba9b25ada2c605c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1497,
+        "title": "New Orleans Pelicans",
+        "question": "Will the New Orleans Pelicans win the 2026 NBA Finals?",
+        "conditionId": "0x8c001937d3a237a8bcc18978294b0003b34dc4ad539c067df30a6ad052012e94",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the New Orleans Pelicans win the 2026 NBA Finals?",
+        "conditionId": "0xe709dcb12986139fa5b4cc793069d0c64bde1bfb351914c95bdd6149ec91a3ee",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1499,
+        "title": "Indiana Pacers",
+        "question": "Will the Indiana Pacers win the 2026 NBA Finals?",
+        "conditionId": "0xe3a0bbb9bb8b430b45cba323b3f5055b2770b40b2d8bf1bbb0ab9f011d1ed824",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Indiana Pacers win the 2026 NBA Finals?",
+        "conditionId": "0xe492ad958b21201e928b6666570820a184b8f71e834910945efcfb86eecd02cd",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1501,
+        "title": "Brooklyn Nets",
+        "question": "Will the Brooklyn Nets win the 2026 NBA Finals?",
+        "conditionId": "0xd9951ae436a10bab44a5f2b3fc6d776904e0da2f029b4f3711bdebab7bd1607e",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Brooklyn Nets win the 2026 NBA Finals?",
+        "conditionId": "0x314ec5fd53735e23cadc475161e37b1529984d97097c0fdf417941c44b6b274e",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1502,
+        "title": "Charlotte Hornets",
+        "question": "Will the Charlotte Hornets win the 2026 NBA Finals?",
+        "conditionId": "0x868411a38af65174fb6bda872d0795749d1061ba0cfee8d1c75fbb7025d4e9fd",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Charlotte Hornets win the 2026 NBA Finals?",
+        "conditionId": "0xc58cfb7397c4f3f803f5c20135cafa7f6d2c87cf3bb1e6138042b95d828e1866",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1503,
+        "title": "Utah Jazz",
+        "question": "Will the Utah Jazz win the 2026 NBA Finals?",
+        "conditionId": "0x12ec85471f7783fc9fefa24b79f27db4ee5fa7e5ecb8287438c2c6b2d5b3d5b6",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Utah Jazz win the 2026 NBA Finals?",
+        "conditionId": "0x298157e618b5729dafd742eec9b21e040a13da0bb09ff1fa4492360c347e3824",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1504,
+        "title": "Sacramento Kings",
+        "question": "Will the Sacramento Kings win the 2026 NBA Finals?",
+        "conditionId": "0xc43351391b57dc7c63e8e4b65a0257c76871b59ddb1d1e830087b032af9a16d9",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Sacramento Kings win the 2026 NBA Finals?",
+        "conditionId": "0xbc2d59e8ea0378f0851c86e84d250e80a5698874db52c13798053841f291dc28",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1505,
+        "title": "Washington Wizards",
+        "question": "Will the Washington Wizards win the 2026 NBA Finals?",
+        "conditionId": "0xe3a6424a4808596fb0d5185e3e7a842c92d6c205d957ca90e924fa0d32127b07",
+        "feeRateBps": 200,
+        "categorySlug": "2026-nba-champion"
+      },
+      "polymarket": {
+        "question": "Will the Washington Wizards win the 2026 NBA Finals?",
+        "conditionId": "0x30a8ed0d01b7e8b25334358f71d9ec71c147783c0f908c2e7c7a527905007bf8",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1560,
+        "title": "Man City",
+        "question": "Will Manchester City win the 2025–26 English Premier League?",
+        "conditionId": "0xd2c9cbf1b26ddd1a57e6bad9a90405513a2384c113449923028181b7b3358e03",
+        "feeRateBps": 200,
+        "categorySlug": "english-premier-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Manchester City win the 2025–26 English Premier League?",
+        "conditionId": "0xfb1835b887c33862f5749c619e612d1244ab6e66115f0ef43d373485dc3a1573",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1562,
+        "title": "Arsenal",
+        "question": "Will Arsenal win the 2025–26 English Premier League?",
+        "conditionId": "0x4f87d95e129fe503f8797567dd3c1986d8e4d5d86fa5eb1ef824bae11e85ddb3",
+        "feeRateBps": 200,
+        "categorySlug": "english-premier-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Arsenal win the 2025–26 English Premier League?",
+        "conditionId": "0xcba24842ceac7a40d2a8b9adde1f4407999b6505193b9fd68156ae76fbffa706",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1563,
+        "title": "Aston Villa",
+        "question": "Will Aston Villa win the 2025–26 English Premier League?",
+        "conditionId": "0xbf09c215663359bee952b428aeef90c377d3cb3b4882a0d32d7019aac1e6e383",
+        "feeRateBps": 200,
+        "categorySlug": "english-premier-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Aston Villa win the 2025–26 English Premier League?",
+        "conditionId": "0x2ca58175aa8080357d9706c535bb0be218ce7bb156dc48753e0d8b8ee6b56635",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1564,
+        "title": "Liverpool",
+        "question": "Will Liverpool win the 2025–26 English Premier League?",
+        "conditionId": "0xb2e7e13b5b451f02e33411c7313be7dccdcc5e9ae2c184ea7176528732f9c0c5",
+        "feeRateBps": 200,
+        "categorySlug": "english-premier-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Liverpool win the 2025–26 English Premier League?",
+        "conditionId": "0x65a2dd0af5f4155915a701e8fdbcdb2f547fb5925d0bcef0b373a8c39a16613e",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1565,
+        "title": "Chelsea",
+        "question": "Will Chelsea win the 2025–26 English Premier League?",
+        "conditionId": "0xef412fc78566be1ad12268c736e2ff3a24397a5b3eeeb066b803aabba5991bcf",
+        "feeRateBps": 200,
+        "categorySlug": "english-premier-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Chelsea win the 2025–26 English Premier League?",
+        "conditionId": "0xd02f8e3b72040d933427396f9f0a9cb740a0adefcec46e345211fa0fc5b975e9",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1571,
+        "title": "Barcelona",
+        "question": "Will Barcelona win the 2025–26 La Liga?",
+        "conditionId": "0x85d958d87aa004ca08dfbf367720e1d5162091053d4e2c14fcb1c818bd5cbdbc",
+        "feeRateBps": 200,
+        "categorySlug": "la-liga-winner"
+      },
+      "polymarket": {
+        "question": "Will Barcelona win the 2025–26 La Liga?",
+        "conditionId": "0x069fef06f8b32dee6a22fab6189249dc83582f22cb737a85225b114770d7da05",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1572,
+        "title": "Real Madrid",
+        "question": "Will Real Madrid win the 2025–26 La Liga?",
+        "conditionId": "0x9a684d94a897094d6e565675988b5c705a77ee50737d75578c8ca7bec62be32d",
+        "feeRateBps": 200,
+        "categorySlug": "la-liga-winner"
+      },
+      "polymarket": {
+        "question": "Will Real Madrid win the 2025–26 La Liga?",
+        "conditionId": "0xa1f08ec3bcc1434cb0b695bd5ee9f81268ef45fb73f752b3a1c1fb1d35750866",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1573,
+        "title": "Atletico Madrid",
+        "question": "Will Atletico Madrid win the 2025–26 La Liga?",
+        "conditionId": "0x349a2c35668cc8589c07c22b9e6f79015e08c7796c8d43cbc177e21a4755a8d6",
+        "feeRateBps": 200,
+        "categorySlug": "la-liga-winner"
+      },
+      "polymarket": {
+        "question": "Will Atletico Madrid win the 2025–26 La Liga?",
+        "conditionId": "0xad9cf9a89f41009718b3858c47ea30c88491dbf9f043b8fcd704c4ba65be8edf",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1574,
+        "title": "Villarreal",
+        "question": "Will Villarreal win the 2025–26 La Liga?",
+        "conditionId": "0x8d990fcfec3c4de30ce838a49f3b66cc37c7530238e07e7cde5dda7a9613e0af",
+        "feeRateBps": 200,
+        "categorySlug": "la-liga-winner"
+      },
+      "polymarket": {
+        "question": "Will Villarreal win the 2025–26 La Liga?",
+        "conditionId": "0x683b0254bde8d1ef08206953015629f25b9869d9770807baab939f6aaba4ae5c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1576,
+        "title": "Arsenal",
+        "question": "Will Arsenal win the 2025–26 Champions League?",
+        "conditionId": "0x906d55ec11c8428ea999e0f12109fb57c22c49ba7f1915fed040382c7c623ff0",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Arsenal win the 2025–26 Champions League?",
+        "conditionId": "0x8df5a4256840dee05851250c0490da7593597faff3a7f9a156ccbbda7fec76f8",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1577,
+        "title": "Bayern Munich",
+        "question": "Will Bayern Munich win the 2025–26 Champions League?",
+        "conditionId": "0xadf302db628a3640644b666f286d0c2eeb92d05d83a9e5f5321bf2eb361a2a93",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Bayern Munich win the 2025–26 Champions League?",
+        "conditionId": "0x852fcfca1dfa1372b768aa6df2269d20564378bb6fe9c64bba3bc040370c1efd",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1578,
+        "title": "Man City",
+        "question": "Will Man City win the 2025–26 Champions League?",
+        "conditionId": "0xecd7066376322339a963955a40d7a65da821ea79c54032b252ed590f5cef6c66",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Man City win the 2025–26 Champions League?",
+        "conditionId": "0x453e4a52fd6e889f4895320475971bc8ed0bc427dba6108341be6abea5660c6e",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1579,
+        "title": "PSG",
+        "question": "Will PSG win the 2025–26 Champions League?",
+        "conditionId": "0x26b5944ca1fd7f6fb771df0a6ba008a8e3360f22e8d741a1d7a9bbaed3b9cf26",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will PSG win the 2025–26 Champions League?",
+        "conditionId": "0x6e9f90a6f471b52d03499a81586ca478519474eb152f1327c8c767f020d62529",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1580,
+        "title": "Barcelona",
+        "question": "Will Barcelona win the 2025–26 Champions League?",
+        "conditionId": "0xc176a12e44ab09345ecd858e656cb9be6e66c14d20981d53e406e40101f02dec",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Barcelona win the 2025–26 Champions League?",
+        "conditionId": "0x43268d56a20113679be36c84dd22550174c6d6bc9d0f4376e882ce61dac3c635",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1581,
+        "title": "Real Madrid",
+        "question": "Will Real Madrid win the 2025–26 Champions League?",
+        "conditionId": "0xf6d2279deef18a1951653cc34d12e37c7f092918e1d63fd99601f1ad55f02899",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Real Madrid win the 2025–26 Champions League?",
+        "conditionId": "0x52a5ce595e0f0816e17e5f40dbd5967c88beb4b9f21000bfdd9a1ff26c281fdd",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1582,
+        "title": "Liverpool",
+        "question": "Will Liverpool win the 2025–26 Champions League?",
+        "conditionId": "0xab046565dd476bd037bc6af713d21dbf5963f22fa33b837d8103054603e48bb9",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Liverpool win the 2025–26 Champions League?",
+        "conditionId": "0x4c7db7768547a220d3e26359952d8b2eb9094f5ad02fcc32e70d9361d8491ab5",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1583,
+        "title": "Chelsea",
+        "question": "Will Chelsea win the 2025–26 Champions League?",
+        "conditionId": "0xe69b0c4a8bdfc4c13416ba248395c6152b69c2d16b9508ed4f4ba77bbe628528",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Chelsea win the 2025–26 Champions League?",
+        "conditionId": "0xc2ecc146cbbc8f24186766ef0b2cd56a1757227aee4cc9f951920538769a3490",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1584,
+        "title": "Inter",
+        "question": "Will Inter win the 2025–26 Champions League?",
+        "conditionId": "0xb12c8410b832144f79185290440d313fbaad2555351c06304ddde90a0718a5da",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Inter win the 2025–26 Champions League?",
+        "conditionId": "0xe4f25e05d842810ff5944ba1e2953c6ced1e869cac3b44d15b32fd404ddb4bf4",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1585,
+        "title": "Atletico Madrid",
+        "question": "Will Atletico Madrid win the 2025–26 Champions League?",
+        "conditionId": "0xca87d0f02932e93e6961a6b3880919f1b54d6b45b70193a6b718a72b429cc546",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Atletico Madrid win the 2025–26 Champions League?",
+        "conditionId": "0xcb06319aa9e029904c93c1df7d10b7ce7d6aab2b25b8f661e0cf57ea048a1567",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1586,
+        "title": "Newcastle",
+        "question": "Will Newcastle win the 2025–26 Champions League?",
+        "conditionId": "0x9572b423e3d35e1d260a537e659a8c05d5230e86441f27eb4a202cb85b7f49a4",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Newcastle win the 2025–26 Champions League?",
+        "conditionId": "0x19c97446c3950446f29624c1361c8fc3546d4db76e07d00ca631504d45140312",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1587,
+        "title": "Tottenham",
+        "question": "Will Tottenham win the 2025–26 Champions League?",
+        "conditionId": "0x5023f1c9939f4b57de422d1a8a9f1d822db7c5c937148d7f276b23c34c6891eb",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Tottenham win the 2025–26 Champions League?",
+        "conditionId": "0x2571face33de8d5c3541fb569c10af59bb80fa909e1469af1c35919803943ea6",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1588,
+        "title": "Dortmund",
+        "question": "Will Dortmund win the 2025–26 Champions League?",
+        "conditionId": "0xe3ea6e57c2fd28a2177a7471a0b9a0e14ffb43724db0fc1922cf17919113ab83",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Dortmund win the 2025–26 Champions League?",
+        "conditionId": "0x64992dfd0ed5e31eaf3d2ff7f240ba16d67439f8d580d105ca29e11acf4f36d7",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1589,
+        "title": "Napoli",
+        "question": "Will Napoli win the 2025–26 Champions League?",
+        "conditionId": "0xdd026f7b5b070bd32b757d2508e847922cce009808ed227d4fab19bfe0b9c320",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Napoli win the 2025–26 Champions League?",
+        "conditionId": "0x7bd85b3f517c51a036127fd585193e811754662a33e0657fae6f2dee09755c39",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1590,
+        "title": "Atalanta",
+        "question": "Will Atalanta win the 2025–26 Champions League?",
+        "conditionId": "0x840984afa1f938c73623504d451dbf8d66052ca6c7fab6c825ffec0619985c06",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Atalanta win the 2025–26 Champions League?",
+        "conditionId": "0xf9d58b904a94f0431d5bee7070650a305566927b3f7bf00f8529e20c9a99a6d4",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1591,
+        "title": "Leverkusen",
+        "question": "Will Leverkusen win the 2025–26 Champions League?",
+        "conditionId": "0xa371871f76ad63f2398baa1e6cde61b78a7278ceb5c8135abbe958cf35f85e83",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Leverkusen win the 2025–26 Champions League?",
+        "conditionId": "0x03ea417a6e1705498427bbe8fd89b922664db3020f196595d5c2a88826c7434c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1592,
+        "title": "Monaco",
+        "question": "Will Monaco win the 2025–26 Champions League?",
+        "conditionId": "0x41d56bd69da7e5a63ed59f8776ce6da393cbfcd764b2a25f9189371b6e60490c",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Monaco win the 2025–26 Champions League?",
+        "conditionId": "0x9552060b91cc7502f17dcfd0dd5dbfc01d7eb5be48a853cde4e2b66227e5e030",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1593,
+        "title": "Juventus",
+        "question": "Will Juventus win the 2025–26 Champions League?",
+        "conditionId": "0xeec55725a4022a2f8c564d0f3f22b02f1f8e5e5ddbf2a5b562172ad3451e3636",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Juventus win the 2025–26 Champions League?",
+        "conditionId": "0xdd926c00d4bfddfc9051c380151f77509d3eef2e7bef20f8d3aec9cbd50e7586",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1594,
+        "title": "Marseille",
+        "question": "Will Marseille win the 2025–26 Champions League?",
+        "conditionId": "0xd90412c7ae256bed15647899a4429651fcbd30ee3702efe16793a7629d8b4206",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Marseille win the 2025–26 Champions League?",
+        "conditionId": "0x94867c89a77b18380ce1bf85006f3ccf2ef5252e0dc6319677aaf615bd857bf4",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1595,
+        "title": "Sporting",
+        "question": "Will Sporting win the 2025–26 Champions League?",
+        "conditionId": "0x42872d58f0be2365fcc9e401cd2074763ef5d7061ecc26b4d1a137e003dfe28e",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Sporting win the 2025–26 Champions League?",
+        "conditionId": "0x2787c94094285ca0569345219ce0a502d96326767f338a1dec21fb5a296f99ff",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1596,
+        "title": "Galatasaray",
+        "question": "Will Galatasaray win the 2025–26 Champions League?",
+        "conditionId": "0x2c005d6bd298641f5a8b2f6d22c3d2c5a9111d8874fc1adf3fae76d12a2ad1c8",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Galatasaray win the 2025–26 Champions League?",
+        "conditionId": "0xe64a95a022a9012b0e5cba0c4c3c8e81caf10f7dd5a091c24714ed154e02c13c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1597,
+        "title": "Benfica",
+        "question": "Will Benfica win the 2025–26 Champions League?",
+        "conditionId": "0xe79473d34958364c5fbe74f89fcbc6c0ab1c11b166bb51a641affc96a031c72e",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Benfica win the 2025–26 Champions League?",
+        "conditionId": "0x135e00bfdb16be6111f194cb8365ac5645707c3a43ce3ff298ab4dbf67fcdd09",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1598,
+        "title": "Union Saint-Gilloise",
+        "question": "Will Union Saint-Gilloise win the 2025–26 Champions League?",
+        "conditionId": "0xc72e6554a7b66ed0cabac4ba3ad7ee3c96c6d7d8706006ddf44b9db74e358f0a",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Union Saint-Gilloise win the 2025–26 Champions League?",
+        "conditionId": "0xb7d6b207e1db1e7ea07a7fb37cfd42847f64f0efb0c4dc2af25b0fdd5cee1066",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1599,
+        "title": "PSV",
+        "question": "Will PSV win the 2025–26 Champions League?",
+        "conditionId": "0x1ae7dbed95b1c58b6305e6104d858672c97e213ceb6ba9c0abe232242b1ba64c",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will PSV win the 2025–26 Champions League?",
+        "conditionId": "0x40c8ee9e0d66c80695e98b00c1930db96e39554f0eb0801e5cc271ad3f60025a",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1600,
+        "title": "Slavia Pragu",
+        "question": "Will Slavia Pragu win the 2025–26 Champions League?",
+        "conditionId": "0x26ec9f0e7fda3c381c002c0aa4144e5e5fc02bc7d06edd4c1094d62586196255",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Slavia Pragu win the 2025–26 Champions League?",
+        "conditionId": "0xe371bb4a38f3714fc1ef7a8ecdaca8a8005aecead9ec95eb5ed8184ca55a94d7",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1601,
+        "title": "Athletic Club",
+        "question": "Will Athletic Club win the 2025–26 Champions League?",
+        "conditionId": "0x359869e6f3a887743412eeba2a7ba9b7205447248053b1066cd6db2c3ee4a8bf",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Athletic Club win the 2025–26 Champions League?",
+        "conditionId": "0xafb35c067db349948912b0c7443a9837ff9cbfacb9bb952a9cc64081f9c792de",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1602,
+        "title": "Villarreal",
+        "question": "Will Villarreal win the 2025–26 Champions League?",
+        "conditionId": "0x8ab7ca017b9d738d2fbcb99c5e38ff34f05dd2e83842714d38ab091ec553d559",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Villarreal win the 2025–26 Champions League?",
+        "conditionId": "0xca0ce5347ab5282bc62bd666f532ffda671ee077dc32219313f545b7e702e33f",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1603,
+        "title": "Eintracht Frankfurt",
+        "question": "Will Eintracht Frankfurt win the 2025–26 Champions League?",
+        "conditionId": "0x1f3c1774c0c5e496b7aa65746c7a3ebb281db2f260a582932922c5f8f3eee1e6",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Eintracht Frankfurt win the 2025–26 Champions League?",
+        "conditionId": "0x5dac59c04086e3921abc98c1f3b4a1e6a3f4962d8d8869a5e91b58df46b081a1",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1604,
+        "title": "Olympiakos",
+        "question": "Will Olympiakos win the 2025–26 Champions League?",
+        "conditionId": "0x5da2ace9202bdc9694b9b8529128d828e81833deb919d74a9051ad3ed1f71038",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Olympiakos win the 2025–26 Champions League?",
+        "conditionId": "0x7e6021ad37547bbec1c6193df617be4ecbb0693d48bd8bb2d57bc290708335f8",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1605,
+        "title": "Ajax",
+        "question": "Will Ajax win the 2025–26 Champions League?",
+        "conditionId": "0xea943deccdbd17c792726da719c4234c9a0a677795b015b59dc9d1088ff18a65",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Ajax win the 2025–26 Champions League?",
+        "conditionId": "0x5084907f4caed11fff6f029ecd5d66bf24f3afbf970352c0964b547a9079a374",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1606,
+        "title": "Bodo Glimt",
+        "question": "Will Bodo Glimt win the 2025–26 Champions League?",
+        "conditionId": "0x413870737caa958e747b0d3a7c8c44a46111634b37ce2590fd473ac03d42bc6a",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Bodo Glimt win the 2025–26 Champions League?",
+        "conditionId": "0x04b1198c2a888f4d162cc5eea844b2f67a80e684d37d8e75bbcde2fc2d06755b",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1607,
+        "title": "Club Brugge",
+        "question": "Will Club Brugge win the 2025–26 Champions League?",
+        "conditionId": "0x41c59d838cd1bc2c5e318133a2e3a654c2ec29d311ef4efc1ff648d503b6b894",
+        "feeRateBps": 200,
+        "categorySlug": "uefa-champions-league-winner"
+      },
+      "polymarket": {
+        "question": "Will Club Brugge win the 2025–26 Champions League?",
+        "conditionId": "0xe06c8e9546be61e4ba8b03ad431dfff590fc6b21a5b746e71f62ae85f1dcad6a",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1882,
+        "title": "Fed rate hike in 2026?",
+        "question": "Fed rate hike in 2026?",
+        "conditionId": "0x206f22b3f32d51897ffe043c1460678a9ae4bd0bea4a1b347bb93a14fc4fee3a",
+        "feeRateBps": 200,
+        "categorySlug": "fed-rate-hike-in-2026"
+      },
+      "polymarket": {
+        "question": "Fed rate hike in 2026?",
+        "conditionId": "0x80b3af88cb991980e8da1ce86b9794a0957f96ec98c29319dd7ba65e9744d82b",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1910,
+        "title": "Democrats Sweep",
+        "question": "2026 Balance of Power: D Senate, D House",
+        "conditionId": "0xfffdeae6e79ce71f6d6edd08b27e9f5c259aaa8eba61cc6eed83fa7b02d6f102",
+        "feeRateBps": 200,
+        "categorySlug": "balance-of-power-2026-midterm-elections"
+      },
+      "polymarket": {
+        "question": "2026 Balance of Power: D Senate, D House",
+        "conditionId": "0x16c63b7cc37f012b9f59ee164ec03877914c701d06d48291ae8d6fc08a088b0d",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1911,
+        "title": "D Senate, R House",
+        "question": "2026 Balance of Power: D Senate, R House",
+        "conditionId": "0x20e287d7e4378730fead0969b2e6f92e589a6ff22fbed2f0f6f2e7a3a81c5e9d",
+        "feeRateBps": 200,
+        "categorySlug": "balance-of-power-2026-midterm-elections"
+      },
+      "polymarket": {
+        "question": "2026 Balance of Power: D Senate, R House",
+        "conditionId": "0x0808de4f0cfd47947f2d1be51f9a9c52ea0fec76f73a75cfbe79ddec98d8a908",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1912,
+        "title": "R Senate, D House",
+        "question": "2026 Balance of Power: R Senate, D House",
+        "conditionId": "0xb9e32bf4d40d12097f3353b67586c2251e9facaf0dd70e4990d17f2ca772aae4",
+        "feeRateBps": 200,
+        "categorySlug": "balance-of-power-2026-midterm-elections"
+      },
+      "polymarket": {
+        "question": "2026 Balance of Power: R Senate, D House",
+        "conditionId": "0x998bc71817b2d76921d1999ce0f3431cfd5945583667a371280ca2b430b0c06e",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1913,
+        "title": "Republicans Sweep",
+        "question": "2026 Balance of Power: R Senate, R House",
+        "conditionId": "0x0cd54dc1b709da73dc2e5a08c767084f2d35155d6ef5f6104d51cf09a2993acc",
+        "feeRateBps": 200,
+        "categorySlug": "balance-of-power-2026-midterm-elections"
+      },
+      "polymarket": {
+        "question": "2026 Balance of Power: R Senate, R House",
+        "conditionId": "0xc5eae79d1ffe716572353962eb926b1e3964c500a4880a7a94f58408218ee76b",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1914,
+        "title": "Other",
+        "question": "2026 Balance of Power: Other",
+        "conditionId": "0x575a42960ca9267e786a1724da9e56279f30d624dfe14e27e1365c5d18300261",
+        "feeRateBps": 200,
+        "categorySlug": "balance-of-power-2026-midterm-elections"
+      },
+      "polymarket": {
+        "question": "2026 Balance of Power: Other",
+        "conditionId": "0x7987a821b8032824f1805ee39eb5dfb8f64603e4e9e673259eb76f82b439fd3d",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 2107,
+        "title": "Will Trump acquire Greenland before 2027?",
+        "question": "Will Trump acquire Greenland before 2027?",
+        "conditionId": "0xdad1aee2cfb0533d53ef98e6b98c667e80c745f738898924acac9e7f20a26381",
+        "feeRateBps": 200,
+        "categorySlug": "will-trump-acquire-greenland-before-2027"
+      },
+      "polymarket": {
+        "question": "Will Trump acquire Greenland before 2027?",
+        "conditionId": "0xd595eb9b81885ff018738300c79047e3ec89e87294424f57a29a7fa9162bf116",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 521,
+        "title": "Will the FED change the interest rates in January?",
+        "question": "Will the FED change the interest rates in January?",
+        "conditionId": "0x425b8b8b6c0fabfc51b43a55902d190459b2a53addff94227029af2f75dab7dc",
+        "feeRateBps": 200,
+        "categorySlug": "will-fed-change-interest-rates-jan-2026"
+      },
+      "polymarket": {
+        "question": "No change in Fed interest rates after January 2026 meeting?",
+        "conditionId": "0xe93c89c41d1bb08d3bb40066d8565df301a696563b2542256e6e8bbbb1ec490d",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      },
+      "inverted": true,
+      "invertedReason": "Predict问'会变吗'，Polymarket问'不会变吗'，方向相反"
+    },
+    {
+      "predict": {
+        "id": 881,
+        "title": "$700M",
+        "question": "Metamask FDV above $700M one day after launch?",
+        "conditionId": "0xb141376cf196905292c1844321b840cb45a71d22742dd8d1a8901d4f47108a13",
+        "feeRateBps": 200,
+        "categorySlug": "metamask-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Metamask FDV above $700M one day after launch?",
+        "conditionId": "0x1c842b91d226266fbe0e55d9bce9c52ce48b825d069e039c24d7fe57a5be6eaa",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 882,
+        "title": "$1B",
+        "question": "Metamask FDV above $1B one day after launch?",
+        "conditionId": "0x0b99f3a94ba82e7d58a58905d8da7a043a248698bb2dafe5a0af36a4de2825e9",
+        "feeRateBps": 200,
+        "categorySlug": "metamask-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Metamask FDV above $1B one day after launch?",
+        "conditionId": "0xb0dafd2efe994270384d6265f1c62dbfe10880bba15dfda68974898617b5cee8",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 883,
+        "title": "$3B",
+        "question": "Metamask FDV above $3B one day after launch?",
+        "conditionId": "0x8022d297e5e1e308863acb4acc7d972812401e217a3f4c9ef2f44e4381ae9bdd",
+        "feeRateBps": 200,
+        "categorySlug": "metamask-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Metamask FDV above $3B one day after launch?",
+        "conditionId": "0xb326b78f905b8ff9a1764d42ef3c46bd61b78c9e32a53607ab7245a2da456291",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 884,
+        "title": "$2B",
+        "question": "Metamask FDV above $2B one day after launch?",
+        "conditionId": "0x5c68468988d1d21da049aa46b2613ec12682c07f5e6a5d1145b8d8fc56c66d60",
+        "feeRateBps": 200,
+        "categorySlug": "metamask-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Metamask FDV above $2B one day after launch?",
+        "conditionId": "0x77399fdf6c5097661705ee1fcf8ad615721ea5dd695871dcae2c9eb192a3d75b",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 885,
+        "title": "$4B",
+        "question": "Metamask FDV above $4B one day after launch?",
+        "conditionId": "0x2d1e5e7c719035f6797ad936c84039cc8badb3922d3510812088d306c1219b93",
+        "feeRateBps": 200,
+        "categorySlug": "metamask-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Metamask FDV above $4B one day after launch?",
+        "conditionId": "0xd450db2ea773df8f91797d594b15333d8e9ed2d74930ac0ffb54c123f78e3d0f",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 888,
+        "title": "$1B",
+        "question": "EdgeX FDV above $1B one day after launch?",
+        "conditionId": "0x4c8fd63f0a7ebbc79ee0afac13b0eee530f8d0abaf3f8f6d4c0b2ec59c444d6e",
+        "feeRateBps": 200,
+        "categorySlug": "edgex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "EdgeX FDV above $1B one day after launch?",
+        "conditionId": "0xd98bd71f9e730990d3737e8bcd6c1b5cad3c4975ae359c031fea49ccff228521",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 889,
+        "title": "$2B",
+        "question": "EdgeX FDV above $2B one day after launch?",
+        "conditionId": "0x9d679cf77a5a174e91521baa29a17d179dc98da730ed100088d63507c0270391",
+        "feeRateBps": 200,
+        "categorySlug": "edgex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "EdgeX FDV above $2B one day after launch?",
+        "conditionId": "0xcad388a016c4ccb9a4bc07549f802d60675d9a5ebb7b0e221cf2efef5f067e16",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 890,
+        "title": "$3B",
+        "question": "EdgeX FDV above $3B one day after launch?",
+        "conditionId": "0x25227d1d5c0db7afef573b12e1964c0d82a6a6ea3fd4a1bb871aa95430082f87",
+        "feeRateBps": 200,
+        "categorySlug": "edgex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "EdgeX FDV above $3B one day after launch?",
+        "conditionId": "0x9a4f3b45ed3186f0335f18a8b2237f65362948c51518b3ef4bcf00bca8e1e4cc",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 891,
+        "title": "$4B",
+        "question": "EdgeX FDV above $4B one day after launch?",
+        "conditionId": "0x0c09bb618353407371e7fd63dc688fb09a64b72dda500f5a3c9d48e65bb867b5",
+        "feeRateBps": 200,
+        "categorySlug": "edgex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "EdgeX FDV above $4B one day after launch?",
+        "conditionId": "0x4e16c5196f59f08fad56fea688a65daeba2e5be79b7c04acd56ca7395cdb0885",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 892,
+        "title": "$5B",
+        "question": "EdgeX FDV above $5B one day after launch?",
+        "conditionId": "0x84d60e6d4930ed6b5724577b02a7ff7570c8b41c6600f2c5a91339a15ff16359",
+        "feeRateBps": 200,
+        "categorySlug": "edgex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "EdgeX FDV above $5B one day after launch?",
+        "conditionId": "0x31936cd8f2b33f012e2c6b39815a0bd2d7aa28a05268ea03bd7bb564e7d9dd1d",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 895,
+        "title": "$10B",
+        "question": "EdgeX FDV above $10B one day after launch?",
+        "conditionId": "0x24277ec2ed63aa8d5ed0c4c5706164322fccf5aec3cb0a654110a59e83b5833e",
+        "feeRateBps": 200,
+        "categorySlug": "edgex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "EdgeX FDV above $10B one day after launch?",
+        "conditionId": "0x72953c956e8f1b4f51d4fe3414dd4cb2fdda1ad7f763fa5440c6b81cb2dca3b5",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 896,
+        "title": "$1B",
+        "question": "Opensea FDV above $1B one day after launch?",
+        "conditionId": "0x0050bb6112aaccb48e84066fc2fc7a5cc7085812bf43726bafefc2752c2d3b39",
+        "feeRateBps": 200,
+        "categorySlug": "opensea-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Opensea FDV above $1B one day after launch?",
+        "conditionId": "0xe67c947bf8eeb8dffdeea19806cf266fe65f6d20f3e5bbf5135e11e544fe9b7f",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 897,
+        "title": "$500M",
+        "question": "Opensea FDV above $500M one day after launch?",
+        "conditionId": "0x563160cbf8f598340d1cd0bf1c94065c21fd9c4365646a4e62b964bec9fa8964",
+        "feeRateBps": 200,
+        "categorySlug": "opensea-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Opensea FDV above $500M one day after launch?",
+        "conditionId": "0xa0192d11031455f486dd13d43438c815e5ba135e2595039991a7d09a6b438989",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 898,
+        "title": "$3B",
+        "question": "Opensea FDV above $3B one day after launch?",
+        "conditionId": "0x1d160a52f3f3001c9b4fa4b08128aef154f225eb889733e2e7c5e5692609760f",
+        "feeRateBps": 200,
+        "categorySlug": "opensea-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Opensea FDV above $3B one day after launch?",
+        "conditionId": "0xa75027ddbd883169b0fef4779c912106fe9460536240a1d613d175f04b75ca25",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 899,
+        "title": "$5B",
+        "question": "Opensea FDV above $5B one day after launch?",
+        "conditionId": "0x7a4f8362717f5b5f0f0f715b6cebdb40fb2d7320c09b657255f216eed92b07c4",
+        "feeRateBps": 200,
+        "categorySlug": "opensea-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Opensea FDV above $5B one day after launch?",
+        "conditionId": "0xc20be6636f316125da44ca53f6631cc00086e9fba8e1ad8d9012ae20ee7006a8",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 900,
+        "title": "$2B",
+        "question": "Opensea FDV above $2B one day after launch?",
+        "conditionId": "0x14319ee9896b4058ae8d9b7ad2dd69b5724d9205febf243c238ca10c3873f9b4",
+        "feeRateBps": 200,
+        "categorySlug": "opensea-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Opensea FDV above $2B one day after launch?",
+        "conditionId": "0xb8a8833f60836f1a4860727dfebed0cb0fc59a6f9cd22ec840a2e7f6a7dbb2a3",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 917,
+        "title": "$800M",
+        "question": "Infinex FDV above $800M one day after launch?",
+        "conditionId": "0xbf32f8931e7ce36b796e6577f9e670175e55cbb959d51e36f306b387c93b5775",
+        "feeRateBps": 200,
+        "categorySlug": "infinex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Infinex FDV above $800M one day after launch?",
+        "conditionId": "0x9a8cf6f288f7a6213131c7aaa27699f541e9ac7705a1dbaead8797e21fa2118a",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 918,
+        "title": "$600M",
+        "question": "Infinex FDV above $600M one day after launch?",
+        "conditionId": "0xac6de3f51bafabdb8ca3fa2b7ac571c69789efa5ee55d920604a19a6623f6e2c",
+        "feeRateBps": 200,
+        "categorySlug": "infinex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Infinex FDV above $600M one day after launch?",
+        "conditionId": "0x1617b54eb8483b5f38244998dec36d5cd6ad82c5c0dc327695892ce47e57b953",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 919,
+        "title": "$400M",
+        "question": "Infinex FDV above $400M one day after launch?",
+        "conditionId": "0x006d236cef9ce6bcedc34fb56fb07ba750cc7edc17ce172528fd79a4a716d70e",
+        "feeRateBps": 200,
+        "categorySlug": "infinex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Infinex FDV above $400M one day after launch?",
+        "conditionId": "0xac66fd2f1f2a16d975d65644a41d96eba433c2f12bca3dc08053bbbff8b27982",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 920,
+        "title": "$1B",
+        "question": "Infinex FDV above $1B one day after launch?",
+        "conditionId": "0xdfad113ef848c808d9bf57deb51e9e308e320bdd362d12dcfcec05115c9642c3",
+        "feeRateBps": 200,
+        "categorySlug": "infinex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Infinex FDV above $1B one day after launch?",
+        "conditionId": "0x0ccba0adfa651ec05f16de548313125377c73cc19c2d5b5dc6d1a69823e59fd3",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 921,
+        "title": "$5B",
+        "question": "Infinex FDV above $5B one day after launch?",
+        "conditionId": "0xf25513b02a6d9d60a24733658644a42eff623716269d75fd23b8a6e1d53007ce",
+        "feeRateBps": 200,
+        "categorySlug": "infinex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Infinex FDV above $5B one day after launch?",
+        "conditionId": "0xde14c2fce0ccd8510e7ef7878efbd153b7187a317d0d903b29047458ef1436fe",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 922,
+        "title": "$2B",
+        "question": "Infinex FDV above $2B one day after launch?",
+        "conditionId": "0xcef40ec376bc85fe1dfcb5b92658f389b7ed673876611af934e2cb2d4aab5f00",
+        "feeRateBps": 200,
+        "categorySlug": "infinex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Infinex FDV above $2B one day after launch?",
+        "conditionId": "0x5fb43cdb00c936a1da513bff69876508d1caf4c997c565938a4bd45c4b929c97",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 923,
+        "title": "$3B",
+        "question": "Infinex FDV above $3B one day after launch?",
+        "conditionId": "0x137dbfbda871cd63aa6dc79fd6dc9e7c2a004199c36406027f23a4b58e06ec59",
+        "feeRateBps": 200,
+        "categorySlug": "infinex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Infinex FDV above $3B one day after launch?",
+        "conditionId": "0x32bad07af523809ce5e7e8b62caf1e286545c8806921c139d9c3239d5081e0b9",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 924,
+        "title": "$4B",
+        "question": "Infinex FDV above $4B one day after launch?",
+        "conditionId": "0x200ff769304d68f564772644faa946365b0cc8dbc41955c68ac69fb4e1a28ab2",
+        "feeRateBps": 200,
+        "categorySlug": "infinex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Infinex FDV above $4B one day after launch?",
+        "conditionId": "0xa5a2eb13d54773b52571aa450299107b792463b3d6575eb1fa7ec241ed96c855",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 925,
+        "title": "$200M",
+        "question": "Infinex FDV above $200M one day after launch?",
+        "conditionId": "0xdedbaa9c6b847d5d95ca73e47c6fde0312fdf3ce21a23af6fc6b16234c22eb6e",
+        "feeRateBps": 200,
+        "categorySlug": "infinex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Infinex FDV above $200M one day after launch?",
+        "conditionId": "0xa2c5350ac1e7adb1433e22f3f768f5d44b98307004b145650ff1cbfea971c07c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 926,
+        "title": "$300M",
+        "question": "Infinex FDV above $300M one day after launch?",
+        "conditionId": "0x0fea168c75097e5d1d020a5259fdf1635deade7a34a16db36dc111ab880d654a",
+        "feeRateBps": 200,
+        "categorySlug": "infinex-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Infinex FDV above $300M one day after launch?",
+        "conditionId": "0x0a1c25ab0bf2a68a3a4318a224b9f906af372d45626636350a2b7e79717cc9e6",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 928,
+        "title": "June 30, 2026",
+        "question": "Will MetaMask launch a token by June 30, 2026?",
+        "conditionId": "0x27507b46b8bf9cda237d89161d847338b4f333aab10a5c950299980511b651f2",
+        "feeRateBps": 200,
+        "categorySlug": "will-metamask-launch-a-token-in-2025"
+      },
+      "polymarket": {
+        "question": "Will MetaMask launch a token by June 30?",
+        "conditionId": "0x44878f202dd18a286de9235acec372e9e6e6ca2b28d269c4138fc2604c9b78a9",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 929,
+        "title": "September 30, 2026?",
+        "question": "Will MetaMask launch a token by September 30, 2026?",
+        "conditionId": "0x3a87e2ef878603a3b956e071bf12d05cc71f6edf8a2fbe26bcc74b4918231a9f",
+        "feeRateBps": 200,
+        "categorySlug": "will-metamask-launch-a-token-in-2025"
+      },
+      "polymarket": {
+        "question": "Will MetaMask launch a token by September 30, 2026?",
+        "conditionId": "0x404da036e872fe1c9bdb2176564502a43f12831ddcc346395aca3146f9e71bdc",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 933,
+        "title": "December 31, 2026",
+        "question": "Will Base launch a token by December 31, 2026?",
+        "conditionId": "0x5cd6c72b6cc6b1c7e50044536deedf55b60a592f377da9adf8e1bcfc281b81b4",
+        "feeRateBps": 200,
+        "categorySlug": "will-base-launch-a-token-in-2026"
+      },
+      "polymarket": {
+        "question": "Will Base launch a token by December 31, 2026?",
+        "conditionId": "0x1a659ad303630472713278ed1f3d6489eaaaa0171098dba04df2793dfc16a302",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 934,
+        "title": "June 30, 2026",
+        "question": "Will Base launch a token by June 30, 2026?",
+        "conditionId": "0x82673b016013e46814bba7b6da5ee2140eea753d254bd1388aa9335eb069efe9",
+        "feeRateBps": 200,
+        "categorySlug": "will-base-launch-a-token-in-2026"
+      },
+      "polymarket": {
+        "question": "Will Base launch a token by June 30, 2026?",
+        "conditionId": "0x9873d0448faebb53d0040a958b40bfd17960f57a164f69a36f2f400e945c36c1",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 940,
+        "title": ">$6B",
+        "question": "MegaETH market cap (FDV) >$6B one day after launch?",
+        "conditionId": "0xf8a8eb990b44eec0714da239b8b8ac88ad1e21e97c615b7eab32a21b926ba0f2",
+        "feeRateBps": 200,
+        "categorySlug": "megaeth-market-cap-fdv-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "MegaETH market cap (FDV) >$6B one day after launch?",
+        "conditionId": "0xdb68062324c27327e9cd4b21b1dd0deadbc4b860abb8c076b9ba3ed4652ced13",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 941,
+        "title": ">$2B",
+        "question": "MegaETH market cap (FDV) >$2B one day after launch?",
+        "conditionId": "0xd6e13abc787dd1362f27f1a0c469c85988565b418eae4f4520a4db99e422a906",
+        "feeRateBps": 200,
+        "categorySlug": "megaeth-market-cap-fdv-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "MegaETH market cap (FDV) >$2B one day after launch?",
+        "conditionId": "0xfc6260666d020a912a87d9000eff5116d2adfb8c30aba543427a4c1f1411f1a0",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 942,
+        "title": ">$4B",
+        "question": "MegaETH market cap (FDV) >$4B one day after launch?",
+        "conditionId": "0xb0c59410747752e50ac489711274eaaba5c915e884410625ac1753e1c8356611",
+        "feeRateBps": 200,
+        "categorySlug": "megaeth-market-cap-fdv-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "MegaETH market cap (FDV) >$4B one day after launch?",
+        "conditionId": "0xb2abfc4e48334d87681240cd6a7e63c728e13973fbd68951b45bc86d6c4491e4",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 944,
+        "title": ">$3B",
+        "question": "MegaETH market cap (FDV) >$3B one day after launch?",
+        "conditionId": "0x8feeb526883ce75145f1bb0c66602acd70fa5fafba849d8ba480c47c4b6e4373",
+        "feeRateBps": 200,
+        "categorySlug": "megaeth-market-cap-fdv-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "MegaETH market cap (FDV) >$3B one day after launch?",
+        "conditionId": "0x2307312887c6de01a9f55b7b7afc7c4a0be8718d7d868280e7d898f0ea54f740",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 947,
+        "title": ">$1B",
+        "question": "MegaETH market cap (FDV) >$1B one day after launch?",
+        "conditionId": "0x306da53250f5ebd459fc5d833f0d9490717a9b1dd624d6233adfe4294b896edb",
+        "feeRateBps": 200,
+        "categorySlug": "megaeth-market-cap-fdv-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "MegaETH market cap (FDV) >$1B one day after launch?",
+        "conditionId": "0x940f01421649348b09dbf72bfd90788b9513ee56d9a0e7532c45ecda1ecfc6b4",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1185,
+        "title": ">700k",
+        "question": "Will the Logan Paul 1st Edition Charizard sale price be over 700k?",
+        "conditionId": "0x35aef1bf1996a95704c9bbbd97f83cbdfb19603937570fbee7186976d57298b6",
+        "feeRateBps": 200,
+        "categorySlug": "logan-paul-1st-edition-charizard-sale-price-above-700k"
+      },
+      "polymarket": {
+        "question": "Will the Logan Paul 1st Edition Charizard sale price be over 700k?",
+        "conditionId": "0x1597a8e275ae13b3be4a1875362a44056bdd5a0b72ca4d830587594c5f21c3c5",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1186,
+        "title": "Will NVIDIA be the largest company in the world by market cap on January 31?",
+        "question": "Will NVIDIA be the largest company in the world by market cap on January 31?",
+        "conditionId": "0x37faf26de6f17dc9ca6a075e17a0772759cad0b3c355fb239dc1157e1ab36841",
+        "feeRateBps": 200,
+        "categorySlug": "nvidia-largest-company-end-of-january-2026"
+      },
+      "polymarket": {
+        "question": "Will NVIDIA be the largest company in the world by market cap on January 31?",
+        "conditionId": "0xe9ec9b9d878c85fd70038f711c85b81a576e4806708a70cea06f1476cd7d46bb",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1187,
+        "title": "Will One Battle After Another win Best Picture at the 98th Academy Awards?",
+        "question": "Will One Battle After Another win Best Picture at the 98th Academy Awards?",
+        "conditionId": "0xbad3086f1d474125a1df9198b1d56861b88ba9b46e6563732698f8a63af12181",
+        "feeRateBps": 200,
+        "categorySlug": "will-one-battle-after-another-win-oscars-2026-best-picture"
+      },
+      "polymarket": {
+        "question": "Will One Battle After Another win Best Picture at the 98th Academy Awards?",
+        "conditionId": "0x66af911f31ceabb5f9a3ef9203a73f0b23d18aa81bbba7888dec440c622c2528",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1189,
+        "title": "Indiana",
+        "question": "Will Indiana win the 2026 College Football National Championship?",
+        "conditionId": "0x2997e321308e787e17d53d12205f5c00febde59476a657029c92c46825d096ce",
+        "feeRateBps": 200,
+        "categorySlug": "college-football-champion-2026-684"
+      },
+      "polymarket": {
+        "question": "Will Indiana win the 2026 College Football National Championship?",
+        "conditionId": "0x99e1c58ebdd14da444867ce78b5bb13cf6fe2bd4ba25ee00e57d7db99b28748e",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1191,
+        "title": "Miami Florida",
+        "question": "Will Miami Florida win the 2026 College Football National Championship?",
+        "conditionId": "0xe1e2301af8b80d34d5b5a2ae75f24def459294fed3a44f1788dcd3befdbc7e56",
+        "feeRateBps": 200,
+        "categorySlug": "college-football-champion-2026-684"
+      },
+      "polymarket": {
+        "question": "Will Miami Florida win the 2026 College Football National Championship?",
+        "conditionId": "0x4e8b910990520355535128f2a7e589f5020140abde3800e14053b6a83a4f05a5",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1344,
+        "title": "$200M",
+        "question": "Based FDV above $200M one day after launch?",
+        "conditionId": "0x2f024698bd34462d9dbf3085047e690855de8df03dcb53d708c5d25da7ce4e9b",
+        "feeRateBps": 200,
+        "categorySlug": "based-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Based FDV above $200M one day after launch?",
+        "conditionId": "0x7a1ddff73911c5fdca4f5e70704894c6615739b13c2733e84fff6c2118fbce66",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1345,
+        "title": "$300M",
+        "question": "Based FDV above $300M one day after launch?",
+        "conditionId": "0xae27425ce95cf379cf7a1a2a6dd1747c12f52902e135f684d2406be0a6b458fe",
+        "feeRateBps": 200,
+        "categorySlug": "based-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Based FDV above $300M one day after launch?",
+        "conditionId": "0x2cde05f9ccf7986b8ff404d74dfdc7d026792f6ae18a8438c8af714b19269802",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1346,
+        "title": "$500M",
+        "question": "Based FDV above $500M one day after launch?",
+        "conditionId": "0x364c66cad9c26e0b0fe6240f2d53934bd351a5ed3cd4c0b460efcdb78d59be9b",
+        "feeRateBps": 200,
+        "categorySlug": "based-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Based FDV above $500M one day after launch?",
+        "conditionId": "0xcc5494faf5ceca60a77a46db255b8c8e30b1bcc7d94d9138f5d4e945bba1ad34",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1347,
+        "title": "$800M",
+        "question": "Based FDV above $800M one day after launch?",
+        "conditionId": "0xe5e760f0a44f47c073c53b51b0ef84030d5e6974deb3bce2e255ef2a878ac306",
+        "feeRateBps": 200,
+        "categorySlug": "based-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Based FDV above $800M one day after launch?",
+        "conditionId": "0x627a5b10e35c114cd0ee6b84a5843dc0317e36f7cf8f040cf6423eb9abadb76f",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1348,
+        "title": "$1B",
+        "question": "Based FDV above $1B one day after launch?",
+        "conditionId": "0xd75f47a9f0a4a5fb67430183b9887c64234250fcf22845093c63663302c2b952",
+        "feeRateBps": 200,
+        "categorySlug": "based-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Based FDV above $1B one day after launch?",
+        "conditionId": "0x2c3d236be3f096da263e01776507293adb7374339df0a964dca27192699af6d9",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1349,
+        "title": "$2B",
+        "question": "Based FDV above $2B one day after launch?",
+        "conditionId": "0x8c1662268042272ed60bedb1c98f2468e281b12afa46375b0cb54c82f4c89d23",
+        "feeRateBps": 200,
+        "categorySlug": "based-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Based FDV above $2B one day after launch?",
+        "conditionId": "0x0e837c6b228025de921a75905c23694016d53def069debbbc3481ff9e07bee73",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1350,
+        "title": "$3B",
+        "question": "Based FDV above $3B one day after launch?",
+        "conditionId": "0xe698c1a45fc39428bee91f4b4d6b933ab5d64e0b1b41cf478c18ecaefc0cb860",
+        "feeRateBps": 200,
+        "categorySlug": "based-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Based FDV above $3B one day after launch?",
+        "conditionId": "0xc2150b8d0f7160c0d86a4133b71cba73f5c21b12b8a96a146ac735bb9f46acfa",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1351,
+        "title": "$4B",
+        "question": "Based FDV above $4B one day after launch?",
+        "conditionId": "0x68ba338649d51d7fd1158923bf57f785f54cc0044e4d480811a65d2290c471c3",
+        "feeRateBps": 200,
+        "categorySlug": "based-fdv-above-one-day-after-launch"
+      },
+      "polymarket": {
+        "question": "Based FDV above $4B one day after launch?",
+        "conditionId": "0xdcb0fa9f2e68d114761e2fe56acba9e05e60bc56d514f9690d2fe667dedb253e",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1518,
+        "title": "Spain",
+        "question": "Will Spain win the 2026 FIFA World Cup?",
+        "conditionId": "0x23bb49f0d8c673c4714508de9cf3eaaa5d80fb7adf05c692bdc4bf99a62b848b",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Spain win the 2026 FIFA World Cup?",
+        "conditionId": "0x7976b8dbacf9077eb1453a62bcefd6ab2df199acd28aad276ff0d920d6992892",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1519,
+        "title": "England",
+        "question": "Will England win the 2026 FIFA World Cup?",
+        "conditionId": "0xd8386760f1d6eab18fa21b4dd73032add40d6606382004186838aa1b29a9055e",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will England win the 2026 FIFA World Cup?",
+        "conditionId": "0x375409bc5eeeff961e82b479caeccc20f33d15738e5bce1186d628aa3d9dfb1f",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1520,
+        "title": "France",
+        "question": "Will France win the 2026 FIFA World Cup?",
+        "conditionId": "0x2c8dbc93100a6479371b3c21bba7462b7c4ad3851d4586d9a3a69894b6ab6a2d",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will France win the 2026 FIFA World Cup?",
+        "conditionId": "0x9b6fef249040fd17e9c107955b37ac2c3e923509b6b0ff01cc463a331ddeb894",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1521,
+        "title": "Argentina",
+        "question": "Will Argentina win the 2026 FIFA World Cup?",
+        "conditionId": "0x71db2e798aa859c371827c9699d188588802d68f679dc25d28961bfdfab7851c",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Argentina win the 2026 FIFA World Cup?",
+        "conditionId": "0x0c4cd2055d6ea89354ffddc55d6dbcef9355748112ea952fc925f3db6a5c457f",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1522,
+        "title": "Brazil",
+        "question": "Will Brazil win the 2026 FIFA World Cup?",
+        "conditionId": "0x7dd2b4f3506d3261edd4eaa68b2e92714b79ed1e1300c60a5476981fcce4f8ae",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Brazil win the 2026 FIFA World Cup?",
+        "conditionId": "0x30d55d8124ee1e12dabe89201badc45669b81dff69e4ce44d961f32878ec178a",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1523,
+        "title": "Portugal",
+        "question": "Will Portugal win the 2026 FIFA World Cup?",
+        "conditionId": "0x5d10b9746e932f11db629b86929582fcdbfe906f20c558ef4831140c62820c76",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Portugal win the 2026 FIFA World Cup?",
+        "conditionId": "0x4f3421fb2daf5cca7430ed8d8132463963081572d75434393a1808fdb8829fe8",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1524,
+        "title": "Germany",
+        "question": "Will Germany win the 2026 FIFA World Cup?",
+        "conditionId": "0x625eebf656629f704a9cd17c20c42a4b0466424f1466f72b9e8ee951e0cf8584",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Germany win the 2026 FIFA World Cup?",
+        "conditionId": "0x1595b4818eeb1ea1e0bec5de6f057218e557feee9b405a0e930d290384fa1d16",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1525,
+        "title": "Netherlands",
+        "question": "Will Netherlands win the 2026 FIFA World Cup?",
+        "conditionId": "0xf853c95c60b75f89c385ff6dc55379060df49b16260d4e7da359891c2f9f0c0f",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Netherlands win the 2026 FIFA World Cup?",
+        "conditionId": "0x9be56371f6a29d12769b2f196847ee825b9585ebb8bfa042136be031b081eba1",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1526,
+        "title": "Norway",
+        "question": "Will Norway win the 2026 FIFA World Cup?",
+        "conditionId": "0x73ec36b36577ee44c990a8bc4dd84cb31a626cebfa8ce45b553179de410851f9",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Norway win the 2026 FIFA World Cup?",
+        "conditionId": "0x7b52405ad0e0d31bfe970940b67d77f24ecedeab8a2361c11148c02a006e325c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1527,
+        "title": "Italy",
+        "question": "Will Italy win the 2026 FIFA World Cup?",
+        "conditionId": "0xfb57111d6f568f1bb0d69c0f6917a8278318cdc669673e834a47c11ec5147924",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Italy win the 2026 FIFA World Cup?",
+        "conditionId": "0xc7c21c8972c773b34f36f67f15dada2584474d959f7e338aca5994727d37ae39",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1528,
+        "title": "Belgium",
+        "question": "Will Belgium win the 2026 FIFA World Cup?",
+        "conditionId": "0x80cd1917202fad073059489f7f69e20e5bc303e893564ddd29374cc17dc2728c",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Belgium win the 2026 FIFA World Cup?",
+        "conditionId": "0x32cfa52198e85e070d1b17d1b53c5c3a6aaae7736cdc33fa6aa04d353f0c2811",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1529,
+        "title": "USA",
+        "question": "Will USA win the 2026 FIFA World Cup?",
+        "conditionId": "0xee1d5d50dd6d8c5e0d415f86bae91a80200d6d4a031dafc6c02731f2a013d84b",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will USA win the 2026 FIFA World Cup?",
+        "conditionId": "0xcdb1f0400949238a63d3e88243d2ada08cd9c2a71985ced9f0cfd5e66354cf90",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1530,
+        "title": "Morocco",
+        "question": "Will Morocco win the 2026 FIFA World Cup?",
+        "conditionId": "0xbd414c3236c179fa5585b5b1462da619a0fba4056a50ae8042ba427500d9ce6e",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Morocco win the 2026 FIFA World Cup?",
+        "conditionId": "0x37a6de1b21803e5f3fb1965116218215d79963af4f7e51659696366267a63a03",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1531,
+        "title": "Colombia",
+        "question": "Will Colombia win the 2026 FIFA World Cup?",
+        "conditionId": "0x3575cf2344565aefcbb65544e0227b75799b923b799f4ab48ccbcaa36128ddf1",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Colombia win the 2026 FIFA World Cup?",
+        "conditionId": "0xe99cc59f32b10d23acf196d1a0e8264ea30fca198428acadd3464b06ff60e771",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1532,
+        "title": "Japan",
+        "question": "Will Japan win the 2026 FIFA World Cup?",
+        "conditionId": "0x23900d23fbe5024735d3055749b9848ab277411eb1e5426ba2161c156ff7ece2",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Japan win the 2026 FIFA World Cup?",
+        "conditionId": "0x0189df05ed7bf84d799213b01a79571e305c03b2ac5359cfbb3a323448ba20fa",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1533,
+        "title": "Uruguay",
+        "question": "Will Uruguay win the 2026 FIFA World Cup?",
+        "conditionId": "0x5d5c8d71a829e1ace75548afcaaaad0e18f0fd32f9b7978b0b9ac8a9258d1a47",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Uruguay win the 2026 FIFA World Cup?",
+        "conditionId": "0x7876851632c295043c66536150a304cb785abdf712ba8489d298c6e6926be106",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1534,
+        "title": "Croatia",
+        "question": "Will Croatia win the 2026 FIFA World Cup?",
+        "conditionId": "0xf5665d55d29aa3f8a12fcda397e67f7a7e82b30f86635b19029103e7a2b0489e",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Croatia win the 2026 FIFA World Cup?",
+        "conditionId": "0xe5bd80313b8859e3f5761568ac9498866ea9d4419e4d1b6a877a9a9bd2754cb4",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1535,
+        "title": "Mexico",
+        "question": "Will Mexico win the 2026 FIFA World Cup?",
+        "conditionId": "0xa4de738fe8543da9d730500d312ee1468d43d6f7da37b620decb9d9c05081813",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Mexico win the 2026 FIFA World Cup?",
+        "conditionId": "0x5ccfe1b69a582d2985db08a8481a0d74c314b1fce9b4711ae2efb2c6467fe6aa",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1536,
+        "title": "Switzerland",
+        "question": "Will Switzerland win the 2026 FIFA World Cup?",
+        "conditionId": "0xc15a92b79b425b26d773d98fe994487a8c97e30d8bb0391ea2164beddefc981b",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Switzerland win the 2026 FIFA World Cup?",
+        "conditionId": "0x3a26ca6425e2d98f14935670bc22cdb0744defc6f6d83c65f8c413a921c5c70c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1537,
+        "title": "Ecuador",
+        "question": "Will Ecuador win the 2026 FIFA World Cup?",
+        "conditionId": "0x8a86e2eb8b4bf7f5750650a485c5f9dbc9be6a6f3b940aaed5a385741e88ef0c",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Ecuador win the 2026 FIFA World Cup?",
+        "conditionId": "0xbaf7780f9059e34b84301fd411f8dc573b4d56adfe6e0cda33daf304b1438da4",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1538,
+        "title": "Senegal",
+        "question": "Will Senegal win the 2026 FIFA World Cup?",
+        "conditionId": "0x4ec3b9d91cbe9c1c79b1caab529dd61fde883ad670dde168d571d4a9f3334414",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Senegal win the 2026 FIFA World Cup?",
+        "conditionId": "0x6972edb1b3f8cd8192651a665fc424dff846efe1c4a2376f628d4b20c704144c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1539,
+        "title": "Australia",
+        "question": "Will Australia win the 2026 FIFA World Cup?",
+        "conditionId": "0x0052fb1e302ba425d07302cfbd0d6f63104ba1c5e531822620de98ac51fd55d8",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Australia win the 2026 FIFA World Cup?",
+        "conditionId": "0x098e2be3df8ab529940c567819f8ef007cf007820e9d627642a5bbfaa42af372",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1540,
+        "title": "Canada",
+        "question": "Will Canada win the 2026 FIFA World Cup?",
+        "conditionId": "0x9b3aa0db228f4f006883eee2cd57fa4dd6864267cfe094da93d392c45e283b88",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Canada win the 2026 FIFA World Cup?",
+        "conditionId": "0x67443cb1ffb2bf180f7df5b6ca7adff63f7e8e933c7e41405ba118f3e9f8befb",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1541,
+        "title": "Scotland",
+        "question": "Will Scotland win the 2026 FIFA World Cup?",
+        "conditionId": "0x2f158f07a8f2d2c127d9dc0588f2eb10a5c2e6c240dcd163984ad5b06dc56e5e",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Scotland win the 2026 FIFA World Cup?",
+        "conditionId": "0xf950740bc71136155d6525cc0528a582c81f88812bff227803190c32ca25f54d",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1542,
+        "title": "South Korea",
+        "question": "Will South Korea win the 2026 FIFA World Cup?",
+        "conditionId": "0x2f07ad90a1b026a2472e950c6bd9f27014265dbe949f464323e5008c9f8c5267",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will South Korea win the 2026 FIFA World Cup?",
+        "conditionId": "0x65307f30dce84ac35e41813035d3c04933da830dc4efbbb2fcdc4b282700ef3b",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1543,
+        "title": "Paraguay",
+        "question": "Will Paraguay win the 2026 FIFA World Cup?",
+        "conditionId": "0x28bb4bbc733fce08238cbab26c1b23fc086f0254b33de815221a6c48f95dee87",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Paraguay win the 2026 FIFA World Cup?",
+        "conditionId": "0x675bba4df50fd123f7fbfbafa67e9b75f4092d85ce0f9148ce78fc945964c856",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1544,
+        "title": "Ivory Coast",
+        "question": "Will Ivory Coast win the 2026 FIFA World Cup?",
+        "conditionId": "0x651f031e544d51d8daee71f31f81d929d53e36d35c4827621603cb96d637e39c",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Ivory Coast win the 2026 FIFA World Cup?",
+        "conditionId": "0x289568d555ec620ed6fa33c936c5f42649d3a2e30748a1daf7079f42453fbea4",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1545,
+        "title": "Egypt",
+        "question": "Will Egypt win the 2026 FIFA World Cup?",
+        "conditionId": "0x5ca3cb0a7d65331d262c6468ce219b54e06ea98d8d39b1fc28228c44b81ec9fa",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Egypt win the 2026 FIFA World Cup?",
+        "conditionId": "0x7412d284c8f63791fec807f9b1f61c6fe61163621775a3dc8686cd2575272abe",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1546,
+        "title": "Iran",
+        "question": "Will Iran win the 2026 FIFA World Cup?",
+        "conditionId": "0x6543b87d390f7cd1b45ed017338664f45b7698bff70a6c0e1783166ba17b83b9",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Iran win the 2026 FIFA World Cup?",
+        "conditionId": "0x84edef36bded182da6a395ac6c785dba8f3e09b6c5ad041385b2042536cbef25",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1547,
+        "title": "Ghana",
+        "question": "Will Ghana win the 2026 FIFA World Cup?",
+        "conditionId": "0x23a81270f6b804ff45123d26cb769633be9845b07f9e128780620a042e583525",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Ghana win the 2026 FIFA World Cup?",
+        "conditionId": "0x881a3ffa618b6ae0ab95a5637e310afb1afc2d99c921bfe3235b15eccfce0344",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1548,
+        "title": "Algeria",
+        "question": "Will Algeria win the 2026 FIFA World Cup?",
+        "conditionId": "0x616674045652823a69b2f534a3a65e282ed5fe14b6dcb73cf8c8162b41abbf43",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Algeria win the 2026 FIFA World Cup?",
+        "conditionId": "0x5a59d269c2b5108cd2f64c624e46ee2c8b5cfd88b882582565f927918315b6aa",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1549,
+        "title": "Tunisia",
+        "question": "Will Tunisia win the 2026 FIFA World Cup?",
+        "conditionId": "0x8460fe22849d4d403a7db1d32fb219ddb316e0901b2de5d8d4c8abfd056ac1c7",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Tunisia win the 2026 FIFA World Cup?",
+        "conditionId": "0xff0cfa9506cfa95759e4c7591654195bd26e3011f9882b51439135e04f2b69f1",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1550,
+        "title": "Austria",
+        "question": "Will Austria win the 2026 FIFA World Cup?",
+        "conditionId": "0x7290a36735e7de5bed2858340413ef696cd8eba2546a23432014ebecc05cf25f",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Austria win the 2026 FIFA World Cup?",
+        "conditionId": "0xfe230d510eaf545198c0d62bb17871e5fe8989f1b19aa54c0c062b858360987c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1551,
+        "title": "New Zealand",
+        "question": "Will New Zealand win the 2026 FIFA World Cup?",
+        "conditionId": "0x4a061d1d5ae4b79099e2db408e5dec7532f89384410ece278598b8e75b08c5dd",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will New Zealand win the 2026 FIFA World Cup?",
+        "conditionId": "0x9e5f9d8c384f8fe368b195fa9a780be58643dff7360588a4e577012df8af00a7",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1552,
+        "title": "Haiti",
+        "question": "Will Haiti win the 2026 FIFA World Cup?",
+        "conditionId": "0xaa647aec2e8d0db0436ddc29fd75c58d963531dbea8cf6eb91dacc1733ee939f",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Haiti win the 2026 FIFA World Cup?",
+        "conditionId": "0x506f80bcf76bc75e6b31a250e2d754f347c4c231665326931d58bdb339ba1913",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1553,
+        "title": "Jordan",
+        "question": "Will Jordan win the 2026 FIFA World Cup?",
+        "conditionId": "0x312a7aa6478347167b4c3b0eccebfd2f7d328a3905596eb2b5e1669b1a1647ea",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Jordan win the 2026 FIFA World Cup?",
+        "conditionId": "0x33a87d02fa01e958929385c74b8627d32cc4474e9ebd312d268865c5207147fa",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1554,
+        "title": "Curaçao",
+        "question": "Will Curaçao win the 2026 FIFA World Cup?",
+        "conditionId": "0xc463c8cb6981774218b24aa0a3446264ab4242ce59a77b8b227dbc53318e58f9",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Curaçao win the 2026 FIFA World Cup?",
+        "conditionId": "0xdb4b2f370c3d0e996fbb32213c87aa5402936e3d4882432b6738e2f5661b79a6",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1555,
+        "title": "Uzbekistan",
+        "question": "Will Uzbekistan win the 2026 FIFA World Cup?",
+        "conditionId": "0xd294d545508f2a23d0ded54fb9d7c66d971f6c167b5ebe835585e467e0ac49b1",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Uzbekistan win the 2026 FIFA World Cup?",
+        "conditionId": "0x965ebc5d79eb1ec02cad67245a44b9e45b33359018f013fb6cf81d5bbf7bcc8d",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1556,
+        "title": "South Africa",
+        "question": "Will South Africa win the 2026 FIFA World Cup?",
+        "conditionId": "0x74b161f6564909373199c64bbd8a2404be2c4c6e8683be8a18af93403ca8fbf7",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will South Africa win the 2026 FIFA World Cup?",
+        "conditionId": "0x233ce0c3969a5cd5079287f16fcd283be7c1db82263e08697f85dbe1b4d2113c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1557,
+        "title": "Cape Verde",
+        "question": "Will Cape Verde win the 2026 FIFA World Cup?",
+        "conditionId": "0xaaeedd6a68769f856d8c988150d88141b1173a617af85194d69b99d0e5e74e4d",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Cape Verde win the 2026 FIFA World Cup?",
+        "conditionId": "0x3bc69cb672591e4fcd2ef856b64b219a906e15d4601b50066ac81a446574dfaf",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1558,
+        "title": "Qatar",
+        "question": "Will Qatar win the 2026 FIFA World Cup?",
+        "conditionId": "0x6f0b8b33bead294bef6290eae9b54daefb929accd21351f8d94904fc8d7b1f4f",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Qatar win the 2026 FIFA World Cup?",
+        "conditionId": "0x4fe305a2ae995a52ff278895344895fe587b4fec3d5f04347b4dbf5e99bce99c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1559,
+        "title": "Saudi Arabia",
+        "question": "Will Saudi Arabia win the 2026 FIFA World Cup?",
+        "conditionId": "0xecfe4f0ed655a71770c332a4df40152a72626ea65f4b0d79d7005a062325b112",
+        "feeRateBps": 200,
+        "categorySlug": "2026-fifa-world-cup-winner"
+      },
+      "polymarket": {
+        "question": "Will Saudi Arabia win the 2026 FIFA World Cup?",
+        "conditionId": "0x3fb8a8de2ac275882d72b2c4f22d41776fcf033f9e413a77a84dd395c0d5257c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1761,
+        "title": "GTA 6 launch postponed again?",
+        "question": "GTA 6 launch postponed again?",
+        "conditionId": "0xf25f727a8f5b53253ad6246bd764421d24f20794a1db9676688b04b635997bea",
+        "feeRateBps": 200,
+        "categorySlug": "gta-6-launch-postponed-again"
+      },
+      "polymarket": {
+        "question": "GTA 6 launch postponed again?",
+        "conditionId": "0x652293940a98a7ec9b1d2b23fb9e8399728d1a461dce61523fa2fcce8d844e21",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1772,
+        "title": "First to 5k: Gold or ETH?",
+        "question": "First to 5k: Gold or ETH?",
+        "conditionId": "0x5bb669c1cdc73cd6875f18e824d2ac9b9ebec1e6968b4a7292665fc3e18c0517",
+        "feeRateBps": 200,
+        "categorySlug": "first-to-5k-by-july-gold-or-eth"
+      },
+      "polymarket": {
+        "question": "First to 5k: Gold or ETH?",
+        "conditionId": "0x1fbeca90a39253081b032a9990da1cb5b25573d4e213327b5b0f0c222b05be6a",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 1881,
+        "title": "Khamenei out as Supreme Leader of Iran by June 30?",
+        "question": "Khamenei out as Supreme Leader of Iran by June 30?",
+        "conditionId": "0xcf9480dc27a9bcc90ced76e1457b6280c1307829a51d82018191c6dcaf6b586f",
+        "feeRateBps": 200,
+        "categorySlug": "khamenei-out-as-supreme-leader-of-iran-by-june-30-747"
+      },
+      "polymarket": {
+        "question": "Khamenei out as Supreme Leader of Iran by June 30?",
+        "conditionId": "0x2e94bb8dd09931d12e6e656fe4fe6ceb3922bc3d6eab864bb6cd24773cf67269",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 2641,
+        "title": "Jannik Sinner",
+        "question": "Will Jannik Sinner win the 2026 Australian Open?",
+        "conditionId": "0x38d5e0bb3ddb4a495958b6945e9452c947d7a4ad843291dabbc4a9e7c0cc42ce",
+        "feeRateBps": 200,
+        "categorySlug": "2026-mens-australian-open-winner"
+      },
+      "polymarket": {
+        "question": "Will Jannik Sinner win the 2026 Australian Open?",
+        "conditionId": "0x62727c536b08c4a73edb786408542ccecc4a0cf9b0e14ce571b5d00d84e72e04",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 2642,
+        "title": "Carlos Alcaraz",
+        "question": "Will Carlos Alcaraz win the 2026 Australian Open?",
+        "conditionId": "0x510ec09ffad41e10606d19760c0bca7abb27613c8d34faacfc8382bd97018641",
+        "feeRateBps": 200,
+        "categorySlug": "2026-mens-australian-open-winner"
+      },
+      "polymarket": {
+        "question": "Will Carlos Alcaraz win the 2026 Australian Open?",
+        "conditionId": "0x5cdbb0026e902705c680c170f43489536cef50af77e1d4713b80e907b13a2a7c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 2643,
+        "title": "Novak Djokovic",
+        "question": "Will Novak Djokovic win the 2026 Australian Open?",
+        "conditionId": "0x0efb4e78326d94b520765535287bda7327836cc6d634ccd503dcd71c71d300c7",
+        "feeRateBps": 200,
+        "categorySlug": "2026-mens-australian-open-winner"
+      },
+      "polymarket": {
+        "question": "Will Novak Djokovic win the 2026 Australian Open?",
+        "conditionId": "0xd8f7008eee565f248e35fd9bd92a9bbe1bb7f39bdea0ac2ed567790e6a0c3dba",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 2644,
+        "title": "Daniil Medvedev",
+        "question": "Will Daniil Medvedev win the 2026 Australian Open?",
+        "conditionId": "0xb1df74eb2791bcbdbd268baba5f5e5ada78ce80bf6bb7b254db11905d127391e",
+        "feeRateBps": 200,
+        "categorySlug": "2026-mens-australian-open-winner"
+      },
+      "polymarket": {
+        "question": "Will Daniil Medvedev win the 2026 Australian Open?",
+        "conditionId": "0x8c5b274989a59e16059eb1598f437cc18f2c9c580857fecc7b206b51b37c2870",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 2645,
+        "title": "Alexander Zverev",
+        "question": "Will Alexander Zverev win the 2026 Australian Open?",
+        "conditionId": "0x6da7806e8a448788860213a2e22054007b656a2df90245595515382050a4e7be",
+        "feeRateBps": 200,
+        "categorySlug": "2026-mens-australian-open-winner"
+      },
+      "polymarket": {
+        "question": "Will Alexander Zverev win the 2026 Australian Open?",
+        "conditionId": "0x50dc3231849098f1e7494acb5883edbe311997ccc5f518adb1703ffacf63b7ed",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 2647,
+        "title": "Aryna Sabalenka",
+        "question": "Will Aryna Sabalenka win the 2026 Women's Australian Open?",
+        "conditionId": "0x7433f04c04eb8db828b309196fb2e42a5d4a662432fe50e3844291623fd09808",
+        "feeRateBps": 200,
+        "categorySlug": "2026-womens-australian-open-winner"
+      },
+      "polymarket": {
+        "question": "Will Aryna Sabalenka win the 2026 Women's Australian Open?",
+        "conditionId": "0x2882ee3e71a34722209d6c83c054922febda1e462d33d06c6293c19711b3daaf",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 2648,
+        "title": "Iga Świątek",
+        "question": "Will Iga Świątek win the 2026 Women's Australian Open?",
+        "conditionId": "0x51fa371132449246b58ff4a5f6d1f439fc6f7919e0cd10c29a513c1240161114",
+        "feeRateBps": 200,
+        "categorySlug": "2026-womens-australian-open-winner"
+      },
+      "polymarket": {
+        "question": "Will Iga Świątek win the 2026 Women's Australian Open?",
+        "conditionId": "0x99ee0acd265a9c9d996a219b8726b6eee3f1f309dd14b719baa37229543dd0d7",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 2649,
+        "title": "Coco Gauff",
+        "question": "Will Coco Gauff win the 2026 Women's Australian Open?",
+        "conditionId": "0x77bd575664e551ffbf7aeec5124e683b29ed5753ec7f06ad2890f672084636da",
+        "feeRateBps": 200,
+        "categorySlug": "2026-womens-australian-open-winner"
+      },
+      "polymarket": {
+        "question": "Will Coco Gauff win the 2026 Women's Australian Open?",
+        "conditionId": "0x507a3030ce939228914691609990b30bee9a71ccbb381ea7af677b0abc3a1e8d",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 2650,
+        "title": "Elena Rybakina",
+        "question": "Will Elena Rybakina win the 2026 Women's Australian Open?",
+        "conditionId": "0x153440ade864f5e4ecf43326c7e85d2e5c62d1d377e714f0ea5e6daa5b0b3395",
+        "feeRateBps": 200,
+        "categorySlug": "2026-womens-australian-open-winner"
+      },
+      "polymarket": {
+        "question": "Will Elena Rybakina win the 2026 Women's Australian Open?",
+        "conditionId": "0x84a31f9a35ca3162aed3ffa25e15ba03c02e27992ec61748b020886a6d8cc5a7",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 2651,
+        "title": "Amanda Anisimova",
+        "question": "Will Amanda Anisimova win the 2026 Women's Australian Open?",
+        "conditionId": "0xf377625d92962448a5e80989cab5f849563158b7a9c5b0abf3c569c3e75388bf",
+        "feeRateBps": 200,
+        "categorySlug": "2026-womens-australian-open-winner"
+      },
+      "polymarket": {
+        "question": "Will Amanda Anisimova win the 2026 Women's Australian Open?",
+        "conditionId": "0x9209f79492e89928758ef6e22b05ff800dcf93780fbae1902fc4e985580f3016",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 3078,
+        "title": "Real Sociedad de Fútbol",
+        "question": "Will Real Sociedad de Fútbol win on 2026-01-18?",
+        "conditionId": "0xd8af6854ee03ba72bd8a5efe93d19b646ddf81ceece64e6345f946754c864e7f",
+        "feeRateBps": 200,
+        "categorySlug": "lal-rso-bar-2026-01-18"
+      },
+      "polymarket": {
+        "question": "Will Real Sociedad de Fútbol win on 2026-01-18?",
+        "conditionId": "0xa27c3f7113e4b70d69273abe70091440ad7d3467284c64165491b8e04490666f",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 3079,
+        "title": "Draw",
+        "question": "Will Real Sociedad de Fútbol vs. FC Barcelona end in a draw?",
+        "conditionId": "0x088699cc283627f450435ead0961e88206c3f0da98635acd49e1a92a448e7b57",
+        "feeRateBps": 200,
+        "categorySlug": "lal-rso-bar-2026-01-18"
+      },
+      "polymarket": {
+        "question": "Will Real Sociedad de Fútbol vs. FC Barcelona end in a draw?",
+        "conditionId": "0x019a48398b4f86405b30e69f82fa5eeec39ddaf0da19e1a51df56a74b729924b",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 3080,
+        "title": "FC Barcelona",
+        "question": "Will FC Barcelona win on 2026-01-18?",
+        "conditionId": "0xd8d633654dffd0c27490119a2285d37ee1e3686ffee3f7f54483309b6cc13ab2",
+        "feeRateBps": 200,
+        "categorySlug": "lal-rso-bar-2026-01-18"
+      },
+      "polymarket": {
+        "question": "Will FC Barcelona win on 2026-01-18?",
+        "conditionId": "0x6e937a4f6bf71a13a8bb08be32b1a9de516cc1a76fcbef61a7ca3567f5558165",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 690,
+        "title": "João Cotrim Figueiredo (IL)",
+        "question": "Will João Cotrim Figueiredo win the 2026 Portugal presidential election?",
+        "conditionId": "0x49f8f4699d63db69dbf56688488a18c833f167b84331da93a057d43af25af3de",
+        "feeRateBps": 200,
+        "categorySlug": "portugal-presidential-election"
+      },
+      "polymarket": {
+        "question": "Will João Cotrim Figueiredo win the 2026 Portugal presidential election?",
+        "conditionId": "0xe90b27f08082e17740308fdc957528d29a3f334a9ecaeefd056a3427a4cfdaaf",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 691,
+        "title": "Luís Marques Mendes (PSD)",
+        "question": "Will Luís Marques Mendes win the 2026 Portugal presidential election?",
+        "conditionId": "0x3be8d9e8a9957440105d9c513295d04a7d85fc1add67e2c92ce858f1e434c39e",
+        "feeRateBps": 200,
+        "categorySlug": "portugal-presidential-election"
+      },
+      "polymarket": {
+        "question": "Will Luís Marques Mendes win the 2026 Portugal presidential election?",
+        "conditionId": "0xed888eb64bffa457086fb5904e9b2046da9aa31c5db36e9d4a303efa7e850d76",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 692,
+        "title": "Henrique Gouveia e Melo (IND)",
+        "question": "Will Henrique Gouveia e Melo win the 2026 Portugal presidential election?",
+        "conditionId": "0xf453790c220b4c0ebae6c8ba6ec8fb132434b780cefcfc7f9745cbb618e2687a",
+        "feeRateBps": 200,
+        "categorySlug": "portugal-presidential-election"
+      },
+      "polymarket": {
+        "question": "Will Henrique Gouveia e Melo win the 2026 Portugal presidential election?",
+        "conditionId": "0x2b1e18ef56cb7222ce2fb03d6cd9fb8fcca06d80b64d0dacbe6ce2f00ab31d00",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 693,
+        "title": "André Ventura (CH)",
+        "question": "Will André Ventura win the 2026 Portugal presidential election?",
+        "conditionId": "0x78285b4bc671ae57c0b350db8baaffcbd3e9e53ca3e8497d00f45cdbc71b9b00",
+        "feeRateBps": 200,
+        "categorySlug": "portugal-presidential-election"
+      },
+      "polymarket": {
+        "question": "Will André Ventura win the 2026 Portugal presidential election?",
+        "conditionId": "0xbcb33ad98c8141b10f2350ef687eddf0660484ecc15be42ecdae64339e64dce1",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 694,
+        "title": "António José Seguro (IND)",
+        "question": "Will António José Seguro win the 2026 Portugal presidential election?",
+        "conditionId": "0x06e4876b412239b682a076160239bee76ccaf430803156ca49f0a09e21dcba05",
+        "feeRateBps": 200,
+        "categorySlug": "portugal-presidential-election"
+      },
+      "polymarket": {
+        "question": "Will António José Seguro win the 2026 Portugal presidential election?",
+        "conditionId": "0xa062dea464f0e8fc3381176494198cf45574ec190eca77a40f49988320fa15f2",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 732,
+        "title": "Will there be another US government shutdown by January 31?",
+        "question": "Will there be another US government shutdown by January 31?",
+        "conditionId": "0x0681f752f632099d48b3c8558763e207f6e5394424c24fab9bc84ab2c3821f8a",
+        "feeRateBps": 200,
+        "categorySlug": "will-there-be-another-us-government-shutdown-by-january-31"
+      },
+      "polymarket": {
+        "question": "Will there be another US government shutdown by January 31?",
+        "conditionId": "0x43ec78527bd98a0588dd9455685b2cc82f5743140cb3a154603dc03c02b57de5",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    }
+  ]
+}

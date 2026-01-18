@@ -1,0 +1,104 @@
+{
+  "taskId": "BUY-1186-1768249374322",
+  "type": "BUY",
+  "marketId": 1186,
+  "title": "Will NVIDIA be the largest company in the world by market cap on January 31?",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 0.976,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 16,
+  "totalSnapshots": 5,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 1,
+    "ORDER_SUBMITTED": 3,
+    "ORDER_PARTIAL_FILL": 1,
+    "HEDGE_STARTED": 2,
+    "HEDGE_ATTEMPT": 2,
+    "ORDER_FILLED": 3,
+    "HEDGE_COMPLETED": 2,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1768249374325,
+  "endTime": 1768249711274,
+  "durationMs": 336949,
+  "predictFilledQty": 85,
+  "hedgedQty": 85,
+  "avgPredictPrice": 0.914,
+  "avgPolymarketPrice": 0.06199999999999999,
+  "actualProfit": 2.039999999999998,
+  "profitPercent": 2.625820568927787,
+  "unwindLoss": 0,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1768249374327,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1768249377597,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768249378400,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768249683923,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 16.8"
+    },
+    {
+      "timestamp": 1768249685942,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768249686224,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 16.8"
+    },
+    {
+      "timestamp": 1768249686224,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 16.8"
+    },
+    {
+      "timestamp": 1768249708836,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 85"
+    },
+    {
+      "timestamp": 1768249709107,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 68.2"
+    },
+    {
+      "timestamp": 1768249711011,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768249711271,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 68.2"
+    },
+    {
+      "timestamp": 1768249711271,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 68.2"
+    },
+    {
+      "timestamp": 1768249711271,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $2.04"
+    }
+  ],
+  "generatedAt": 1768249711274
+}

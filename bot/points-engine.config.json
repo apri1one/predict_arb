@@ -1,0 +1,70 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "version": 1,
+    "module": "points-engine",
+    "notes": [
+        "该配置文件不包含任何私钥/API Secret。",
+        "pairLow/pairHigh 是交互可调参数，且 pairLow 不得低于 200。",
+        "anchor 固定为 100 shares；active 可动态缩放（受 Polymarket 深度/滑点风控约束）。"
+    ],
+    "limits": {
+        "maxMarkets": 20,
+        "minSharesForPoints": 100,
+        "maxPointsDistanceCents": 6
+    },
+    "quote": {
+        "anchorShares": 100,
+        "activeSharesDefault": 200,
+        "repriceIntervalMs": 10000,
+        "chaseTickThreshold": 1,
+        "minTickSizeCentsDefault": 1,
+        "anchorOffsetTicksByStyle": {
+            "aggressive": 1,
+            "balanced": 2,
+            "conservative": 3
+        },
+        "freezeIfTwoLegCostGtOne": true,
+        "minBidAskGapTicks": 1
+    },
+    "hedge": {
+        "maxUnhedgedMs": 3000,
+        "nettingWindowMs": 1000,
+        "polymarket": {
+            "takerOnly": true,
+            "maxSlippageBps": 100,
+            "activeSizeSafetyFactor": 0.7,
+            "minDepthSharesToEnableActive": 200
+        }
+    },
+    "pair": {
+        "defaultTargetPair": 300,
+        "defaultPairLow": 250,
+        "defaultPairHigh": 350,
+        "pairLowMin": 200,
+        "reducePairToTargetWhenAboveHigh": true,
+        "increasePairToTargetWhenBelowLow": true,
+        "perMarketOverrides": [
+            {
+                "key": "marketId:123",
+                "targetPair": 300,
+                "pairLow": 250,
+                "pairHigh": 350
+            }
+        ]
+    },
+    "risk": {
+        "wsStaleMs": 3000,
+        "maxConsecutiveHedgeFailuresBeforeCooldown": 3,
+        "cooldownMs": 60000,
+        "globalFillBudgetUSDT": 1000
+    },
+    "integration": {
+        "dashboard": {
+            "baseUrl": "http://localhost:3005",
+            "ssePath": "/api/events",
+            "requestTimeoutMs": 5000,
+            "pollFallbackIntervalMs": 2000
+        }
+    }
+}
+

@@ -1,0 +1,220 @@
+{
+  "taskId": "BUY-2554-1768435379775",
+  "type": "BUY",
+  "marketId": 2554,
+  "title": "Cavaliers @ 76ers",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 0.8200000000000001,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 39,
+  "totalSnapshots": 8,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 2,
+    "ORDER_SUBMITTED": 6,
+    "PRICE_GUARD_TRIGGERED": 5,
+    "ORDER_CANCELLED": 5,
+    "TASK_PAUSED": 5,
+    "PRICE_GUARD_RESUMED": 4,
+    "TASK_RESUMED": 4,
+    "TASK_FAILED": 1,
+    "ORDER_FILLED": 2,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 1,
+    "HEDGE_COMPLETED": 1,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1768435379780,
+  "endTime": 1768436870923,
+  "durationMs": 1491143,
+  "predictFilledQty": 10,
+  "hedgedQty": 10,
+  "avgPredictPrice": 0.48,
+  "avgPolymarketPrice": 0.34,
+  "actualProfit": 1.7999999999999998,
+  "profitPercent": 37.5,
+  "unwindLoss": 0,
+  "pauseCount": 5,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1768435379783,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1768435380991,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768435382799,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768435968369,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1768435970910,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768435970910,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.5200 > max=0.5200"
+    },
+    {
+      "timestamp": 1768435973372,
+      "event": "PRICE_GUARD_RESUMED"
+    },
+    {
+      "timestamp": 1768435974211,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768435974212,
+      "event": "TASK_RESUMED"
+    },
+    {
+      "timestamp": 1768435975335,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1768435977719,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768435977719,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.5200 > max=0.5200"
+    },
+    {
+      "timestamp": 1768436001375,
+      "event": "PRICE_GUARD_RESUMED"
+    },
+    {
+      "timestamp": 1768436005927,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768436005931,
+      "event": "TASK_RESUMED"
+    },
+    {
+      "timestamp": 1768436039490,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1768436040526,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768436040526,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.5200 > max=0.5200"
+    },
+    {
+      "timestamp": 1768436057329,
+      "event": "PRICE_GUARD_RESUMED"
+    },
+    {
+      "timestamp": 1768436059284,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768436059289,
+      "event": "TASK_RESUMED"
+    },
+    {
+      "timestamp": 1768436150379,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1768436151315,
+      "event": "PRICE_GUARD_RESUMED"
+    },
+    {
+      "timestamp": 1768436154314,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1768436154976,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768436154976,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.5200 > max=0.5200"
+    },
+    {
+      "timestamp": 1768436157517,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768436157517,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.5200 > max=0.5200"
+    },
+    {
+      "timestamp": 1768436157517,
+      "event": "TASK_FAILED",
+      "detail": "Max pause count exceeded"
+    },
+    {
+      "timestamp": 1768436161549,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768436161549,
+      "event": "TASK_RESUMED"
+    },
+    {
+      "timestamp": 1768436761921,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768436762276,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 10"
+    },
+    {
+      "timestamp": 1768436762565,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 10"
+    },
+    {
+      "timestamp": 1768436870047,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768436870920,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 10"
+    },
+    {
+      "timestamp": 1768436870920,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 10"
+    },
+    {
+      "timestamp": 1768436870920,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $1.80"
+    }
+  ],
+  "generatedAt": 1768436870923
+}

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE 数据测试</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .title {
+            color: #ffff00;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .timestamp {
+            color: #888;
+            font-size: 12px;
+        }
+        .connected { color: #00ff00; }
+        .disconnected { color: #ff0000; }
+        pre {
+            background: #000;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Dashboard SSE 数据测试</h1>
+
+    <div class="section">
+        <div class="title">连接状态</div>
+        <div id="status" class="disconnected">未连接</div>
+    </div>
+
+    <div class="section">
+        <div class="title">套利机会 (Opportunity Event)</div>
+        <div class="timestamp" id="opp-time">等待数据...</div>
+        <pre id="opp-data">-</pre>
+    </div>
+
+    <div class="section">
+        <div class="title">统计数据 (Stats Event)</div>
+        <div class="timestamp" id="stats-time">等待数据...</div>
+        <pre id="stats-data">-</pre>
+    </div>
+
+    <div class="section">
+        <div class="title">账户数据 (Accounts Event)</div>
+        <div class="timestamp" id="accounts-time">等待数据...</div>
+        <pre id="accounts-data">-</pre>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3005';
+        let eventSource = null;
+        let updateCount = 0;
+
+        function connect() {
+            console.log('🔌 连接 SSE...');
+            eventSource = new EventSource(`${API_BASE_URL}/api/stream`);
+
+            eventSource.onopen = () => {
+                console.log('✅ SSE 已连接');
+                document.getElementById('status').textContent = '已连接';
+                document.getElementById('status').className = 'connected';
+            };
+
+            eventSource.onerror = (e) => {
+                console.error('❌ SSE 错误:', e);
+                document.getElementById('status').textContent = '连接错误';
+                document.getElementById('status').className = 'disconnected';
+            };
+
+            // 监听 opportunity 事件
+            eventSource.addEventListener('opportunity', (e) => {
+                updateCount++;
+                const data = JSON.parse(e.data);
+                const timestamp = new Date().toLocaleTimeString();
+
+                document.getElementById('opp-time').textContent =
+                    `最后更新: ${timestamp} (#${updateCount})`;
+                document.getElementById('opp-data').textContent =
+                    JSON.stringify(data, null, 2);
+
+                console.log(`📊 Opportunity 更新 #${updateCount}:`, data);
+            });
+
+            // 监听 stats 事件
+            eventSource.addEventListener('stats', (e) => {
+                const data = JSON.parse(e.data);
+                const timestamp = new Date().toLocaleTimeString();
+
+                document.getElementById('stats-time').textContent =
+                    `最后更新: ${timestamp}`;
+                document.getElementById('stats-data').textContent =
+                    JSON.stringify(data, null, 2);
+
+                console.log('📈 Stats 更新:', data);
+            });
+
+            // 监听 accounts 事件
+            eventSource.addEventListener('accounts', (e) => {
+                const data = JSON.parse(e.data);
+                const timestamp = new Date().toLocaleTimeString();
+
+                document.getElementById('accounts-time').textContent =
+                    `最后更新: ${timestamp}`;
+                document.getElementById('accounts-data').textContent =
+                    JSON.stringify(data, null, 2);
+
+                console.log('💰 Accounts 更新:', data);
+            });
+        }
+
+        // 页面加载时连接
+        connect();
+
+        // 页面关闭时断开连接
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+{
+  "taskId": "5031496d20682b21",
+  "type": "SELL",
+  "marketId": 694,
+  "title": "Will António José Seguro win the 2026 Portugal presidential election?",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 0.99,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 10,
+  "totalSnapshots": 2,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 1,
+    "ORDER_SUBMITTED": 2,
+    "ORDER_PARTIAL_FILL": 1,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 1,
+    "ORDER_FILLED": 1,
+    "HEDGE_COMPLETED": 1,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1768614264838,
+  "endTime": 1768614297232,
+  "durationMs": 32394,
+  "predictFilledQty": 5,
+  "hedgedQty": 5,
+  "avgPredictPrice": 0.75,
+  "avgPolymarketPrice": 0.24,
+  "actualProfit": 0.010000000000000675,
+  "profitPercent": 0.26666666666668465,
+  "unwindLoss": 0,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1768614264840,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1768614264841,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768614270015,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768614294292,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 5"
+    },
+    {
+      "timestamp": 1768614294631,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768614295214,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 5"
+    },
+    {
+      "timestamp": 1768614295214,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 5"
+    },
+    {
+      "timestamp": 1768614297230,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $0.01"
+    }
+  ],
+  "generatedAt": 1768614297232
+}

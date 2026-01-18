@@ -1,0 +1,270 @@
+﻿var Preview = window.Preview || (window.Preview = {});
+var { useState, useEffect, useRef, useCallback } = Preview.ReactHooks;
+var { mapOpportunity } = Preview;
+
+// --- SSE Configuration ---
+const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const isFileOrigin = window.location.protocol === 'file:' || !window.location.hostname;
+// 使用当前页面的端口，而不是硬编码的端口
+const API_BASE_URL = isFileOrigin
+    ? 'http://localhost:3005'  // 从文件直接打开时使用默认端口
+    : '';  // 从服务器访问时使用同源 (同端口)
+
+
+// --- Data Hook with SSE ---
+const useArbScanner = (addNotification, addOrderToast) => {
+    const [opportunities, setOpportunities] = useState([]);
+    const [history, setHistory] = useState([]);
+    const [chartData, setChartData] = useState({
+        profitTrend: [],
+        opportunityCounts: [],
+        strategyDistribution: { maker: 60, taker: 40 }
+    });
+    const [stats, setStats] = useState({
+        makerCount: 0, takerCount: 0,
+        avgProfit: 0, maxProfit: 0,
+        totalDepthUsd: 0,
+        latency: { predict: 150, polymarket: 25, compute: 0 }
+    });
+    const [accounts, setAccounts] = useState({
+        predict: { total: 0, available: 0, portfolio: 0, positions: [], openOrders: [] },
+        polymarket: { total: 0, available: 0, portfolio: 0, positions: [], openOrders: [] }
+    });
+    const [markets, setMarkets] = useState([]);
+    const [tasks, setTasks] = useState([]);
+    const [sports, setSports] = useState({ markets: [], stats: { totalMatched: 0, withArbitrage: 0, avgProfit: 0, maxProfit: 0 }, lastUpdate: 0 });
+    const [isConnected, setIsConnected] = useState(false);
+    const eventSourceRef = useRef(null);
+    const lastNotifiedRef = useRef(new Set());
+    const reconnectTimeoutRef = useRef(null);
+    // 前端机会缓存：保持卡片稳定，只更新价格和 shares
+    const opportunityCacheRef = useRef(new Map()); // Map<id, {opp, lastSeen}>
+    const FRONTEND_CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5分钟后过期 (匹配后端缓存)
+    const missingFieldWarnRef = useRef(new Map()); // Map<id, lastLogAt>
+
+    // SSE 连接
+    const connectSSE = useCallback(() => {
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+        }
+
+        console.log('?? Connecting to SSE...');
+        const es = new EventSource(`${API_BASE_URL}/api/stream`);
+        eventSourceRef.current = es;
+
+        es.onopen = () => {
+            console.log('? SSE Connected');
+            setIsConnected(true);
+        };
+
+        es.onerror = (e) => {
+            console.log('? SSE Error, reconnecting...');
+            setIsConnected(false);
+            es.close();
+
+            // 3秒后重连
+            if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = setTimeout(connectSSE, 3000);
+        };
+
+        // 处理套利机会更新
+        es.addEventListener('opportunity', (e) => {
+            try {
+                const rawOpps = JSON.parse(e.data);
+                const newOpps = Array.isArray(rawOpps) ? rawOpps.map(mapOpportunity) : [];
+                const now = Date.now();
+                const cache = opportunityCacheRef.current;
+                const warnCache = missingFieldWarnRef.current;
+
+                // 1. 更新缓存：新数据更新已有条目，或添加新条目
+                newOpps.forEach(opp => {
+                    cache.set(opp.id, { opp, lastSeen: now });
+                });
+
+                // 2. 清理过期条目（超过60秒未更新）
+                for (const [id, entry] of cache) {
+                    if (now - entry.lastSeen > FRONTEND_CACHE_EXPIRY_MS) {
+                        cache.delete(id);
+                    }
+                }
+
+                // 3. 合并所有缓存数据生成最终列表
+                const mergedOpps = Array.from(cache.values()).map(entry => entry.opp);
+
+                // 4. 按 marketId 稳定排序
+                mergedOpps.sort((a, b) => a.marketId - b.marketId);
+
+                // 5. 设置状态
+                setOpportunities(mergedOpps);
+
+                // 缺失字段调试日志（避免刷屏）
+                newOpps.forEach(opp => {
+                    const missing = [];
+                    if (!opp.polymarketConditionId) missing.push('polymarketConditionId');
+                    if (!opp.polymarketNoTokenId) missing.push('polymarketNoTokenId');
+                    if (!opp.polymarketYesTokenId) missing.push('polymarketYesTokenId');
+                    if (missing.length > 0) {
+                        const lastLog = warnCache.get(opp.id) || 0;
+                        if (now - lastLog > 60000) {
+                            console.warn('[Preview] Opportunity missing fields:', {
+                                id: opp.id,
+                                marketId: opp.marketId,
+                                strategy: opp.strategy,
+                                missing,
+                            });
+                            warnCache.set(opp.id, now);
+                        }
+                    }
+                });
+
+                // 高利润通知 - 只对后端标记为 isNew 的新机会通知
+                newOpps.forEach(opp => {
+                    // 只有 isNew=true 且利润超过阈值才通知
+                    if (opp.isNew && opp.profitPercent > 0.5) {
+                        addNotification(opp);
+                        console.log(`[新机会通知] ${opp.title} | ${opp.side} ${opp.strategy} | ${opp.profitPercent.toFixed(2)}%`);
+                    }
+                });
+            } catch (err) {
+                console.error('Parse opportunity error:', err);
+            }
+        });
+
+        // 处理统计信息更新
+        es.addEventListener('stats', (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                setStats({
+                    makerCount: data.arbStats?.makerCount || 0,
+                    takerCount: data.arbStats?.takerCount || 0,
+                    avgProfit: data.arbStats?.avgProfit || 0,
+                    maxProfit: data.arbStats?.maxProfit || 0,
+                    totalDepthUsd: data.arbStats?.totalDepth || 0,
+                    latency: {
+                        predict: Math.round(data.latency?.predict || 0),
+                        polymarket: Math.round(data.latency?.polymarket || 0),
+                        compute: Math.round(data.refreshInterval || 0)
+                    }
+                });
+
+                // 更新策略分布
+                const total = (data.arbStats?.makerCount || 0) + (data.arbStats?.takerCount || 0);
+                if (total > 0) {
+                    setChartData(prev => ({
+                        ...prev,
+                        strategyDistribution: {
+                            maker: Math.round((data.arbStats.makerCount / total) * 100),
+                            taker: Math.round((data.arbStats.takerCount / total) * 100)
+                        }
+                    }));
+                }
+            } catch (err) {
+                console.error('Parse stats error:', err);
+            }
+        });
+
+        // 处理账户信息更新
+        es.addEventListener('accounts', (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                console.log('?? 收到账户数据:', data);
+                setAccounts(data);
+            } catch (err) {
+                console.error('Parse accounts error:', err);
+            }
+        });
+
+        // 处理市场列表更新
+        es.addEventListener('markets', (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                console.log('?? 收到市场列表:', data.length, '个市场');
+                setMarkets(data);
+            } catch (err) {
+                console.error('Parse markets error:', err);
+            }
+        });
+
+        // 处理任务列表更新
+        es.addEventListener('tasks', (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                console.log('?? 收到任务列表:', data.length, '个任务');
+                setTasks(data);
+            } catch (err) {
+                console.error('Parse tasks error:', err);
+            }
+        });
+
+        // 处理单个任务更新
+        es.addEventListener('task', (e) => {
+            try {
+                const task = JSON.parse(e.data);
+                console.log('?? 任务更新:', task.id, task.status);
+                setTasks(prev => {
+                    const idx = prev.findIndex(t => t.id === task.id);
+                    if (idx >= 0) {
+                        return [...prev.slice(0, idx), task, ...prev.slice(idx + 1)];
+                    }
+                    return [...prev, task];
+                });
+            } catch (err) {
+                console.error('Parse task error:', err);
+            }
+        });
+
+        // 处理任务删除
+        es.addEventListener('taskDeleted', (e) => {
+            try {
+                const { id } = JSON.parse(e.data);
+                console.log('??? 任务删除:', id);
+                setTasks(prev => prev.filter(t => t.id !== id));
+            } catch (err) {
+                console.error('Parse taskDeleted error:', err);
+            }
+        });
+
+        // 处理体育市场数据更新
+        es.addEventListener('sports', (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                console.log('?? 收到体育市场数据:', data.markets?.length || 0, '场比赛');
+                setSports(data);
+            } catch (err) {
+                console.error('Parse sports error:', err);
+            }
+        });
+
+        // 处理任务事件 (订单状态浮窗通知)
+        es.addEventListener('taskEvent', (e) => {
+            try {
+                const event = JSON.parse(e.data);
+                console.log('📋 任务事件:', event.type, event.taskId?.slice(0, 8));
+                if (addOrderToast) {
+                    addOrderToast(event);
+                }
+            } catch (err) {
+                console.error('Parse taskEvent error:', err);
+            }
+        });
+    }, [addNotification, addOrderToast]);
+
+    useEffect(() => {
+        // 连接 SSE 获取实时数据
+        connectSSE();
+
+        return () => {
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+            }
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+            }
+        };
+    }, [connectSSE]);
+
+    return { opportunities, history, chartData, stats, accounts, tasks, sports, isConnected };
+};
+
+Preview.useArbScanner = useArbScanner;
+Preview.API_BASE_URL = API_BASE_URL;

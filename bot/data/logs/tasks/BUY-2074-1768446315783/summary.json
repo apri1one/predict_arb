@@ -1,0 +1,112 @@
+{
+  "taskId": "BUY-2074-1768446315783",
+  "type": "BUY",
+  "marketId": 2074,
+  "title": "Match Winner",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 0.9929439999999999,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 21,
+  "totalSnapshots": 4,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 1,
+    "ORDER_SUBMITTED": 4,
+    "ORDER_FILLED": 2,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 3,
+    "ORDER_PARTIAL_FILL": 2,
+    "HEDGE_PARTIAL": 2,
+    "PRICE_GUARD_TRIGGERED": 1,
+    "ORDER_CANCELLED": 1,
+    "TASK_PAUSED": 1,
+    "HEDGE_COMPLETED": 1,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1768446316132,
+  "endTime": 1768446380408,
+  "durationMs": 64276,
+  "predictFilledQty": 100,
+  "hedgedQty": 100,
+  "avgPredictPrice": 0.7,
+  "avgPolymarketPrice": 0.292944,
+  "actualProfit": 0.7056000000000062,
+  "profitPercent": 1.0080000000000089,
+  "unwindLoss": 0,
+  "pauseCount": 1,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1768446316134,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1768446317012,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1768446317568,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768446325238,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 100"
+    },
+    {
+      "timestamp": 1768446325528,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 100"
+    },
+    {
+      "timestamp": 1768446327579,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768446352365,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1768446353764,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768446355579,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 100"
+    },
+    {
+      "timestamp": 1768446355579,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.3000 > max=0.3000"
+    },
+    {
+      "timestamp": 1768446379774,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1768446380405,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 29.67"
+    },
+    {
+      "timestamp": 1768446380406,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 100"
+    },
+    {
+      "timestamp": 1768446380406,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $0.71"
+    }
+  ],
+  "generatedAt": 1768446380408
+}
