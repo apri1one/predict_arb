@@ -21,6 +21,7 @@ import { getTaskLogger, TaskLogger, TaskConfigSnapshot, ArbOpportunitySnapshot, 
 import { initTakerExecutor, TakerExecutor, TakerExecutorDeps } from './taker-mode/index.js';
 import { getBscOrderWatcher, getSharesFromFillEvent, type BscOrderWatcher, type OrderFilledEvent } from '../services/bsc-order-watcher.js';
 import type { PolymarketWebSocketClient } from '../polymarket/ws-client.js';
+import { PolymarketRestClient } from '../polymarket/rest-client.js';
 
 // ============================================================================
 // 常量
@@ -32,6 +33,10 @@ const PREDICT_POLL_INTERVAL = 500;  // Predict 轮询间隔
 const UNWIND_MAX_RETRIES = 3;       // 反向平仓最大重试
 const MIN_HEDGE_QTY = 1;            // 最小对冲数量阈值 (shares)，低于此值跳过对冲
 const POLY_WS_STALE_MS = 15000;
+
+// Polymarket 最小订单名义金额阈值 ($1)
+// 小额成交先累计，避免 Polymarket 400 "invalid amounts" 拒单
+const MIN_HEDGE_NOTIONAL = Number(process.env.MIN_HEDGE_NOTIONAL) || 1.0;  // USD
 
 // Polymarket 成交状态可能有延迟：关键决策前做一次短暂再确认，降低误判导致的重复对冲/误触发 UNWIND
 const POLY_FILL_RECHECK_MAX_RETRIES = Number(process.env.POLY_FILL_RECHECK_MAX_RETRIES) || 6;   // 6 * 400ms = 2.4s
@@ -61,6 +66,12 @@ interface TaskContext {
     totalHedged: number;
     hedgePriceSum: number;  // 用于计算加权均价
 
+    // ====== 累计对冲机制 (Polymarket $1 最小订单) ======
+    /** 待对冲累计数量 (等待达到 $1 名义阈值) */
+    pendingHedgeQty: number;
+    /** 最后一次对冲价格估算 (用于计算名义金额) */
+    lastHedgePriceEstimate: number;
+
     // 仅追踪本次进程内发出的 Poly 订单，用于处理"迟到成交/状态延迟"导致的漏记和误触发
     polyOrderFills: Map<string, PolyOrderFillTracker>;
 
@@ -84,6 +95,7 @@ export class TaskExecutor extends EventEmitter {
     private predictTrader: PredictTrader;
     private polyTrader: PolymarketTrader;
     private polyWsClient: PolymarketWebSocketClient | null = null;
+    private polyRestClient: PolymarketRestClient;
     private orderMonitor: OrderMonitor;
     private taskLogger: TaskLogger;
     private takerExecutor!: TakerExecutor;  // 延迟初始化
@@ -98,6 +110,7 @@ export class TaskExecutor extends EventEmitter {
         this.taskService = getTaskService();
         this.predictTrader = getPredictTrader();
         this.polyTrader = getPolymarketTrader();
+        this.polyRestClient = new PolymarketRestClient();
         this.orderMonitor = getOrderMonitor();
         this.taskLogger = getTaskLogger();
     }
@@ -340,36 +353,39 @@ export class TaskExecutor extends EventEmitter {
      * SELL: polyBid > polymarketMinBid
      */
     private async checkPriceValidity(task: Task): Promise<{ valid: boolean; reason?: string }> {
+        // 浮点精度容差 - 允许 yes + no = 1 的边界情况
+        const EPSILON = 0.0001;
+
         try {
             const hedgeTokenId = this.getHedgeTokenId(task);
-            const orderbook = await this.getPolymarketOrderbook(hedgeTokenId);
+            const orderbook = await this.getPolymarketOrderbook(hedgeTokenId, task.isSportsMarket);
 
             if (!orderbook) {
                 return { valid: false, reason: '无法获取订单簿' };
             }
 
             if (task.type === 'BUY') {
-                // BUY 任务: 检查 polyAsk < polymarketMaxAsk
+                // BUY 任务: 检查 polyAsk <= polymarketMaxAsk + epsilon
                 const bestAsk = orderbook.asks[0]?.price;
                 if (bestAsk === undefined) {
                     return { valid: false, reason: '无可用卖单' };
                 }
-                if (bestAsk >= task.polymarketMaxAsk) {
+                if (bestAsk > task.polymarketMaxAsk + EPSILON) {
                     return {
                         valid: false,
-                        reason: `polyAsk(${bestAsk.toFixed(4)}) >= maxAsk(${task.polymarketMaxAsk.toFixed(4)})`,
+                        reason: `polyAsk(${bestAsk.toFixed(4)}) > maxAsk(${task.polymarketMaxAsk.toFixed(4)})`,
                     };
                 }
             } else {
-                // SELL 任务: 检查 polyBid > polymarketMinBid
+                // SELL 任务: 检查 polyBid >= polymarketMinBid - epsilon
                 const bestBid = orderbook.bids[0]?.price;
                 if (bestBid === undefined) {
                     return { valid: false, reason: '无可用买单' };
                 }
-                if (bestBid <= task.polymarketMinBid) {
+                if (bestBid < task.polymarketMinBid - EPSILON) {
                     return {
                         valid: false,
-                        reason: `polyBid(${bestBid.toFixed(4)}) <= minBid(${task.polymarketMinBid.toFixed(4)})`,
+                        reason: `polyBid(${bestBid.toFixed(4)}) < minBid(${task.polymarketMinBid.toFixed(4)})`,
                     };
                 }
             }
@@ -382,16 +398,18 @@ export class TaskExecutor extends EventEmitter {
 
     /**
      * 获取 Polymarket 订单簿
-     * WS-only 激进模式：只使用 WS 缓存，不回退到 REST
-     * 移除 POLY_WS_STALE_MS 过滤，只要 WS 连接在线缓存就有效
+     * 优先使用 WS 缓存，缓存 miss 时回退到 REST API
+     * 注: 体育市场没有 WS 订阅，总是需要 REST 回退
      */
-    private async getPolymarketOrderbook(tokenId: string): Promise<{ bids: { price: number; size: number }[]; asks: { price: number; size: number }[] } | null> {
+    private async getPolymarketOrderbook(
+        tokenId: string,
+        isSportsMarket: boolean = false
+    ): Promise<{ bids: { price: number; size: number }[]; asks: { price: number; size: number }[] } | null> {
+        // 尝试 WS 缓存
         const wsClient = this.polyWsClient;
         if (wsClient && wsClient.isConnected()) {
             const wsBook = wsClient.getOrderBook(tokenId);
             if (wsBook && wsBook.bids.length > 0 && wsBook.asks.length > 0) {
-                // WS-only 激进模式：移除 POLY_WS_STALE_MS 过滤
-                // 只要 WS 连接在线，缓存数据就是有效的
                 return {
                     bids: wsBook.bids.map(([price, size]) => ({ price, size })),
                     asks: wsBook.asks.map(([price, size]) => ({ price, size })),
@@ -399,8 +417,99 @@ export class TaskExecutor extends EventEmitter {
             }
         }
 
-        // WS-only 激进模式：WS miss 直接返回 null，不回退到 REST
+        // WS 缓存 miss 时回退到 REST API
+        // 注: 总是尝试 REST 回退，以支持旧任务和体育市场
+        try {
+            if (isSportsMarket) {
+                console.log(`[TaskExecutor] Sports market REST fallback for token: ${tokenId.slice(0, 10)}...`);
+            } else {
+                console.log(`[TaskExecutor] WS miss, REST fallback for token: ${tokenId.slice(0, 10)}...`);
+            }
+            const restBook = await this.polyRestClient.getOrderBook(tokenId);
+            if (restBook && restBook.bids.length > 0 && restBook.asks.length > 0) {
+                // REST 返回的格式是 { price: string, size: string }[]
+                return {
+                    bids: restBook.bids.map((b: any) => ({
+                        price: parseFloat(b.price),
+                        size: parseFloat(b.size),
+                    })).sort((a, b) => b.price - a.price),  // 按价格降序排列
+                    asks: restBook.asks.map((a: any) => ({
+                        price: parseFloat(a.price),
+                        size: parseFloat(a.size),
+                    })).sort((a, b) => a.price - b.price),  // 按价格升序排列
+                };
+            }
+        } catch (error: any) {
+            console.error(`[TaskExecutor] REST orderbook failed:`, error.message);
+        }
+
         return null;
+    }
+
+    /**
+     * 检查是否应该触发对冲 (考虑 Polymarket $1 最小名义金额阈值)
+     *
+     * @param ctx 任务上下文
+     * @param newFilledQty 本次新成交的数量
+     * @param isPredictFullyFilled Predict 订单是否已完全成交
+     * @returns { shouldHedge: boolean, hedgeQty: number, reason: string }
+     */
+    private async checkShouldHedge(
+        ctx: TaskContext,
+        newFilledQty: number,
+        isPredictFullyFilled: boolean
+    ): Promise<{ shouldHedge: boolean; hedgeQty: number; reason: string }> {
+        const task = ctx.task;
+
+        // 累计待对冲数量
+        ctx.pendingHedgeQty += newFilledQty;
+
+        // 计算总未对冲量
+        const totalUnhedged = ctx.totalPredictFilled - ctx.totalHedged;
+
+        // 如果未对冲量 < MIN_HEDGE_QTY，无需对冲
+        if (totalUnhedged < MIN_HEDGE_QTY) {
+            return { shouldHedge: false, hedgeQty: 0, reason: `Unhedged ${totalUnhedged.toFixed(4)} < MIN_HEDGE_QTY ${MIN_HEDGE_QTY}` };
+        }
+
+        // 获取当前对冲价格估算
+        const hedgeTokenId = this.getHedgeTokenId(task);
+        const orderbook = await this.getPolymarketOrderbook(hedgeTokenId, task.isSportsMarket);
+        let hedgePrice = ctx.lastHedgePriceEstimate;  // 默认使用上次估算
+
+        if (orderbook) {
+            // BUY 任务: 买入对冲，看 asks
+            // SELL 任务: 卖出对冲，看 bids
+            if (task.type === 'BUY' && orderbook.asks.length > 0) {
+                hedgePrice = orderbook.asks[0].price;
+            } else if (task.type === 'SELL' && orderbook.bids.length > 0) {
+                hedgePrice = orderbook.bids[0].price;
+            }
+            ctx.lastHedgePriceEstimate = hedgePrice;
+        }
+
+        // 计算名义金额 = 待对冲量 × 对冲价格
+        const notionalAmount = ctx.pendingHedgeQty * hedgePrice;
+
+        // 如果 Predict 已完全成交，强制对冲剩余量（无论金额大小）
+        if (isPredictFullyFilled && totalUnhedged >= MIN_HEDGE_QTY) {
+            const hedgeQty = totalUnhedged;
+            ctx.pendingHedgeQty = 0;  // 清空累计
+            console.log(`[TaskExecutor] Predict fully filled, force hedge remaining ${hedgeQty.toFixed(4)} (notional: $${(hedgeQty * hedgePrice).toFixed(2)})`);
+            return { shouldHedge: true, hedgeQty, reason: 'Predict fully filled' };
+        }
+
+        // 检查名义金额是否达到阈值
+        if (notionalAmount >= MIN_HEDGE_NOTIONAL) {
+            const hedgeQty = ctx.pendingHedgeQty;
+            ctx.pendingHedgeQty = 0;  // 清空累计
+            console.log(`[TaskExecutor] Notional $${notionalAmount.toFixed(2)} >= $${MIN_HEDGE_NOTIONAL}, triggering hedge for ${hedgeQty.toFixed(4)} shares`);
+            return { shouldHedge: true, hedgeQty, reason: `Notional $${notionalAmount.toFixed(2)} >= threshold` };
+        }
+
+        // 金额未达阈值，继续累计
+        console.log(`[TaskExecutor] Accumulating: pending=${ctx.pendingHedgeQty.toFixed(4)}, notional=$${notionalAmount.toFixed(2)} < $${MIN_HEDGE_NOTIONAL}, waiting...`);
+        return { shouldHedge: false, hedgeQty: 0, reason: `Notional $${notionalAmount.toFixed(2)} < $${MIN_HEDGE_NOTIONAL}` };
     }
 
     // ========================================================================
@@ -448,6 +557,9 @@ export class TaskExecutor extends EventEmitter {
             totalPredictFilled: task.predictFilledQty || 0,
             totalHedged: task.hedgedQty || 0,
             hedgePriceSum: (task.avgPolymarketPrice || 0) * (task.hedgedQty || 0),
+            // 累计对冲机制
+            pendingHedgeQty: 0,
+            lastHedgePriceEstimate: task.polymarketMaxAsk || 0.5,  // 默认使用任务配置的最大 ask
             polyOrderFills: new Map(),
             // WSS-first 成交追踪
             wssFilledQty: 0,
@@ -468,6 +580,18 @@ export class TaskExecutor extends EventEmitter {
         // 异步执行任务
         this.executeTask(ctx).catch(async error => {
             console.error(`[TaskExecutor] Task ${taskId} failed:`, error);
+
+            // 取消未完成的 Predict 订单
+            const latestTask = this.taskService.getTask(taskId);
+            if (latestTask?.currentOrderHash) {
+                try {
+                    console.log(`[TaskExecutor] 任务失败，取消 Predict 订单: ${latestTask.currentOrderHash.slice(0, 20)}...`);
+                    await this.predictTrader.cancelOrder(latestTask.currentOrderHash);
+                } catch (cancelError: any) {
+                    console.warn(`[TaskExecutor] 取消订单失败: ${cancelError.message}`);
+                }
+            }
+
             // 记录 TASK_FAILED
             await this.taskLogger.logTaskLifecycle(taskId, 'TASK_FAILED', {
                 status: 'FAILED',
@@ -548,19 +672,43 @@ export class TaskExecutor extends EventEmitter {
         console.log(`[TaskExecutor] Cancel order check: task.currentOrderHash=${task.currentOrderHash?.slice(0, 16) || 'none'}, ctx.currentOrderHash=${ctx?.currentOrderHash?.slice(0, 16) || 'none'}`);
 
         if (orderHashToCancel) {
-            console.log(`[TaskExecutor] 取消 Predict 订单: ${orderHashToCancel.slice(0, 20)}...`);
+            console.log(`[TaskExecutor] 取消 Predict 订单: ${orderHashToCancel.slice(0, 20)}... (状态: ${task.status}, 已成交: ${task.predictFilledQty}/${task.quantity})`);
             try {
-                const cancelled = await this.predictTrader.cancelOrder(orderHashToCancel);
-                if (cancelled) {
-                    console.log(`[TaskExecutor] ✅ Predict 订单已取消`);
+                // 先获取当前订单状态
+                const orderStatus = await this.predictTrader.getOrderStatus(orderHashToCancel);
+                const remainingQty = orderStatus?.remainingQty ?? (task.quantity - task.predictFilledQty);
+
+                if (orderStatus && (orderStatus.status === 'FILLED' || orderStatus.remainingQty === 0)) {
+                    console.log(`[TaskExecutor] ℹ️ Predict 订单已全部成交，无需取消`);
+                } else if (orderStatus && (orderStatus.status === 'CANCELLED' || orderStatus.status === 'EXPIRED')) {
+                    console.log(`[TaskExecutor] ℹ️ Predict 订单已取消/过期，无需操作`);
                 } else {
-                    console.warn(`[TaskExecutor] ⚠️ Predict 订单取消失败或已不存在`);
+                    // 尝试取消订单
+                    const cancelled = await this.predictTrader.cancelOrder(orderHashToCancel);
+                    if (cancelled) {
+                        console.log(`[TaskExecutor] ✅ Predict 订单已取消 (剩余: ${remainingQty})`);
+                        // 记录订单取消事件（触发 TG 通知）
+                        await this.taskLogger.logOrderEvent(taskId, 'ORDER_CANCELLED', {
+                            platform: 'predict',
+                            orderId: orderHashToCancel,
+                            side: task.type,
+                            outcome: task.arbSide || 'YES',
+                            price: task.predictPrice,
+                            quantity: task.quantity,
+                            filledQty: task.predictFilledQty,
+                            remainingQty: remainingQty,
+                            avgPrice: task.avgPredictPrice,
+                            cancelReason: 'User cancelled',
+                        });
+                    } else {
+                        console.warn(`[TaskExecutor] ⚠️ Predict 订单取消失败 (hash: ${orderHashToCancel.slice(0, 20)}..., 状态: ${task.status}, 已成交: ${task.predictFilledQty}/${task.quantity})`);
+                    }
                 }
             } catch (e: any) {
                 console.warn(`[TaskExecutor] ❌ 取消 Predict 订单异常:`, e.message);
             }
         } else {
-            console.log(`[TaskExecutor] 无 Predict 订单需要取消`);
+            console.log(`[TaskExecutor] 无 Predict 订单需要取消 (task.currentOrderHash: ${task.currentOrderHash || 'none'})`);
         }
 
         if (task.currentPolyOrderId) {
@@ -571,6 +719,19 @@ export class TaskExecutor extends EventEmitter {
                     conditionId: task.polymarketConditionId,
                 });
                 console.log(`[TaskExecutor] ✅ Polymarket 订单已取消`);
+                // 记录订单取消事件（触发 TG 通知）
+                await this.taskLogger.logOrderEvent(taskId, 'ORDER_CANCELLED', {
+                    platform: 'polymarket',
+                    orderId: task.currentPolyOrderId,
+                    side: task.type === 'BUY' ? 'BUY' : 'SELL',
+                    outcome: task.arbSide === 'YES' ? 'NO' : 'YES',  // 对冲方向相反
+                    price: task.avgPolymarketPrice || 0,
+                    quantity: task.hedgedQty || 0,
+                    filledQty: task.hedgedQty || 0,
+                    remainingQty: 0,
+                    avgPrice: task.avgPolymarketPrice || 0,
+                    cancelReason: 'User cancelled',
+                });
             } catch (e: any) {
                 console.warn(`[TaskExecutor] ❌ 取消 Polymarket 订单异常:`, e.message);
             }
@@ -877,6 +1038,9 @@ export class TaskExecutor extends EventEmitter {
                 totalPredictFilled: ctx.totalPredictFilled,
                 totalHedged: ctx.totalHedged,
                 hedgePriceSum: ctx.hedgePriceSum,
+                // 累计对冲机制
+                pendingHedgeQty: 0,
+                lastHedgePriceEstimate: task.polymarketMaxAsk || 0.5,
                 signal,
                 startTime: task.createdAt,
                 // 状态预获取相关
@@ -964,6 +1128,9 @@ export class TaskExecutor extends EventEmitter {
                 totalPredictFilled: ctx.totalPredictFilled,
                 totalHedged: ctx.totalHedged,
                 hedgePriceSum: ctx.hedgePriceSum,
+                // 累计对冲机制
+                pendingHedgeQty: 0,
+                lastHedgePriceEstimate: task.polymarketMinBid || 0.5,
                 signal,
                 startTime: task.createdAt,
                 // 状态预获取相关
@@ -1423,9 +1590,13 @@ export class TaskExecutor extends EventEmitter {
                             ctx.task = task;
 
                             await this.refreshTrackedPolyFills(ctx);
-                            const unhedgedQtyForHedge = Math.max(0, ctx.totalPredictFilled - ctx.totalHedged);
-                            if (unhedgedQtyForHedge >= MIN_HEDGE_QTY) {
-                                const hedgeResult = await this.executeIncrementalHedge(ctx, unhedgedQtyForHedge, side);
+
+                            // 检查是否应该触发对冲 (考虑 $1 名义金额阈值)
+                            const isPredictFullyFilled = orderEventType === 'ORDER_FILLED';
+                            const hedgeCheck = await this.checkShouldHedge(ctx, newlyObservedFilled, isPredictFullyFilled);
+
+                            if (hedgeCheck.shouldHedge) {
+                                const hedgeResult = await this.executeIncrementalHedge(ctx, hedgeCheck.hedgeQty, side);
 
                                 if (hedgeResult.filledQty > 0) {
                                     console.log(`[TaskExecutor] Hedge delta: ${hedgeResult.filledQty}, total hedged: ${ctx.totalHedged}`);
@@ -1513,15 +1684,18 @@ export class TaskExecutor extends EventEmitter {
                     ctx.task = task;
                 }
 
-                const shouldHedgeNow = (newlyObservedFilled > 0) || status.status === 'FILLED';
-                if (shouldHedgeNow) {
+                const shouldCheckHedge = (newlyObservedFilled > 0) || status.status === 'FILLED';
+                if (shouldCheckHedge) {
                     // 对冲/UNWIND 等关键动作前先刷新 Poly 迟到成交，降低误判触发重复对冲/UNWIND
                     await this.refreshTrackedPolyFills(ctx);
-                    const unhedgedQtyForHedge = Math.max(0, ctx.totalPredictFilled - ctx.totalHedged);
+
+                    // 检查是否应该触发对冲 (考虑 $1 名义金额阈值)
+                    const isPredictFullyFilled = status.status === 'FILLED';
+                    const hedgeCheck = await this.checkShouldHedge(ctx, newlyObservedFilled, isPredictFullyFilled);
 
                     // 若 Predict 已完全成交但存在未对冲余量，也需要补齐对冲（否则会卡在 FILLED 状态无法自愈）
-                    if (unhedgedQtyForHedge >= MIN_HEDGE_QTY) {
-                        const hedgeResult = await this.executeIncrementalHedge(ctx, unhedgedQtyForHedge, side);
+                    if (hedgeCheck.shouldHedge) {
+                        const hedgeResult = await this.executeIncrementalHedge(ctx, hedgeCheck.hedgeQty, side);
 
                         if (hedgeResult.filledQty > 0) {
                             console.log(`[TaskExecutor] Hedge delta: ${hedgeResult.filledQty}, total hedged: ${ctx.totalHedged}`);
@@ -1777,7 +1951,7 @@ export class TaskExecutor extends EventEmitter {
                 }, attemptId);
 
                 // 获取当前订单簿
-                const orderbook = await this.getPolymarketOrderbook(hedgeTokenId);
+                const orderbook = await this.getPolymarketOrderbook(hedgeTokenId, task.isSportsMarket);
                 if (!orderbook) {
                     throw new Error('Failed to get orderbook');
                 }
@@ -2233,16 +2407,18 @@ export class TaskExecutor extends EventEmitter {
      * @param side 对冲方向 (BUY/SELL)
      * @param maxPrice 最大可接受价格 (BUY 时使用)
      * @param minPrice 最小可接受价格 (SELL 时使用)
+     * @param isSportsMarket 是否是体育市场 (体育市场使用 REST 回退)
      * @returns 在价格范围内的可用深度
      */
     private async getHedgeDepth(
         tokenId: string,
         side: 'BUY' | 'SELL',
         maxPrice: number,
-        minPrice: number
+        minPrice: number,
+        isSportsMarket: boolean = false
     ): Promise<number> {
         try {
-            const orderbook = await this.getPolymarketOrderbook(tokenId);
+            const orderbook = await this.getPolymarketOrderbook(tokenId, isSportsMarket);
             if (!orderbook) {
                 console.warn('[TaskExecutor] getHedgeDepth: orderbook is null (API failed)');
                 return -1;  // 返回 -1 表示 API 失败，区别于真正的 0 深度
@@ -2315,7 +2491,7 @@ export class TaskExecutor extends EventEmitter {
 
             if (remainingQty <= 0) return; // 已完成，无需监控
 
-            const hedgeDepth = await this.getHedgeDepth(hedgeTokenId, side, maxPrice, minPrice);
+            const hedgeDepth = await this.getHedgeDepth(hedgeTokenId, side, maxPrice, minPrice, task.isSportsMarket);
 
             // API 失败 (返回 -1)，跳过本次检查，继续监控
             if (hedgeDepth < 0) {
@@ -2615,7 +2791,7 @@ export class TaskExecutor extends EventEmitter {
         try {
             // 获取 Polymarket 订单簿
             const hedgeTokenId = this.getHedgeTokenId(task);
-            const polyBook = await this.getPolymarketOrderbook(hedgeTokenId);
+            const polyBook = await this.getPolymarketOrderbook(hedgeTokenId, task.isSportsMarket);
 
             // 构建快照数据
             const polyBookData = polyBook ? {

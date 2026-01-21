@@ -14,7 +14,6 @@
 import { PredictRestClient } from '../predict/rest-client.js';
 import { PolymarketRestClient } from '../polymarket/rest-client.js';
 import { calculatePredictFee } from '../trading/depth-calculator.js';
-import { getPolymarketWsClient } from './start-dashboard.js';
 import { getPredictSlug, getPredictSlugByTitle } from './url-mapper.js';
 import { getPredictOrderbookCache } from '../services/predict-orderbook-cache.js';
 
@@ -132,7 +131,6 @@ export class SportsService {
     private predictClient: PredictRestClient;
     private polyClient: PolymarketRestClient;
     private cachedMarkets: SportsMatchedMarket[] = [];
-    private wsCacheMissLogged: Set<string> = new Set();  // 避免重复输出 WS cache miss 日志
     private matchedMarketsCache: InternalMatchedMarket[] = [];  // 已匹配市场缓存
     private orderbookCache: Map<number, SportsOrderBook> = new Map();  // 订单簿缓存 (防止 API 失败时卡片消失)
 
@@ -160,21 +158,6 @@ export class SportsService {
      */
     hasMatchedMarkets(): boolean {
         return this.matchedMarketsCache.length > 0;
-    }
-
-    /**
-     * 获取所有需要订阅的 Polymarket token IDs
-     * 用于 WebSocket 订阅
-     */
-    getPolymarketTokenIds(): string[] {
-        const tokenIds: string[] = [];
-        for (const match of this.matchedMarketsCache) {
-            const clobTokenIds = JSON.parse(match.polyMarket.clobTokenIds || '[]') as string[];
-            // 订阅两个 token (away + home)，因为体育市场两个选项是独立的
-            if (clobTokenIds[0]) tokenIds.push(clobTokenIds[0]);  // away token
-            if (clobTokenIds[1]) tokenIds.push(clobTokenIds[1]);  // home token
-        }
-        return Array.from(new Set(tokenIds));
     }
 
     // ============================================================================
@@ -242,7 +225,7 @@ export class SportsService {
             // 2. 缓存匹配结果 (后续只刷新订单簿)
             this.matchedMarketsCache = matchedMarkets;
 
-            // 3. 获取订单簿并计算套利
+            // 3. 获取订单簿并计算套利 (体育市场使用 REST API)
             const marketsWithArb = await this.calculateArbitrage(matchedMarkets);
 
             // 4. 更新缓存
@@ -1173,7 +1156,7 @@ export class SportsService {
                 this.getPolyOrderBook(homeTokenId),
             ]);
             if (!polyAwayBook || !polyHomeBook) {
-                throw new Error('Polymarket WS cache miss');
+                throw new Error('Polymarket orderbook empty');
             }
             // 填充分离缓存 (供独立刷新使用)
             this.polyOrderbookCache.set(awayTokenId, polyAwayBook);
@@ -1227,24 +1210,28 @@ export class SportsService {
     }
 
     /**
-     * 获取 Polymarket 订单簿
-     * WS-only 激进模式：只使用 WebSocket 缓存，不回退到 REST API
+     * 获取 Polymarket 订单簿 (体育市场使用 REST API)
      */
     private async getPolyOrderBook(tokenId: string): Promise<{ bids: [number, number][]; asks: [number, number][] } | null> {
-        // WS-only 模式：只从 WebSocket 缓存获取
-        const wsClient = getPolymarketWsClient();
-        if (wsClient && wsClient.isConnected()) {
-            const cached = wsClient.getOrderBook(tokenId);
-            if (cached && cached.bids.length > 0 && cached.asks.length > 0) {
-                return { bids: cached.bids, asks: cached.asks };
-            }
-        }
+        try {
+            const book = await this.polyClient.getOrderBook(tokenId);
+            if (book && book.bids && book.asks) {
+                // 解析 REST 响应格式
+                const bids = book.bids
+                    .map((level: any) => [parseFloat(level.price), parseFloat(level.size)] as [number, number])
+                    .filter(([price, size]: [number, number]) => size > 0)
+                    .sort((a: [number, number], b: [number, number]) => b[0] - a[0]);
+                const asks = book.asks
+                    .map((level: any) => [parseFloat(level.price), parseFloat(level.size)] as [number, number])
+                    .filter(([price, size]: [number, number]) => size > 0)
+                    .sort((a: [number, number], b: [number, number]) => a[0] - b[0]);
 
-        // WS-only 激进模式：WS miss 返回 null，不调用 REST
-        // 只在首次时输出日志，避免刷屏
-        if (!this.wsCacheMissLogged.has(tokenId)) {
-            this.wsCacheMissLogged.add(tokenId);
-            console.log(`[SportsService] WS cache miss for ${tokenId.slice(0, 12)}..., skipping (WS-only mode)`);
+                if (bids.length > 0 || asks.length > 0) {
+                    return { bids, asks };
+                }
+            }
+        } catch {
+            // REST 失败，静默忽略
         }
         return null;
     }
@@ -1464,17 +1451,22 @@ export class SportsService {
         homeMT: SportsArbOpportunity,
         homeTT: SportsArbOpportunity
     ): SportsMatchedMarket['consistency'] {
-        // 检查同模式下两个方向是否同时有利润
-        const mtBothProfitable = awayMT.cost < (1 - CONSISTENCY_EPSILON) &&
-                                  homeMT.cost < (1 - CONSISTENCY_EPSILON);
-        const ttBothProfitable = awayTT.cost < (1 - CONSISTENCY_EPSILON) &&
-                                  homeTT.cost < (1 - CONSISTENCY_EPSILON);
+        // 检查同模式下两个方向的成本之和是否 < 1
+        // 体育市场互斥性: Away 赢 + Home 赢 = 100%，所以 cost_away + cost_home 应该 >= 1
+        // 只有当 cost_away + cost_home < 1 (严格小于) 时，才是真正的"两边都有利润"异常
+        // 允许 cost_away + cost_home = 1 (sum <= 1 是正常的)
+        const mtSumCost = awayMT.cost + homeMT.cost;
+        const ttSumCost = awayTT.cost + homeTT.cost;
+
+        // 只有当成本之和严格小于 1 - ε 时才视为异常
+        const mtBothProfitable = mtSumCost < (1 - CONSISTENCY_EPSILON);
+        const ttBothProfitable = ttSumCost < (1 - CONSISTENCY_EPSILON);
 
         const bothDirectionsProfitable = mtBothProfitable || ttBothProfitable;
 
         let warning: string | undefined;
         if (bothDirectionsProfitable) {
-            warning = 'Both directions appear profitable - possible data anomaly or mapping error';
+            warning = `Both directions appear profitable (MT sum: ${mtSumCost.toFixed(4)}, TT sum: ${ttSumCost.toFixed(4)}) - possible data anomaly or mapping error`;
         }
 
         return {

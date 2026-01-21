@@ -62,7 +62,7 @@ export function calculateDepth(
     predictYesAsks: OrderBookLevel[],
     polymarketNoAsks: OrderBookLevel[],
     feeRateBps: number = 200,
-    maxPosition: number = 10000
+    maxPosition: number = Infinity
 ): DepthResult {
     // Get best prices
     const predictYesBid = predictYesBids[0]?.price || 0;
@@ -167,7 +167,7 @@ export function calculateNoSideDepth(
     predictYesAsks: OrderBookLevel[],
     polymarketNoBids: OrderBookLevel[],  // 注意：传入 NO 的 bids，用于反演 YES ask
     feeRateBps: number = 200,
-    maxPosition: number = 10000
+    maxPosition: number = Infinity
 ): NoSideDepthResult {
     // 获取 YES 端最优价格
     const predictYesBid = predictYesBids[0]?.price || 0;

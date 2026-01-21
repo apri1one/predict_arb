@@ -5,9 +5,10 @@ var { mapOpportunity } = Preview;
 // --- SSE Configuration ---
 const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const isFileOrigin = window.location.protocol === 'file:' || !window.location.hostname;
-// 使用当前页面的端口，而不是硬编码的端口
+// Dashboard 默认端口 3010，前端和 API 在同一端口
+// 仅当从文件直接打开时需要指定端口
 const API_BASE_URL = isFileOrigin
-    ? 'http://localhost:3005'  // 从文件直接打开时使用默认端口
+    ? 'http://localhost:3010'  // 从文件直接打开时使用默认 Dashboard 端口
     : '';  // 从服务器访问时使用同源 (同端口)
 
 

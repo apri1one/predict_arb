@@ -368,7 +368,7 @@ const App = () => {
                 {activeTab === 'ANALYTICS' ? (
                     <AnalyticsDashboard stats={stats} chartData={chartData} />
                 ) : activeTab === 'CLOSE' ? (
-                    <ClosePositionTab onSwitchToTasks={() => setActiveTab('TASKS')} />
+                    <ClosePositionTab onSwitchToTasks={() => setActiveTab('TASKS')} tasks={tasks} />
                 ) : activeTab === 'SPORTS' ? (
                     <div className="space-y-3">
                         <div className="flex items-center justify-between mb-4 px-1">

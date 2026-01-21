@@ -1,15 +1,16 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { readFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { ArbScannerService } from './arb-service.js';
 import { calculateCloseOpportunities, getClosePositions } from './close-service.js';
-import { exec } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PORT = 3000;
-// Frontend dist is in src directory, not in compiled dist
-const FRONTEND_DIST = join(__dirname, '..', '..', 'src', 'dashboard', 'frontend', 'dist');
+const FRONT_DIR = resolve(__dirname, '..', '..', '..', 'front');
+const FRONT_PREVIEW_PATH = join(FRONT_DIR, 'preview.html');
+const FRONT_PREVIEW_DIR = join(FRONT_DIR, 'preview');
+const HAS_FRONT_PREVIEW = existsSync(FRONT_PREVIEW_PATH);
 
 // 安全配置
 const API_TOKEN = process.env.DASHBOARD_API_TOKEN;  // 可选的 API Token
@@ -165,32 +166,36 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
     }
 
-    // Static files (SPA fallback)
-    let filePath = url === '/' ? 'index.html' : url;
-    // Remove query params
-    filePath = filePath.split('?')[0];
+    // Preview static files
+    let filePath = url.split('?')[0];
 
-    // Try to find file in dist
-    let fullPath = join(FRONTEND_DIST, filePath);
-
-    if (!existsSync(fullPath)) {
-        // specific checks for common SPA routes or just fallback to index.html for non-api routes
-        if (!url.startsWith('/api') && !url.includes('.')) {
-            fullPath = join(FRONTEND_DIST, 'index.html');
-        }
+    if (filePath === '/' && HAS_FRONT_PREVIEW) {
+        filePath = '/preview';
     }
 
-    if (existsSync(fullPath)) {
-        const content = readFileSync(fullPath);
-        res.writeHead(200, { 'Content-Type': getMimeType(fullPath) });
+    if ((filePath === '/preview' || filePath === '/preview.html') && HAS_FRONT_PREVIEW) {
+        const content = readFileSync(FRONT_PREVIEW_PATH);
+        res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(content);
-    } else {
-        if (url !== '/favicon.ico') {
-            // console.log(`404: ${url}`);
-        }
-        res.writeHead(404);
-        res.end('Not Found');
+        return;
     }
+
+    if (filePath.startsWith('/preview/')) {
+        const relativePath = filePath.replace('/preview/', '');
+        const fullPath = join(FRONT_PREVIEW_DIR, relativePath);
+        if (existsSync(fullPath)) {
+            const content = readFileSync(fullPath);
+            res.writeHead(200, { 'Content-Type': getMimeType(fullPath) });
+            res.end(content);
+            return;
+        }
+    }
+
+    if (url !== '/favicon.ico') {
+        // console.log(`404: ${url}`);
+    }
+    res.writeHead(404);
+    res.end('Not Found');
 }
 
 function listenWithRetry(server: any, port: number, maxRetries: number = 10): Promise<number> {

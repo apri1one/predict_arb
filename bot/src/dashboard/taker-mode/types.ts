@@ -142,6 +142,14 @@ export interface TakerContext {
     /** 对冲价格累计 (用于计算平均价) */
     hedgePriceSum: number;
 
+    // ====== 累计对冲机制 (Polymarket $1 最小订单) ======
+
+    /** 待对冲累计数量 (等待达到 $1 名义阈值) */
+    pendingHedgeQty: number;
+
+    /** 最后一次对冲价格估算 (用于计算名义金额) */
+    lastHedgePriceEstimate: number;
+
     /** 取消信号 */
     signal: AbortSignal;
 

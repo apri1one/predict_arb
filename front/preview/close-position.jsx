@@ -6,7 +6,7 @@ var { API_BASE_URL } = Preview;
 // ============================================================================
 // ClosePositionCard - 单个平仓机会卡片
 // ============================================================================
-const ClosePositionCard = ({ opportunity, onTaskCreated }) => {
+const ClosePositionCard = ({ opportunity, onTaskCreated, activeTask }) => {
     const [expanded, setExpanded] = useState(false);
 
     // T-T 状态
@@ -259,8 +259,43 @@ const ClosePositionCard = ({ opportunity, onTaskCreated }) => {
     const mtDynamicMinPolyBid = calcMtMinPolyBid();
     const mtIsValid = mtDynamicProfit > 0;
 
+    // 任务标签
+    const hasActiveTask = !!activeTask;
+    const taskStatus = activeTask?.status;
+    const isExecuting = ['PREDICT_SUBMITTED', 'PARTIALLY_FILLED', 'HEDGING', 'HEDGE_PENDING', 'HEDGE_RETRY'].includes(taskStatus);
+    const isPaused = taskStatus === 'PAUSED';
+    const isPending = taskStatus === 'PENDING';
+
+    // 任务状态简短标签
+    const getTaskLabel = () => {
+        if (isPending) return '待启动';
+        if (isPaused) return '暂停中';
+        if (isExecuting) return '执行中';
+        if (taskStatus === 'VALIDATING') return '校验中';
+        return 'SELL';
+    };
+
+    // 任务状态颜色
+    const getTaskColor = () => {
+        if (isPending) return '#f59e0b';    // amber
+        if (isPaused) return '#6366f1';     // indigo
+        if (isExecuting) return '#ef4444';  // red
+        return '#ef4444';
+    };
+
     return (
-        <div className={`glass-card rounded-xl border transition-all ${isProfitable ? 'border-emerald-500/30' : 'border-rose-500/20'}`}>
+        <div className={`glass-card rounded-xl border transition-all overflow-hidden relative ${isProfitable ? 'border-emerald-500/30' : 'border-rose-500/20'}`}>
+            {/* 活跃任务标签 (斜角丝带) */}
+            {hasActiveTask && (
+                <div
+                    className={`absolute top-2 -left-7 transform -rotate-45 text-[9px] font-semibold uppercase tracking-wider text-white px-8 py-0.5 z-10 pointer-events-none ${isExecuting ? 'animate-pulse' : ''}`}
+                    style={{ background: getTaskColor() }}
+                    title={`任务 #${activeTask.id?.slice(0, 8)} - ${taskStatus}`}
+                >
+                    {getTaskLabel()}
+                </div>
+            )}
+
             {/* Header */}
             <div className="p-4 border-b border-zinc-800/50">
                 <div className="flex items-start justify-between gap-2">
@@ -318,11 +353,35 @@ const ClosePositionCard = ({ opportunity, onTaskCreated }) => {
                                 <span className="text-zinc-500">Fee</span>
                                 <span className="font-mono text-rose-400">-${(tt.predictFee * opportunity.matchedShares).toFixed(2)}</span>
                             </div>
+                            {/* 多档深度摘要 */}
+                            {opportunity.depthAnalysis && (
+                                <div className="flex justify-between">
+                                    <span className="text-zinc-500">可盈利深度</span>
+                                    <span className={`font-mono ${opportunity.depthAnalysis.maxProfitableShares > 0 ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                                        {opportunity.depthAnalysis.maxProfitableShares.toFixed(1)} shares
+                                    </span>
+                                </div>
+                            )}
                             <div className={`flex justify-between font-medium pt-1 border-t border-zinc-800/50 ${tt.isValid ? 'text-emerald-400' : 'text-rose-400'}`}>
                                 <span>Profit</span>
-                                <span>{formatProfit(tt.estProfitTotal)} ({formatPct(tt.estProfitPct)})</span>
+                                <span>{formatProfit(opportunity.depthAnalysis?.totalProfit || tt.estProfitTotal)} ({formatPct(tt.estProfitPct)})</span>
                             </div>
                         </div>
+
+                        {/* 多档深度展示 */}
+                        {opportunity.depthAnalysis?.predictLevels?.length > 1 && (
+                            <div className="mt-2 pt-2 border-t border-zinc-800/30">
+                                <div className="text-[10px] text-zinc-500 mb-1.5">深度档位</div>
+                                <div className="space-y-1 max-h-20 overflow-y-auto">
+                                    {opportunity.depthAnalysis.predictLevels.slice(0, 5).map((level, i) => (
+                                        <div key={i} className={`flex justify-between text-[10px] ${level.isProfitable ? 'text-emerald-400/80' : 'text-rose-400/60'}`}>
+                                            <span className="font-mono">{formatPrice(level.price)} × {level.size.toFixed(0)}</span>
+                                            <span className="font-mono">{level.isProfitable ? '+' : ''}{(level.profitPerShare * 100).toFixed(2)}¢</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* T-T 按钮与数量输入 */}
                         {tt.isValid && (
@@ -501,7 +560,7 @@ const ClosePositionCard = ({ opportunity, onTaskCreated }) => {
 // ============================================================================
 // ClosePositionTab - 平仓管理标签页
 // ============================================================================
-const ClosePositionTab = ({ onSwitchToTasks }) => {
+const ClosePositionTab = ({ onSwitchToTasks, tasks = [] }) => {
     const [opportunities, setOpportunities] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -614,13 +673,22 @@ const ClosePositionTab = ({ onSwitchToTasks }) => {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {opportunities.map((opp) => (
-                        <ClosePositionCard
-                            key={`${opp.predictMarketId}-${opp.arbSide}`}
-                            opportunity={opp}
-                            onTaskCreated={handleTaskCreated}
-                        />
-                    ))}
+                    {opportunities.map((opp) => {
+                        // 查找该市场的活跃 SELL 任务
+                        const activeTask = tasks.find(t =>
+                            t.marketId === opp.predictMarketId &&
+                            t.type === 'SELL' &&
+                            !['COMPLETED', 'FAILED', 'CANCELLED', 'UNWIND_COMPLETED'].includes(t.status)
+                        );
+                        return (
+                            <ClosePositionCard
+                                key={`${opp.predictMarketId}-${opp.arbSide}`}
+                                opportunity={opp}
+                                onTaskCreated={handleTaskCreated}
+                                activeTask={activeTask}
+                            />
+                        );
+                    })}
                 </div>
             )}
         </div>

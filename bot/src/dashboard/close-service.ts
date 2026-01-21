@@ -12,7 +12,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { getAccountData, getPredictJwtToken } from './account-service.js';
 import { calculatePredictFee } from '../trading/depth-calculator.js';
-import type { PositionLeg, ClosePosition, CloseOpportunity, ArbSide, UnmatchedPosition } from './types.js';
+import type { PositionLeg, ClosePosition, CloseOpportunity, ArbSide, UnmatchedPosition, CloseDepthAnalysis, DepthLevel } from './types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -225,7 +225,7 @@ async function fetchExtendedPredictPositions(): Promise<PositionFetchResult<Exte
                                     averageBuyPriceUsd
                                     valueUsd
                                     pnlUsd
-                                    market { id title }
+                                    market { id title question }
                                     outcome { name }
                                 }
                             }
@@ -270,7 +270,7 @@ async function fetchExtendedPredictPositions(): Promise<PositionFetchResult<Exte
             const conditionId = predictIdToConditionId.get(marketId);
             const feeRateBps = conditionId ? conditionIdToFeeRate.get(conditionId) : undefined;
 
-            const fullTitle = predictIdToQuestion.get(marketId) || node.market?.title || `Market #${marketId}`;
+            const fullTitle = predictIdToQuestion.get(marketId) || node.market?.question || node.market?.title || `Market #${marketId}`;
 
             extended.push({
                 marketId,
@@ -411,12 +411,12 @@ async function fetchPredictOrderbook(marketId: number): Promise<Orderbook | null
 
 /**
  * 获取 Polymarket 订单簿
- * WS-only 模式: 只使用 WS 缓存，禁用 REST fallback
+ * 优先使用 WS 缓存，缓存未命中时使用 REST fallback
  */
 async function fetchPolyOrderbook(tokenId: string): Promise<Orderbook | null> {
     if (!tokenId) return null;
 
-    // WS-only 模式: 只使用 WS 缓存
+    // 优先使用 WS 缓存
     if (polyOrderbookProvider) {
         const wsBook = polyOrderbookProvider(tokenId);
         if (wsBook && (wsBook.bids.length > 0 || wsBook.asks.length > 0)) {
@@ -424,7 +424,37 @@ async function fetchPolyOrderbook(tokenId: string): Promise<Orderbook | null> {
         }
     }
 
-    // WS-only 模式: 禁用 REST fallback，缓存未命中返回 null
+    // REST fallback: 缓存未命中时从 CLOB API 获取
+    try {
+        const res = await fetch(`https://clob.polymarket.com/book?token_id=${tokenId}`, {
+            signal: AbortSignal.timeout(3000)
+        });
+        if (!res.ok) return null;
+
+        const data = await res.json() as any;
+        const bids: OrderbookLevel[] = (data.bids || []).map((b: any) => ({
+            price: parseFloat(b.price || '0'),
+            size: parseFloat(b.size || '0')
+        })).filter((b: OrderbookLevel) => b.size > 0);
+        const asks: OrderbookLevel[] = (data.asks || []).map((a: any) => ({
+            price: parseFloat(a.price || '0'),
+            size: parseFloat(a.size || '0')
+        })).filter((a: OrderbookLevel) => a.size > 0);
+
+        // 按价格排序
+        bids.sort((a, b) => b.price - a.price);  // 买单从高到低
+        asks.sort((a, b) => a.price - b.price);  // 卖单从低到高
+
+        if (bids.length > 0 || asks.length > 0) {
+            if (CLOSE_SERVICE_DEBUG) {
+                console.log(`[CloseService] REST fallback 获取 Poly 订单簿: tokenId=${tokenId.slice(0, 10)}..., bids=${bids.length}, asks=${asks.length}`);
+            }
+            return { bids, asks };
+        }
+    } catch {
+        // ignore
+    }
+
     return null;
 }
 
@@ -611,6 +641,137 @@ async function matchPositions(forcePositionsRefresh: boolean = false): Promise<C
 }
 
 /**
+ * 计算多档深度分析
+ * 遍历 Predict 和 Polymarket 订单簿的多档，计算每档的盈利情况
+ */
+function calculateDepthAnalysis(
+    predictBids: OrderbookLevel[],
+    polyBids: OrderbookLevel[],
+    entryCostPerShare: number,
+    feeRateBps: number,
+    matchedShares: number,
+    arbSide: ArbSide
+): CloseDepthAnalysis {
+    const predictLevels: DepthLevel[] = [];
+    let cumulativePredict = 0;
+    let maxProfitableShares = 0;
+    let totalProfit = 0;
+    let weightedPriceSum = 0;
+
+    // 遍历 Predict 订单簿各档
+    for (let i = 0; i < predictBids.length && i < 10; i++) {
+        const predictLevel = predictBids[i];
+        if (!predictLevel || predictLevel.size <= 0) continue;
+
+        const predictPrice = predictLevel.price;
+        const predictFee = calculatePredictFee(predictPrice, feeRateBps);
+
+        // 找到对应的 Poly 档位
+        // 对于当前档位的 Predict 卖出量，找到能支撑的 Poly 买入价格
+        // 策略：使用能覆盖 "当前累计量 + 本档可用量" 的 Poly 档位
+        let polyPrice = 0;
+        let polySize = 0;
+        let cumulativePoly = 0;
+
+        // 本档实际可用量（不超过持仓上限）
+        const effectivePredictSize = Math.min(predictLevel.size, matchedShares - cumulativePredict);
+        const targetCumulative = cumulativePredict + effectivePredictSize;
+
+        for (const polyLevel of polyBids) {
+            if (polyLevel && polyLevel.size > 0) {
+                // 记录当前档位信息
+                polyPrice = polyLevel.price;
+                polySize = polyLevel.size;
+                cumulativePoly += polyLevel.size;
+
+                // 当 Poly 累计深度足够覆盖目标量时，使用当前档位价格
+                if (cumulativePoly >= targetCumulative) {
+                    break;
+                }
+            }
+        }
+
+        // 如果没有 Poly 深度，使用买一价
+        if (polyPrice === 0 && polyBids.length > 0 && polyBids[0]) {
+            polyPrice = polyBids[0].price;
+            polySize = polyBids[0].size;
+        }
+
+        // 计算当前档的每股利润
+        const profitPerShare = (predictPrice - predictFee) + polyPrice - entryCostPerShare;
+        const isProfitable = profitPerShare > 0;
+
+        cumulativePredict += predictLevel.size;
+
+        // 只累计到持仓上限
+        const effectiveSize = Math.min(predictLevel.size, matchedShares - (cumulativePredict - predictLevel.size));
+        if (effectiveSize <= 0) break;
+
+        predictLevels.push({
+            price: predictPrice,
+            size: predictLevel.size,
+            cumulativeSize: Math.min(cumulativePredict, matchedShares),
+            profitPerShare,
+            isProfitable,
+            polyPrice,
+            polySize
+        });
+
+        // 累计盈利档位
+        if (isProfitable) {
+            const profitableSize = Math.min(effectiveSize, polySize);
+            maxProfitableShares += profitableSize;
+            totalProfit += profitPerShare * profitableSize;
+            weightedPriceSum += predictPrice * profitableSize;
+        }
+    }
+
+    // 计算盈亏平衡价格
+    // profit = (predictPrice - fee) + polyBid - entryCost = 0
+    // predictPrice - fee = entryCost - polyBid
+    const polyBid = polyBids[0]?.price || 0;
+    const breakEvenPriceRaw = entryCostPerShare - polyBid;
+    // 考虑手续费的盈亏平衡价格（需要反推）
+    // profit = price - fee(price) + polyBid - entryCost = 0
+    // price - fee(price) = entryCost - polyBid
+    const breakEvenPrice = breakEvenPriceRaw / (1 - feeRateBps / 10000 * 0.5);  // 近似计算
+
+    // 限制可盈利数量不超过持仓
+    maxProfitableShares = Math.min(maxProfitableShares, matchedShares);
+
+    // 计算平均成交价
+    const avgProfitPrice = maxProfitableShares > 0 ? weightedPriceSum / maxProfitableShares : 0;
+
+    // Polymarket 各档分析（简化版本，主要用于展示）
+    const polyLevels: DepthLevel[] = [];
+    let cumulativePoly = 0;
+    for (let i = 0; i < polyBids.length && i < 10; i++) {
+        const polyLevel = polyBids[i];
+        if (!polyLevel || polyLevel.size <= 0) continue;
+
+        cumulativePoly += polyLevel.size;
+        polyLevels.push({
+            price: polyLevel.price,
+            size: polyLevel.size,
+            cumulativeSize: cumulativePoly,
+            profitPerShare: 0,  // Poly 侧不单独计算利润
+            isProfitable: true,
+            polyPrice: polyLevel.price,
+            polySize: polyLevel.size
+        });
+    }
+
+    return {
+        predictLevels,
+        polyLevels,
+        maxProfitableShares,
+        avgProfitPrice,
+        totalProfit,
+        breakEvenPrice
+    };
+}
+
+/**
  * 计算平仓机会
  */
 export async function calculateCloseOpportunities(forcePositionsRefresh: boolean = false): Promise<CloseOpportunity[]> {
@@ -639,6 +800,7 @@ export async function calculateCloseOpportunities(forcePositionsRefresh: boolean
         let predictBid: number;
         let predictBidDepth: number;
         let predictAsk: number;  // M-T 模式挂单价
+        let predictBids: OrderbookLevel[] = [];  // 多档 bid 数据
 
         if (predictBook) {
             if (pos.arbSide === 'YES') {
@@ -646,6 +808,7 @@ export async function calculateCloseOpportunities(forcePositionsRefresh: boolean
                 predictBid = predictBook.bids[0]?.price || 0;
                 predictBidDepth = predictBook.bids[0]?.size || 0;
                 predictAsk = predictBook.asks[0]?.price || 1;
+                predictBids = predictBook.bids || [];
             } else {
                 // 卖 NO: NO bid = 1 - YES ask, NO ask = 1 - YES bid
                 const yesAsk = predictBook.asks[0]?.price || 1;
@@ -654,6 +817,10 @@ export async function calculateCloseOpportunities(forcePositionsRefresh: boolean
                 predictBid = 1 - yesAsk;  // 卖 NO 时吃单价格
                 predictBidDepth = yesAskDepth;  // 深度对应 YES ask 深度
                 predictAsk = 1 - yesBid;  // 卖 NO 时挂单价格
+                // 转换 YES asks 为 NO bids (价格倒转，按价格升序变为降序)
+                predictBids = (predictBook.asks || [])
+                    .map(ask => ({ price: 1 - ask.price, size: ask.size }))
+                    .sort((a, b) => b.price - a.price);  // NO bids 降序排列
             }
         } else {
             // 无订单簿时使用默认值
@@ -664,6 +831,17 @@ export async function calculateCloseOpportunities(forcePositionsRefresh: boolean
 
         const polyBid = polyBook?.bids[0]?.price || 0;
         const polyBidDepth = polyBook?.bids[0]?.size || 0;
+        const polyBids = polyBook?.bids || [];
+
+        // 多档深度分析
+        const depthAnalysis = calculateDepthAnalysis(
+            predictBids,
+            polyBids,
+            pos.entryCostPerShare,
+            feeRateBps,
+            pos.matchedShares,
+            pos.arbSide
+        );
 
         // T-T 计算 (使用正确的价格计算费用)
         const predictFeeTT = calculatePredictFee(predictBid, feeRateBps);
@@ -674,18 +852,15 @@ export async function calculateCloseOpportunities(forcePositionsRefresh: boolean
         const mtProfitPerShare = predictAsk + polyBid - pos.entryCostPerShare;
         const mtMinPolyBid = pos.entryCostPerShare - predictAsk;
 
-        // 最大可卖量（考虑深度）
-        // T-T: 受 Predict Bid 和 Poly Bid 深度限制
-        const maxCloseShares = Math.min(
-            pos.matchedShares,
-            predictBidDepth,
-            polyBidDepth
-        );
+        // 最大可卖量（考虑多档深度）
+        // T-T: 使用多档分析的 maxProfitableShares (累计所有盈利档位)
+        const maxCloseShares = depthAnalysis.maxProfitableShares > 0
+            ? depthAnalysis.maxProfitableShares
+            : Math.min(pos.matchedShares, predictBidDepth, polyBidDepth);  // 回退到买一价深度
         // M-T: Maker 模式不受 Predict Bid 深度限制，只受 Poly Bid 深度限制
-        const mtMaxCloseShares = Math.min(
-            pos.matchedShares,
-            polyBidDepth
-        );
+        // 计算 Poly 多档累计深度
+        const polyTotalDepth = polyBids.reduce((sum, level) => sum + (level?.size || 0), 0);
+        const mtMaxCloseShares = Math.min(pos.matchedShares, polyTotalDepth || polyBidDepth);
 
         opportunities.push({
             polymarketConditionId: pos.polymarketConditionId,
@@ -732,6 +907,9 @@ export async function calculateCloseOpportunities(forcePositionsRefresh: boolean
                 minPolyBid: mtMinPolyBid,
                 isValid: mtProfitPerShare > 0
             },
+
+            // 多档深度分析
+            depthAnalysis,
 
             feeRateBps,
             entryCostPerShare: pos.entryCostPerShare,

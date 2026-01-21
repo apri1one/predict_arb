@@ -373,8 +373,13 @@ export class OrderMonitor extends EventEmitter {
     /**
      * 检查 BUY 套利是否有效
      *
-     * Buy 套利公式: predict_yes_bid + polymarket_no_ask + fee < 1.0
+     * Buy 套利公式: predict_yes_bid + polymarket_no_ask + fee <= 1.0
      * 同时检查 polymarket 价格是否在可接受范围内
+     *
+     * 注: 使用 <= 1.0 + EPSILON 是因为:
+     * - Maker 模式允许零利润 (有积分奖励)
+     * - 体育市场互斥事件 (yes + no = 1) 不应触发价格保护
+     * - 浮点精度问题 (0.39 + 0.61 可能等于 1.0000000000000002)
      */
     private isArbValidBuy(
         predictPrice: number,
@@ -382,8 +387,11 @@ export class OrderMonitor extends EventEmitter {
         feeRateBps: number,
         maxPolyPrice: number
     ): boolean {
-        // 检查价格是否超过最大可接受价格
-        if (polyNoAsk > maxPolyPrice) {
+        // 浮点精度容差
+        const EPSILON = 0.0001;
+
+        // 检查价格是否超过最大可接受价格 (加 epsilon 容差)
+        if (polyNoAsk > maxPolyPrice + EPSILON) {
             return false;
         }
 
@@ -395,10 +403,10 @@ export class OrderMonitor extends EventEmitter {
         const grossFee = baseFeeRate * Math.min(predictPrice, 1 - predictPrice);
         const fee = grossFee * (1 - FEE_REBATE);
 
-        // 套利条件: total cost < 1.0
+        // 套利条件: total cost <= 1.0 + epsilon (允许零利润，容忍浮点精度误差)
         const totalCost = predictPrice + polyNoAsk + fee;
 
-        return totalCost < 1.0;
+        return totalCost <= 1.0 + EPSILON;
     }
 
     /**

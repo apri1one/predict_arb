@@ -10,7 +10,7 @@ Predict.fun 与 Polymarket 跨平台套利交易机器人。
 cd bot
 
 # Dashboard (主入口)
-npm run dashboard               # 启动 http://localhost:3005
+npm run dashboard               # 启动 http://localhost:3010
 
 # 类型检查 (修改代码后必须运行)
 npx tsc --noEmit

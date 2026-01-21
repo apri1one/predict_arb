@@ -4481,16 +4481,22 @@ async function main(): Promise<void> {
     await Promise.all(scanTasks);
     console.log(`✅ 并行扫描完成，耗时 ${((Date.now() - startScanTime) / 1000).toFixed(1)}s\n`);
 
-    // 体育市场 Predict 订单簿补订阅 (scan 完成后才有 marketId)
-    if (usePredictWsMode && sportsService) {
-        const sportsMarketIds = sportsService.getMarkets().map(m => m.predictMarketId).filter(Boolean);
-        if (sportsMarketIds.length > 0) {
-            const unifiedCache = getPredictOrderbookCache();
-            if (unifiedCache) {
-                await unifiedCache.subscribeMarkets(sportsMarketIds);
-                console.log(`✅ 体育市场 Predict 订单簿已补订阅: ${sportsMarketIds.length} 个市场\n`);
+    // 体育市场订单簿补订阅 (scan 完成后才有 marketId/tokenId)
+    if (sportsService) {
+        // 1. Predict 订单簿补订阅
+        if (usePredictWsMode) {
+            const sportsMarketIds = sportsService.getMarkets().map(m => m.predictMarketId).filter(Boolean);
+            if (sportsMarketIds.length > 0) {
+                const unifiedCache = getPredictOrderbookCache();
+                if (unifiedCache) {
+                    await unifiedCache.subscribeMarkets(sportsMarketIds);
+                    console.log(`✅ 体育市场 Predict 订单簿已补订阅: ${sportsMarketIds.length} 个市场`);
+                }
             }
         }
+
+        // 体育市场 Polymarket 使用 REST API，无需 WS 订阅
+        console.log('');  // 空行分隔
     }
 
     // 主轮询 (LIVE 标签页套利机会)
@@ -4672,14 +4678,13 @@ async function main(): Promise<void> {
 
     // ========================================================================
     // 体育市场 SSE 广播 (仅当启用时) - 使用统一节流广播
-    // 注意：sports 数据约 30KB，过高频率会持续触发背压
     // ========================================================================
     if (sportsService) {
-        const SPORTS_BROADCAST_MS = 500;
+        const SPORTS_BROADCAST_MS = 100;
         serialSchedulerStops.push(createSerialScheduler('SportsBroadcast', SPORTS_BROADCAST_MS, async () => {
             const sportsData = JSON.stringify(sportsService!.getSSEData());
             markDirty('sports', sportsData);
-        }, { warnThresholdMs: SPORTS_BROADCAST_MS * 3, runImmediately: true }));
+        }, { warnThresholdMs: SPORTS_BROADCAST_MS * 5, runImmediately: true }));
     }
 
     // ========================================================================

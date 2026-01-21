@@ -318,7 +318,7 @@ async function fetchPredictAccount(): Promise<AccountData['predict']> {
                                             averageBuyPriceUsd
                                             valueUsd
                                             pnlUsd
-                                            market { id title }
+                                            market { id title question }
                                             outcome { name }
                                         }
                                     }
@@ -333,6 +333,9 @@ async function fetchPredictAccount(): Promise<AccountData['predict']> {
                     const graphqlData = await graphqlRes.json() as any;
                     const edges = graphqlData?.data?.account?.positions?.edges || [];
 
+                    // 累计持仓当前市值 (用于 portfolio)
+                    let totalValueUsd = 0;
+
                     positions = edges.map((edge: any) => {
                         const node = edge.node;
                         // shares 是 bigint string (wei 格式)
@@ -340,6 +343,9 @@ async function fetchPredictAccount(): Promise<AccountData['predict']> {
                         const qty = Number(sharesWei) / 1e18;
                         // averageBuyPriceUsd 是 0-1 格式，转换为美分
                         const avgPrice = (node.averageBuyPriceUsd || 0) * 100;
+                        // valueUsd 是当前市值 (USD)
+                        const valueUsd = node.valueUsd || 0;
+                        totalValueUsd += valueUsd;
 
                         // 判断是否为二元市场
                         const outcomeName = (node.outcome?.name || '').toUpperCase();
@@ -350,7 +356,7 @@ async function fetchPredictAccount(): Promise<AccountData['predict']> {
                         const resolvedTitle = marketTitleResolver && marketId
                             ? marketTitleResolver(Number(marketId))
                             : null;
-                        const marketTitle = resolvedTitle || node.market?.title || `Market #${marketId}`;
+                        const marketTitle = resolvedTitle || node.market?.question || node.market?.title || `Market #${marketId}`;
 
                         // 多选项市场: 显示 "事件标题 - 选项名"
                         const displayMarket = isBinaryMarket
@@ -361,9 +367,13 @@ async function fetchPredictAccount(): Promise<AccountData['predict']> {
                             market: displayMarket,
                             side: isBinaryMarket ? outcomeName : (node.outcome?.name || 'Unknown'),
                             qty: Math.round(qty * 100) / 100,
-                            avgPrice: Math.round(avgPrice * 10) / 10
+                            avgPrice: Math.round(avgPrice * 10) / 10,
+                            _valueUsd: valueUsd  // 内部字段用于 portfolio 计算
                         };
                     }).filter((p: any) => p.qty > 0);
+
+                    // 存储 portfolio 值供后续使用
+                    (positions as any)._totalValueUsd = totalValueUsd;
 
                     lastPredictPositions = positions;
                     positionsFetched = true;
@@ -451,14 +461,19 @@ async function fetchPredictAccount(): Promise<AccountData['predict']> {
         }
 
         // 3. 计算账户余额
-        // portfolio = 持仓当前价值 (avgPrice 是美分，需要转换为美元)
-        const portfolio = positions.reduce((sum, p) => sum + (p.qty * p.avgPrice / 100), 0);
+        // portfolio = 持仓当前市值 (从 GraphQL valueUsd 获取，或回退到成本价计算)
+        const graphqlTotalValue = (positions as any)._totalValueUsd;
+        const costBasisFallback = positions.reduce((sum, p) => sum + (p.qty * p.avgPrice / 100), 0);
+        const portfolio = graphqlTotalValue > 0 ? graphqlTotalValue : costBasisFallback;
 
-        console.log(`[AccountService] Predict: available=${balance.toFixed(2)}, portfolio=${portfolio.toFixed(2)}, total=${(balance + portfolio).toFixed(2)}`);
+        // 注意: Predict 使用链上托管模型 - 下单时 USDT 已转移到交易合约
+        // 因此链上余额已经是可用余额，不需要再减去订单锁定
+        // (与 Polymarket 不同，Polymarket 使用逻辑锁定)
+        console.log(`[AccountService] Predict: available=${balance.toFixed(2)}, portfolio=${portfolio.toFixed(2)} (valueUsd=${graphqlTotalValue?.toFixed(2) || 'N/A'}), total=${(balance + portfolio).toFixed(2)}`);
 
         return {
             total: balance + portfolio,  // 总资产 = 可用 + 持仓
-            available: balance,          // 可用 = 链上 USDT
+            available: balance,          // 可用 = 链上 USDT (已扣除托管)
             portfolio,                   // 持仓价值
             positions,
             openOrders
@@ -611,7 +626,7 @@ async function fetchPolymarketAccount(): Promise<AccountData['polymarket']> {
                                     market: pos.title || 'Unknown',
                                     side: (pos.outcome || 'YES').toUpperCase(),
                                     qty: Math.round(size * 100) / 100,
-                                    avgPrice: Math.round(avgPrice * 100),  // 转换为美分
+                                    avgPrice: Math.round(avgPrice * 1000) / 10,  // 转换为美分并保留一位小数
                                 });
                             }
                         }

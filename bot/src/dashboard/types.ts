@@ -193,10 +193,38 @@ export interface CloseOpportunity {
         isValid: boolean;
     };
 
+    // 多档深度分析 (T-T 模式)
+    depthAnalysis?: CloseDepthAnalysis;
+
     // 元信息
     feeRateBps: number;
     entryCostPerShare: number;
     lastUpdate: number;
+}
+
+/**
+ * 订单簿单档分析
+ */
+export interface DepthLevel {
+    price: number;           // 当前档价格
+    size: number;            // 当前档深度
+    cumulativeSize: number;  // 累计深度
+    profitPerShare: number;  // 当前档每股利润
+    isProfitable: boolean;   // 当前档是否盈利
+    polyPrice: number;       // 对应的 Poly 档位价格
+    polySize: number;        // 对应的 Poly 档位深度
+}
+
+/**
+ * 平仓多档深度分析结果
+ */
+export interface CloseDepthAnalysis {
+    predictLevels: DepthLevel[];    // Predict 各档分析
+    polyLevels: DepthLevel[];       // Polymarket 各档分析
+    maxProfitableShares: number;    // 最大可盈利数量 (所有盈利档位累计)
+    avgProfitPrice: number;         // 平均成交价 (如果成交所有盈利档位)
+    totalProfit: number;            // 总利润 (所有盈利档位累计)
+    breakEvenPrice: number;         // 盈亏平衡价格 (Predict 侧)
 }
 
 export interface AccountBalance {
@@ -319,6 +347,9 @@ export interface Task {
 
     // Taker 模式专用: 费率 (创建时记录)
     feeRateBps?: number;
+
+    // 体育市场标识 (使用 REST API 而非 WS 获取订单簿)
+    isSportsMarket?: boolean;
 }
 
 export interface CreateTaskInput {
@@ -356,6 +387,9 @@ export interface CreateTaskInput {
 
     // 任务过期时间 (0 = 不过期, 单位: 小时)
     expiryHours?: number;
+
+    // 体育市场标识 (使用 REST API 而非 WS 获取订单簿)
+    isSportsMarket?: boolean;
 }
 
 export interface TaskFilter {

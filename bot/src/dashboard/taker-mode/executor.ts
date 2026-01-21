@@ -53,6 +53,10 @@ const MAX_STATUS_FETCH_FAILURES = 30;      // 最大连续失败次数 (30 * 500
 // Polymarket 最小订单阈值 (Polymarket 最小订单 $1，按最低价格 $0.50 计算约 2 shares)
 const MIN_HEDGE_THRESHOLD = Number(process.env.MIN_HEDGE_THRESHOLD) || 2;  // 低于此数量视为对冲完成
 
+// Polymarket 最小订单名义金额阈值 ($1)
+// 小额成交先累计，避免 Polymarket 400 "invalid amounts" 拒单
+const MIN_HEDGE_NOTIONAL = Number(process.env.MIN_HEDGE_NOTIONAL) || 1.0;  // USD
+
 // Fee 相关常量
 const FEE_REBATE_PERCENT = 0.10;  // Predict 10% 返点
 
@@ -748,10 +752,18 @@ export class TakerExecutor extends EventEmitter {
 
                     if (newFilled > 0) {
                         if (isPaused) {
+                            // 暂停期间检测到成交，强制对冲以避免风险暴露
                             console.log(`[TakerExecutor] Task ${task.id}: Fill detected while paused, hedging to avoid exposure...`);
+                            await this.incrementalHedge(ctx, hedgeTokenId, newFilled);
+                        } else {
+                            // 检查是否应该触发对冲 (考虑 $1 名义金额阈值)
+                            const isPredictFullyFilled = orderStatus.status === 'FILLED' || orderStatus.remainingQty === 0;
+                            const hedgeCheck = await this.checkShouldHedge(ctx, hedgeTokenId, newFilled, isPredictFullyFilled);
+
+                            if (hedgeCheck.shouldHedge) {
+                                await this.incrementalHedge(ctx, hedgeTokenId, hedgeCheck.hedgeQty);
+                            }
                         }
-                        // SELL 任务直接使用成交数量，不扣除 fee
-                        await this.incrementalHedge(ctx, hedgeTokenId, newFilled);
                     }
                 }
 
@@ -1179,8 +1191,13 @@ export class TakerExecutor extends EventEmitter {
                         feeRateBps
                     );
                     console.log(`[TakerExecutor] Task ${task.id}: Incremental hedge: rawFilled=${newFilled}, actualFilled=${actualNewFilled} (wss=${ctx.wssFilledQty.toFixed(4)}, rest=${ctx.restFilledQty.toFixed(4)})`);
-                    if (actualNewFilled > 0) {
-                        await this.incrementalHedge(ctx, hedgeTokenId, actualNewFilled);
+
+                    // 检查是否应该触发对冲 (考虑 $1 名义金额阈值)
+                    const isPredictFullyFilled = orderStatus.status === 'FILLED';
+                    const hedgeCheck = await this.checkShouldHedge(ctx, hedgeTokenId, actualNewFilled, isPredictFullyFilled);
+
+                    if (hedgeCheck.shouldHedge) {
+                        await this.incrementalHedge(ctx, hedgeTokenId, hedgeCheck.hedgeQty);
                     }
                 }
 
@@ -2054,6 +2071,63 @@ export class TakerExecutor extends EventEmitter {
             totalCost,
             isValid: totalCost <= 1,  // <= 1 即不亏钱
         };
+    }
+
+    /**
+     * 检查是否应该触发对冲 (考虑 Polymarket $1 最小名义金额阈值)
+     *
+     * @param ctx 任务上下文
+     * @param hedgeTokenId 对冲代币 ID
+     * @param newFilledQty 本次新成交的数量
+     * @param isPredictFullyFilled Predict 订单是否已完全成交
+     * @returns { shouldHedge: boolean, hedgeQty: number, reason: string }
+     */
+    private async checkShouldHedge(
+        ctx: TakerContext,
+        hedgeTokenId: string,
+        newFilledQty: number,
+        isPredictFullyFilled: boolean
+    ): Promise<{ shouldHedge: boolean; hedgeQty: number; reason: string }> {
+        const task = ctx.task;
+
+        // 累计待对冲数量
+        ctx.pendingHedgeQty += newFilledQty;
+
+        // 计算总未对冲量
+        const totalUnhedged = ctx.totalPredictFilled - ctx.totalHedged;
+
+        // 如果未对冲量 < MIN_HEDGE_THRESHOLD，无需对冲
+        if (totalUnhedged < MIN_HEDGE_THRESHOLD) {
+            return { shouldHedge: false, hedgeQty: 0, reason: `Unhedged ${totalUnhedged.toFixed(4)} < MIN_HEDGE_THRESHOLD ${MIN_HEDGE_THRESHOLD}` };
+        }
+
+        // 获取当前对冲价格估算
+        const hedgeSide: 'BUY' | 'SELL' = task.type === 'SELL' ? 'SELL' : 'BUY';
+        const { price: hedgePrice } = await this.getHedgePrice(hedgeTokenId, hedgeSide);
+        ctx.lastHedgePriceEstimate = hedgePrice;
+
+        // 计算名义金额 = 待对冲量 × 对冲价格
+        const notionalAmount = ctx.pendingHedgeQty * hedgePrice;
+
+        // 如果 Predict 已完全成交，强制对冲剩余量（无论金额大小）
+        if (isPredictFullyFilled && totalUnhedged >= MIN_HEDGE_THRESHOLD) {
+            const hedgeQty = totalUnhedged;
+            ctx.pendingHedgeQty = 0;  // 清空累计
+            console.log(`[TakerExecutor] Predict fully filled, force hedge remaining ${hedgeQty.toFixed(4)} (notional: $${(hedgeQty * hedgePrice).toFixed(2)})`);
+            return { shouldHedge: true, hedgeQty, reason: 'Predict fully filled' };
+        }
+
+        // 检查名义金额是否达到阈值
+        if (notionalAmount >= MIN_HEDGE_NOTIONAL) {
+            const hedgeQty = ctx.pendingHedgeQty;
+            ctx.pendingHedgeQty = 0;  // 清空累计
+            console.log(`[TakerExecutor] Notional $${notionalAmount.toFixed(2)} >= $${MIN_HEDGE_NOTIONAL}, triggering hedge for ${hedgeQty.toFixed(4)} shares`);
+            return { shouldHedge: true, hedgeQty, reason: `Notional $${notionalAmount.toFixed(2)} >= threshold` };
+        }
+
+        // 金额未达阈值，继续累计
+        console.log(`[TakerExecutor] Accumulating: pending=${ctx.pendingHedgeQty.toFixed(4)}, notional=$${notionalAmount.toFixed(2)} < $${MIN_HEDGE_NOTIONAL}, waiting...`);
+        return { shouldHedge: false, hedgeQty: 0, reason: `Notional $${notionalAmount.toFixed(2)} < $${MIN_HEDGE_NOTIONAL}` };
     }
 
     /**

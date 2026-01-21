@@ -844,6 +844,9 @@ const TasksTab = ({ tasks, onStart, onCancel, onViewLogs, onUpdateTask, apiBaseU
                                             <span className={`text-xs font-bold ${task.type === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}`}>
                                                 {task.type}
                                             </span>
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${task.arbSide === 'YES' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                                                {task.arbSide}
+                                            </span>
                                             <TaskStatusBadge status={task.status} />
                                             <span className="text-xs font-mono text-zinc-500">#{task.marketId}</span>
                                             <ViewLinks
@@ -862,7 +865,14 @@ const TasksTab = ({ tasks, onStart, onCancel, onViewLogs, onUpdateTask, apiBaseU
                                             </div>
                                             <div>
                                                 <span className="text-zinc-500">数量</span>
-                                                <div className="text-white font-mono">{task.quantity}</div>
+                                                <div className="text-white font-mono">
+                                                    {task.quantity}
+                                                    {task.totalQuantity > 0 && task.quantity !== task.totalQuantity && (
+                                                        <span className="text-zinc-500 text-[10px] ml-1" title="原始数量">
+                                                            / {task.totalQuantity}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div>
                                                 <ExpirySelector
@@ -928,6 +938,9 @@ const TasksTab = ({ tasks, onStart, onCancel, onViewLogs, onUpdateTask, apiBaseU
                                         <span className={`text-xs font-bold ${task.type === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}`}>
                                             {task.type}
                                         </span>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${task.arbSide === 'YES' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                                            {task.arbSide}
+                                        </span>
                                         <span className="text-xs text-zinc-300 truncate" title={task.title}>{task.title}</span>
                                         <ViewLinks
                                             predictId={task.marketId}
@@ -975,7 +988,7 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
     const [priceEdited, setPriceEdited] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
-    // 两步创建流程状态
+    // 启动失败时保存任务 ID (用于错误恢复)
     const [createdTaskId, setCreatedTaskId] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState(null);
@@ -990,7 +1003,7 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
                     setIsVisible(true);
                 });
             });
-            // 重置两步流程状态
+            // 重置状态
             setCreatedTaskId(null);
             setSubmitError(null);
             setPriceEdited(false);
@@ -1074,31 +1087,11 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
     // 验证数量有效
     const hasValidQuantity = safeQuantity > 0;
 
-    // 两步流程：第一步创建任务，第二步启动任务
+    // 一步流程：创建任务后自动启动
     const handleSubmit = async () => {
         if (submitting) return;
 
-        // 第二步：启动已创建的任务
-        if (createdTaskId) {
-            setSubmitting(true);
-            setSubmitError(null);
-            try {
-                const res = await fetch(`${apiBaseUrl}/api/tasks/${createdTaskId}/start`, { method: 'POST' });
-                const data = await res.json();
-                if (data.success) {
-                    handleClose();  // 关闭 Modal
-                } else {
-                    setSubmitError(data.error || 'Failed to start task');
-                }
-            } catch (error) {
-                setSubmitError(error.message);
-            } finally {
-                setSubmitting(false);
-            }
-            return;
-        }
-
-        // 第一步：创建任务
+        // 验证必需字段
         if (!hasRequiredFields) {
             alert(`缺少必需字段: ${missingFields.join(', ')}`);
             return;
@@ -1154,21 +1147,35 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
         setSubmitting(true);
         setSubmitError(null);
         try {
-            const res = await fetch(`${apiBaseUrl}/api/tasks`, {
+            // 1. 创建任务
+            const createRes = await fetch(`${apiBaseUrl}/api/tasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(taskParams),
             });
-            const data = await res.json();
-            if (data.success) {
-                const taskId = data.data?.id;
-                if (taskId) {
-                    setCreatedTaskId(taskId);  // 保存任务 ID，等待启动
-                } else {
-                    setSubmitError('Task created but no ID returned');
-                }
+            const createData = await createRes.json();
+
+            if (!createData.success) {
+                setSubmitError(createData.error || 'Failed to create task');
+                return;
+            }
+
+            const taskId = createData.data?.id;
+            if (!taskId) {
+                setSubmitError('Task created but no ID returned');
+                return;
+            }
+
+            // 2. 立即启动任务
+            const startRes = await fetch(`${apiBaseUrl}/api/tasks/${taskId}/start`, { method: 'POST' });
+            const startData = await startRes.json();
+
+            if (startData.success) {
+                handleClose();  // 关闭 Modal
             } else {
-                setSubmitError(data.error || 'Failed to create task');
+                // 任务已创建但启动失败，显示错误但保留任务 ID 供手动启动
+                setCreatedTaskId(taskId);
+                setSubmitError(`任务已创建但启动失败: ${startData.error || 'Unknown error'}`);
             }
         } catch (error) {
             setSubmitError(error.message);
@@ -1348,27 +1355,23 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={submitting || (!createdTaskId && (!hasRequiredFields || !hasValidQuantity || (needsFunds && !hasSufficientFunds)))}
+                        disabled={submitting || (!hasRequiredFields || !hasValidQuantity || (needsFunds && !hasSufficientFunds))}
                         className={`flex-1 py-2.5 rounded-lg font-medium text-sm text-white transition-all ${
-                            submitting || (!createdTaskId && (!hasRequiredFields || !hasValidQuantity || (needsFunds && !hasSufficientFunds)))
+                            submitting || (!hasRequiredFields || !hasValidQuantity || (needsFunds && !hasSufficientFunds))
                                 ? 'bg-zinc-600 cursor-not-allowed opacity-50'
-                                : createdTaskId
-                                    ? 'bg-amber-500 hover:brightness-110'  // 启动按钮使用金色
-                                    : type === 'BUY'
-                                        ? 'bg-emerald-500 hover:brightness-110'
-                                        : 'bg-rose-500 hover:brightness-110'
+                                : type === 'BUY'
+                                    ? 'bg-emerald-500 hover:brightness-110'
+                                    : 'bg-rose-500 hover:brightness-110'
                         }`}>
                         {submitting
-                            ? (createdTaskId ? '启动中...' : '创建中...')
-                            : createdTaskId
-                                ? '▶ 启动'
-                                : !hasRequiredFields
-                                    ? '数据不完整'
-                                    : !hasValidQuantity
-                                        ? '请输入数量'
-                                        : (needsFunds && !hasSufficientFunds)
-                                            ? '资金不足'
-                                            : '创建任务'
+                            ? '执行中...'
+                            : !hasRequiredFields
+                                ? '数据不完整'
+                                : !hasValidQuantity
+                                    ? '请输入数量'
+                                    : (needsFunds && !hasSufficientFunds)
+                                        ? '资金不足'
+                                        : '创建并执行'
                         }
                     </button>
                 </div>
@@ -1699,14 +1702,7 @@ const SettingsPanel = ({ isOpen, onClose, settings, setSettings }) => {
                                     <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${settings.enabled ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
                                 </button>
                             </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-zinc-400">Sound Alert</span>
-                                <button
-                                    onClick={() => setSettings(s => ({ ...s, sound: !s.sound }))}
-                                    className={`w-12 h-6 rounded-full transition-colors ${settings.sound ? 'bg-amber-500' : 'bg-zinc-700'}`}>
-                                    <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${settings.sound ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
-                                </button>
-                            </div>
+                            {/* Sound Alert 已移除 */}
                             <div className="flex items-center justify-between">
                                 <div>
                                     <span className="text-sm text-zinc-400">Desktop Notifications</span>
@@ -1773,19 +1769,15 @@ const SettingsPanel = ({ isOpen, onClose, settings, setSettings }) => {
                         </div>
                     </div>
 
-                    {/* Test Button */}
+                    {/* Test Button - 只测试桌面通知 */}
                     <button
                         onClick={() => {
-                            if (settings.sound) {
-                                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleNBHK3Th/M50RwBTqP7/mWBJPH7h+P+8dVs2e+D4/7t1WzZ74Pj/u3VbNnvg+P+7dVs2e+D4/7t1WzZ74Pj/u3VbNnvg+P+7dVs2e+D4/7t1WzZ74Pj/u3VbNnvg+P+7dVs2');
-                                audio.play().catch(() => { });
-                            }
                             if (settings.desktop && 'Notification' in window && Notification.permission === 'granted') {
                                 new Notification('Test Notification', { body: 'Notifications are working!' });
                             }
                         }}
                         className="w-full py-3 rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 transition-colors text-sm font-medium">
-                        Test Notification
+                        Test Desktop Notification
                     </button>
                 </div>
             </div>
@@ -1919,7 +1911,7 @@ const AccountCard = ({ platform, balance, positions, openOrders = [], icon, colo
                                     <div className="text-right flex-shrink-0 ml-2">
                                         <span className="font-mono text-zinc-300">{pos.qty}</span>
                                         <span className="text-zinc-500 ml-1">@</span>
-                                        <span className="font-mono text-zinc-300">{pos.avgPrice}¢</span>
+                                        <span className="font-mono text-zinc-300">{Number(pos.avgPrice).toFixed(1)}¢</span>
                                     </div>
                                 </div>
                             )) : (
@@ -2115,9 +2107,23 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts }) =>
         if (!opp || !opp.isValid) return;
 
         // 转换为 OpportunityCard 期望的格式
+        // NBA 双市场结构: Predict 一场比赛 = 2 个独立市场 (Away, Home)
+        // 关键: 买主队(Home) = 买客队市场(Away)的 NO
+        //
+        // direction='away' (买客队):
+        //   - marketId = predictAwayMarketId (客队市场)
+        //   - arbSide = 'YES' (买客队市场的 YES)
+        //   - Poly 对冲 = 买 polymarketHomeTokenId (主队 token)
+        //
+        // direction='home' (买主队):
+        //   - marketId = predictAwayMarketId (仍用客队市场！)
+        //   - arbSide = 'NO' (买客队市场的 NO = 主队获胜)
+        //   - Poly 对冲 = 买 polymarketAwayTokenId (客队 token)
+        const teamName = direction === 'away' ? market.awayTeam : market.homeTeam;
         const taskData = {
-            marketId: market.predictMarketId,
-            title: market.predictTitle,
+            // NBA: 始终使用客队市场 ID，通过 arbSide 控制方向
+            marketId: market.predictAwayMarketId,
+            title: `${market.predictTitle} - Buy ${teamName}`,
             strategy: 'MAKER',
             side: direction === 'away' ? 'YES' : 'NO',
             arbSide: direction === 'away' ? 'YES' : 'NO',
@@ -2127,6 +2133,9 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts }) =>
             maxQuantity: opp.maxQuantity,
             estimatedProfit: opp.profit * opp.maxQuantity,
             polymarketConditionId: market.polymarketConditionId,
+            // Token 映射:
+            // - arbSide='YES' (买客队): YES=客队token, NO=主队token (对冲用)
+            // - arbSide='NO' (买主队): YES=客队token, NO=主队token (这次买NO，对冲买YES)
             polymarketYesTokenId: market.polymarketAwayTokenId,
             polymarketNoTokenId: market.polymarketHomeTokenId,
             negRisk: market.negRisk,
@@ -2135,6 +2144,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts }) =>
             isInverted: false,
             predictBid: direction === 'away' ? pred.awayBid : pred.homeBid,
             predictAsk: direction === 'away' ? pred.awayAsk : pred.homeAsk,
+            isSportsMarket: true,  // 体育市场标识，使用 REST API 获取订单簿
         };
 
         onOpenTaskModal(taskData, 'BUY');
@@ -2172,10 +2182,16 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts }) =>
         const quantity = Math.max(alignedQuantity, 5); // 最小 5 shares
 
         // 构建任务参数 (与 dashboard taker 模式一致)
+        // NBA 双市场结构: Predict 一场比赛 = 2 个独立市场 (Away, Home)
+        // 关键: 买主队(Home) = 买客队市场(Away)的 NO
+        //
+        // direction='away' (买客队): arbSide='YES', 对冲买 Poly Home token
+        // direction='home' (买主队): arbSide='NO', 对冲买 Poly Away token
         const taskParams = {
             type: 'BUY',
             strategy: 'TAKER',
-            marketId: market.predictMarketId,
+            // NBA: 始终使用客队市场 ID，通过 arbSide 控制方向
+            marketId: market.predictAwayMarketId,
             title: `${market.predictTitle} - Buy ${teamName}`,
             arbSide: direction === 'away' ? 'YES' : 'NO',
             // TAKER BUY 必需字段
@@ -2183,7 +2199,9 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts }) =>
             maxTotalCost: maxTotalCost,
             // 对冲价格上限 (加点滑点保护，会被 task-service 重新计算覆盖)
             polymarketMaxAsk: Number((opp.polyHedgePrice + 0.02).toFixed(4)),
-            // Token 映射
+            // Token 映射:
+            // - arbSide='YES' (买客队): YES=客队token, NO=主队token (对冲买NO)
+            // - arbSide='NO' (买主队): YES=客队token, NO=主队token (对冲买YES)
             polymarketConditionId: market.polymarketConditionId,
             polymarketYesTokenId: market.polymarketAwayTokenId,
             polymarketNoTokenId: market.polymarketHomeTokenId,
@@ -2194,6 +2212,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts }) =>
             tickSize: tickSize,
             feeRateBps: feeRateBps,
             isInverted: false,
+            isSportsMarket: true,  // 体育市场标识，使用 REST API 获取订单簿
         };
 
         // 调用 Taker 任务创建函数

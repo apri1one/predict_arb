@@ -7,24 +7,16 @@ const useNotifications = () => {
     const [notifications, setNotifications] = useState([]);
     const [settings, setSettings] = useState({
         enabled: true,
-        sound: true,
+        sound: false,  // 声音功能已禁用
         desktop: false, // Default OFF - user must explicitly enable in Settings
         minProfit: 1.5,
         strategies: ['MAKER', 'TAKER']
     });
-    const audioRef = useRef(null);
 
-    useEffect(() => {
-        // Create audio element for notification sound
-        audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleNBHK3Th/M50RwBTqP7/mWBJPH7h+P+8dVs2e+D4/7t1WzZ74Pj/u3VbNnvg+P+7dVs2e+D4/7t1WzZ74Pj/u3VbNnvg+P+7dVs2');
-    }, []);
-
+    // 声音功能已完全移除 - 不再创建 Audio 对象或播放声音
     const playSound = useCallback(() => {
-        if (settings.sound && audioRef.current) {
-            audioRef.current.currentTime = 0;
-            audioRef.current.play().catch(() => { });
-        }
-    }, [settings.sound]);
+        // 声音提醒已禁用，此函数为空实现
+    }, []);
 
     useEffect(() => {
         const interval = setInterval(() => {

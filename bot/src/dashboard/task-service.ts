@@ -7,6 +7,7 @@ import { Task, TaskStatus, CreateTaskInput, TaskFilter } from './types.js';
 import { EventEmitter } from 'events';
 import { getTaskLogger, TaskLogger, TaskConfigSnapshot } from './task-logger/index.js';
 import { calculatePredictFee } from '../trading/depth-calculator.js';
+import { getPolymarketSlug } from './url-mapper.js';
 
 // predict-slugs.json 缓存类型
 interface PredictSlugEntry {
@@ -76,10 +77,10 @@ export class TaskService extends EventEmitter {
                 { ...task, strategy: task.strategy ?? 'MAKER' } as Task
             ]));
 
-            // 重建 market locks (key 格式: "marketId:type")
+            // 重建 market locks (key 格式: "marketId:type:arbSide")
             for (const [id, task] of this.tasks) {
                 if (this.isActiveStatus(task.status)) {
-                    this.marketLocks.set(this.getLockKey(task.marketId, task.type), id);
+                    this.marketLocks.set(this.getLockKey(task.marketId, task.type, task.arbSide), id);
                 }
             }
 
@@ -100,6 +101,11 @@ export class TaskService extends EventEmitter {
      */
     createTask(input: CreateTaskInput): Task {
         const strategy = input.strategy ?? 'MAKER';
+
+        // 调试日志：打印体育市场任务创建参数
+        if (input.isSportsMarket) {
+            console.log(`[TaskService] Sports task create: marketId=${input.marketId}, arbSide=${input.arbSide}, title=${input.title?.slice(0, 30)}`);
+        }
 
         // 0a. SELL 任务必须提供 entryCost
         // 注意: TAKER + SELL 用于 NO 端套利（Predict SELL YES ≈ BUY NO），不是平仓，不需要 entryCost
@@ -155,13 +161,13 @@ export class TaskService extends EventEmitter {
             throw new Error(`Task ${id} already exists`);
         }
 
-        // 3. 检查并发锁 (按 marketId:type 分开锁定，BUY 和 SELL 可以共存)
-        const lockKey = this.getLockKey(input.marketId, input.type);
+        // 3. 检查并发锁 (按 marketId:type:arbSide 锁定，同一市场不同方向可共存)
+        const lockKey = this.getLockKey(input.marketId, input.type, input.arbSide);
         const existingTaskId = this.marketLocks.get(lockKey);
         if (existingTaskId) {
             const existingTask = this.tasks.get(existingTaskId);
             if (existingTask && this.isActiveStatus(existingTask.status)) {
-                throw new Error(`Market ${input.marketId} has active ${input.type} task: ${existingTaskId}`);
+                throw new Error(`Market ${input.marketId} has active ${input.type}:${input.arbSide} task: ${existingTaskId}`);
             }
         }
 
@@ -177,7 +183,8 @@ export class TaskService extends EventEmitter {
             marketId: input.marketId,
             title,
             predictSlug: input.predictSlug,
-            polymarketSlug: input.polymarketSlug,
+            // 优先使用前端传入的 slug，否则从 url-mapper 缓存获取
+            polymarketSlug: input.polymarketSlug || getPolymarketSlug(input.polymarketConditionId),
             strategy,  // MAKER 或 TAKER
             arbSide: input.arbSide,  // 套利方向: YES 或 NO
             polymarketConditionId: input.polymarketConditionId,
@@ -294,7 +301,7 @@ export class TaskService extends EventEmitter {
 
         // 如果状态变为终态，释放锁
         if (this.isTerminalStatus(updated.status) && !this.isTerminalStatus(task.status)) {
-            this.releaseLock(task.marketId, id, task.type);
+            this.releaseLock(task.marketId, id, task.type, task.arbSide);
         }
 
         // 发送事件
@@ -383,28 +390,36 @@ export class TaskService extends EventEmitter {
     }
 
     /**
-     * 检查 market 是否有活跃任务 (指定类型)
+     * 检查 market 是否有活跃任务 (指定类型和方向)
      */
-    hasActiveTask(marketId: number, type?: 'BUY' | 'SELL'): boolean {
-        if (type) {
-            const taskId = this.marketLocks.get(this.getLockKey(marketId, type));
+    hasActiveTask(marketId: number, type?: 'BUY' | 'SELL', arbSide?: 'YES' | 'NO'): boolean {
+        if (type && arbSide) {
+            const taskId = this.marketLocks.get(this.getLockKey(marketId, type, arbSide));
             if (!taskId) return false;
             const task = this.tasks.get(taskId);
             return task ? this.isActiveStatus(task.status) : false;
         }
-        // 未指定类型时检查 BUY 和 SELL
+        if (type) {
+            // 检查该类型的所有方向
+            return this.hasActiveTask(marketId, type, 'YES') || this.hasActiveTask(marketId, type, 'NO');
+        }
+        // 未指定类型时检查所有
         return this.hasActiveTask(marketId, 'BUY') || this.hasActiveTask(marketId, 'SELL');
     }
 
     /**
-     * 获取 market 的活跃任务 (指定类型)
+     * 获取 market 的活跃任务 (指定类型和方向)
      */
-    getActiveTaskForMarket(marketId: number, type?: 'BUY' | 'SELL'): Task | null {
-        if (type) {
-            const taskId = this.marketLocks.get(this.getLockKey(marketId, type));
+    getActiveTaskForMarket(marketId: number, type?: 'BUY' | 'SELL', arbSide?: 'YES' | 'NO'): Task | null {
+        if (type && arbSide) {
+            const taskId = this.marketLocks.get(this.getLockKey(marketId, type, arbSide));
             if (!taskId) return null;
             const task = this.tasks.get(taskId);
             return (task && this.isActiveStatus(task.status)) ? task : null;
+        }
+        if (type) {
+            // 优先返回 YES，否则返回 NO
+            return this.getActiveTaskForMarket(marketId, type, 'YES') || this.getActiveTaskForMarket(marketId, type, 'NO');
         }
         // 未指定类型时优先返回 BUY，否则返回 SELL
         return this.getActiveTaskForMarket(marketId, 'BUY') || this.getActiveTaskForMarket(marketId, 'SELL');
@@ -432,16 +447,23 @@ export class TaskService extends EventEmitter {
 
     /**
      * 生成锁 key
+     * 格式: "marketId:type:arbSide" (如 "3438:BUY:YES", "3438:BUY:NO")
+     * 这样同一市场的不同 arbSide 任务可以共存（体育市场需要这个）
      */
-    private getLockKey(marketId: number, type: 'BUY' | 'SELL'): string {
+    private getLockKey(marketId: number, type: 'BUY' | 'SELL', arbSide?: 'YES' | 'NO'): string {
+        // 新格式包含 arbSide，支持同一市场不同方向的任务共存
+        if (arbSide) {
+            return `${marketId}:${type}:${arbSide}`;
+        }
+        // 兼容旧格式（无 arbSide）
         return `${marketId}:${type}`;
     }
 
     /**
      * 释放 market 锁
      */
-    private releaseLock(marketId: number, taskId: string, type: 'BUY' | 'SELL'): void {
-        const lockKey = this.getLockKey(marketId, type);
+    private releaseLock(marketId: number, taskId: string, type: 'BUY' | 'SELL', arbSide?: 'YES' | 'NO'): void {
+        const lockKey = this.getLockKey(marketId, type, arbSide);
         const lockedBy = this.marketLocks.get(lockKey);
         if (lockedBy === taskId) {
             this.marketLocks.delete(lockKey);
