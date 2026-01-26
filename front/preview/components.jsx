@@ -992,6 +992,7 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
     const [createdTaskId, setCreatedTaskId] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState(null);
+    const [confirmStep, setConfirmStep] = useState(false);  // 二次确认状态
 
     // 处理打开动画
     useEffect(() => {
@@ -1007,6 +1008,7 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
             setCreatedTaskId(null);
             setSubmitError(null);
             setPriceEdited(false);
+            setConfirmStep(false);
         }
     }, [isOpen]);
 
@@ -1087,9 +1089,24 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
     // 验证数量有效
     const hasValidQuantity = safeQuantity > 0;
 
-    // 一步流程：创建任务后自动启动
+    // 二次确认点击处理
+    const handleConfirmClick = () => {
+        if (submitting) return;
+        if (!confirmStep) {
+            // 第一次点击：进入确认状态
+            setConfirmStep(true);
+            // 3秒后自动取消确认状态
+            setTimeout(() => setConfirmStep(false), 3000);
+            return;
+        }
+        // 第二次点击：执行任务
+        handleSubmit();
+    };
+
+    // 创建任务后自动启动
     const handleSubmit = async () => {
         if (submitting) return;
+        setConfirmStep(false);  // 重置确认状态
 
         // 验证必需字段
         if (!hasRequiredFields) {
@@ -1125,6 +1142,8 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
             strategy: opp.strategy,
             // 套利方向 (YES端: Predict买YES+Poly买NO, NO端: Predict买NO+Poly买YES)
             arbSide: opp.side || 'YES',
+            // 体育市场标识 (使用 REST API 而非 WS 获取订单簿)
+            isSportsMarket: opp.isSportsMarket || false,
         };
 
         // TAKER 模式专用字段
@@ -1354,14 +1373,16 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
                         取消
                     </button>
                     <button
-                        onClick={handleSubmit}
+                        onClick={handleConfirmClick}
                         disabled={submitting || (!hasRequiredFields || !hasValidQuantity || (needsFunds && !hasSufficientFunds))}
                         className={`flex-1 py-2.5 rounded-lg font-medium text-sm text-white transition-all ${
                             submitting || (!hasRequiredFields || !hasValidQuantity || (needsFunds && !hasSufficientFunds))
                                 ? 'bg-zinc-600 cursor-not-allowed opacity-50'
-                                : type === 'BUY'
-                                    ? 'bg-emerald-500 hover:brightness-110'
-                                    : 'bg-rose-500 hover:brightness-110'
+                                : confirmStep
+                                    ? 'bg-amber-500 hover:brightness-110 animate-pulse'
+                                    : type === 'BUY'
+                                        ? 'bg-emerald-500 hover:brightness-110'
+                                        : 'bg-rose-500 hover:brightness-110'
                         }`}>
                         {submitting
                             ? '执行中...'
@@ -1371,7 +1392,9 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
                                     ? '请输入数量'
                                     : (needsFunds && !hasSufficientFunds)
                                         ? '资金不足'
-                                        : '创建并执行'
+                                        : confirmStep
+                                            ? '确认'
+                                            : '创建任务'
                         }
                     </button>
                 </div>
@@ -1380,9 +1403,183 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
     );
 };
 
+// 流动性分析组件
+const LiquidityAnalytics = () => {
+    const [data, setData] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+    const [refreshing, setRefreshing] = React.useState(false);
+    const [lastScanTime, setLastScanTime] = React.useState(null);
+
+    const fetchData = React.useCallback(async () => {
+        try {
+            const res = await fetch('/api/liquidity');
+            const json = await res.json();
+            if (json.success && json.data) {
+                setData(json.data);
+                setLastScanTime(json.lastScanTime);
+            }
+        } catch (e) {
+            console.error('Failed to fetch liquidity data:', e);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await fetch('/api/liquidity/refresh', { method: 'POST' });
+            // 轮询等待扫描完成（最多等待120秒）
+            let attempts = 0;
+            const maxAttempts = 40;  // 40次 * 3秒 = 120秒
+            const poll = async () => {
+                attempts++;
+                const res = await fetch('/api/liquidity');
+                const json = await res.json();
+                if (json.success && json.data) {
+                    setData(json.data);
+                    setLastScanTime(json.lastScanTime);
+                    setRefreshing(false);
+                } else if (attempts < maxAttempts) {
+                    setTimeout(poll, 3000);
+                } else {
+                    setRefreshing(false);
+                }
+            };
+            setTimeout(poll, 5000);  // 首次等待5秒后开始轮询
+        } catch {
+            setRefreshing(false);
+        }
+    };
+
+    const formatNumber = (num) => {
+        if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
+        if (num >= 1000) return `$${(num / 1000).toFixed(1)}K`;
+        return `$${num.toFixed(0)}`;
+    };
+
+    const getRatioColor = (ratio) => {
+        if (ratio >= 10) return 'text-rose-400';
+        if (ratio >= 5) return 'text-orange-400';
+        if (ratio >= 2) return 'text-amber-400';
+        return 'text-emerald-400';
+    };
+
+    if (loading) {
+        return (
+            <Card className="p-6">
+                <div className="flex items-center justify-center py-12">
+                    <Icon name="loader" size={24} className="animate-spin text-amber-500" />
+                    <span className="ml-3 text-zinc-400">加载流动性数据...</span>
+                </div>
+            </Card>
+        );
+    }
+
+    if (!data) {
+        return (
+            <Card className="p-6">
+                <div className="text-center py-12">
+                    <p className="text-zinc-400 mb-4">流动性扫描尚未完成</p>
+                    <button onClick={handleRefresh}
+                        className="px-4 py-2 bg-amber-500 text-black rounded-lg font-medium hover:bg-amber-400 transition-colors">
+                        开始扫描
+                    </button>
+                </div>
+            </Card>
+        );
+    }
+
+    return (
+        <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-white flex items-center gap-2">
+                    <Icon name="bar-chart-2" size={16} className="text-amber-500" />
+                    市场流动性分析
+                    <span className="text-xs text-zinc-500 font-normal ml-2">
+                        按 Vol/Liq 比值排序 • {data.valid} 个有效市场
+                    </span>
+                </h3>
+                <div className="flex items-center gap-3">
+                    {lastScanTime && (
+                        <span className="text-xs text-zinc-500">
+                            更新于 {new Date(lastScanTime).toLocaleTimeString('zh-CN', { hour12: false })}
+                        </span>
+                    )}
+                    <button onClick={handleRefresh} disabled={refreshing}
+                        className="px-3 py-1 text-xs bg-zinc-800 text-zinc-300 rounded hover:bg-zinc-700 disabled:opacity-50 transition-colors">
+                        {refreshing ? '刷新中...' : '刷新'}
+                    </button>
+                </div>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="text-zinc-500 text-xs border-b border-zinc-800">
+                            <th className="px-2 py-2 text-left font-medium w-10">#</th>
+                            <th className="px-2 py-2 text-left font-medium">市场</th>
+                            <th className="px-2 py-2 text-right font-medium w-24">24h交易量</th>
+                            <th className="px-2 py-2 text-right font-medium w-20">流动性</th>
+                            <th className="px-2 py-2 text-right font-medium w-16">比值</th>
+                            <th className="px-2 py-2 text-center font-medium w-12">链接</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/50">
+                        {data.top20.map((item, index) => (
+                            <tr key={item.marketId} className="hover:bg-zinc-800/30 transition-colors">
+                                <td className="px-2 py-2.5 text-zinc-500 font-mono">{index + 1}</td>
+                                <td className="px-2 py-2.5 min-w-[300px]">
+                                    <div className="font-medium text-white whitespace-normal break-words" title={item.title}>
+                                        {item.title}
+                                    </div>
+                                    <div className="text-xs text-zinc-500">
+                                        {item.outcomeCount} 个选项 • {item.categorySlug}
+                                    </div>
+                                </td>
+                                <td className="px-2 py-2.5 text-right font-mono text-zinc-300">
+                                    {formatNumber(item.volume24h)}
+                                </td>
+                                <td className="px-2 py-2.5 text-right font-mono text-zinc-400">
+                                    {formatNumber(item.liquidity)}
+                                </td>
+                                <td className="px-2 py-2.5 text-right">
+                                    <span className={`font-mono font-semibold ${getRatioColor(item.volumeLiquidityRatio)}`}>
+                                        {item.volumeLiquidityRatio.toFixed(2)}
+                                    </span>
+                                </td>
+                                <td className="px-2 py-2.5 text-center">
+                                    <a href={`https://predict.fun/market/${item.predictSlug || item.categorySlug}`}
+                                        target="_blank" rel="noopener noreferrer"
+                                        className="inline-flex items-center justify-center w-6 h-6 rounded bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 transition-colors">
+                                        <Icon name="external-link" size={12} />
+                                    </a>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <div className="flex items-center gap-4 mt-4 text-xs text-zinc-500">
+                <span>比值说明:</span>
+                <span className="text-rose-400">≥10 极高</span>
+                <span className="text-orange-400">≥5 高</span>
+                <span className="text-amber-400">≥2 中</span>
+                <span className="text-emerald-400">&lt;2 正常</span>
+            </div>
+        </Card>
+    );
+};
+
 // New: Enhanced Analytics Dashboard
 const AnalyticsDashboard = ({ stats, chartData }) => (
     <div className="space-y-6">
+        {/* 流动性分析表格 */}
+        <LiquidityAnalytics />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Profit Trend */}
             <Card className="p-6">
@@ -2068,7 +2265,7 @@ const TaskLogModal = ({ isOpen, onClose, taskId, apiBaseUrl }) => {
 };
 
 // --- Sports Card ---
-const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts }) => {
+const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, tasks = [] }) => {
     const [expanded, setExpanded] = useState(false);
     const [takerConfirm, setTakerConfirm] = useState(null); // { direction: 'away'|'home', opp: SportsArbOpportunity }
     const [takerQuantity, setTakerQuantity] = useState(100); // Taker 数量输入
@@ -2085,6 +2282,40 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts }) =>
     };
 
     const sportIcon = sportIcons[market.sport] || '🏅';
+
+    // 查找该市场的活跃任务 (Away/Home 两个方向)
+    const terminalStatuses = ['COMPLETED', 'FAILED', 'CANCELLED', 'UNWIND_COMPLETED', 'TIMEOUT_CANCELLED'];
+    const awayTask = tasks.find(t =>
+        t.marketId === market.predictAwayMarketId &&
+        !terminalStatuses.includes(t.status)
+    );
+    const homeTask = tasks.find(t =>
+        t.marketId === market.predictHomeMarketId &&
+        !terminalStatuses.includes(t.status)
+    );
+    const hasActiveTask = awayTask || homeTask;
+
+    // 任务状态标签和颜色
+    const getTaskLabel = (task) => {
+        if (!task) return '';
+        const status = task.status;
+        if (status === 'PENDING') return '待启动';
+        if (status === 'PAUSED') return '暂停';
+        if (status === 'VALIDATING') return '校验中';
+        if (['PREDICT_SUBMITTED', 'PARTIALLY_FILLED', 'HEDGING', 'HEDGE_PENDING', 'HEDGE_RETRY'].includes(status)) return '执行中';
+        return 'BUY';
+    };
+    const getTaskColor = (task) => {
+        if (!task) return '#10b981';
+        const status = task.status;
+        if (status === 'PAUSED') return '#f59e0b';  // 橙色
+        if (['PREDICT_SUBMITTED', 'PARTIALLY_FILLED', 'HEDGING', 'HEDGE_PENDING', 'HEDGE_RETRY'].includes(status)) return '#3b82f6';  // 蓝色
+        return '#10b981';  // 绿色
+    };
+    const isTaskExecuting = (task) => {
+        if (!task) return false;
+        return ['PREDICT_SUBMITTED', 'PARTIALLY_FILLED', 'HEDGING', 'HEDGE_PENDING', 'HEDGE_RETRY'].includes(task.status);
+    };
     const orderbook = market.orderbook || {};
     const pred = orderbook.predict || {};
     const poly = orderbook.polymarket || {};
@@ -2245,6 +2476,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts }) =>
             >
                 <span className="font-medium">{teamName}</span>
                 <span className="ml-1 opacity-70">(M-T)</span>
+                <span className="ml-1 text-zinc-500">{Math.floor(opp.maxQuantity)}</span>
                 <span className="block font-mono">+{opp.profitPercent.toFixed(2)}%</span>
             </button>
         );
@@ -2272,6 +2504,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts }) =>
             >
                 <span className="font-medium">{teamName}</span>
                 <span className="ml-1 opacity-70">(T-T)</span>
+                <span className="ml-1 text-zinc-500">{Math.floor(opp.maxQuantity)}</span>
                 <span className="block font-mono">+{opp.profitPercent.toFixed(2)}%</span>
             </button>
         );
@@ -2279,9 +2512,31 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts }) =>
 
     return (
         <div className="group">
-            <div className={`glass-card rounded-xl border border-zinc-800/50 transition-all duration-300 overflow-hidden h-full
+            <div className={`glass-card rounded-xl border border-zinc-800/50 transition-all duration-300 overflow-hidden h-full relative
                 ${expanded ? 'border-amber-500/30 shadow-glow-sm bg-zinc-900/80' : 'hover:border-white/10 hover:scale-[1.005]'}
-                ${hasArb ? 'ring-1 ring-emerald-500/20' : ''}`}>
+                ${hasArb ? 'ring-1 ring-emerald-500/20' : ''}
+                ${hasActiveTask ? 'ring-1 ring-blue-500/30' : ''}`}>
+
+                {/* 任务标签 (斜角丝带) - Away 任务 */}
+                {awayTask && (
+                    <div
+                        className={`absolute top-2 -left-7 transform -rotate-45 text-[9px] font-semibold uppercase tracking-wider text-white px-8 py-0.5 z-10 pointer-events-none ${isTaskExecuting(awayTask) ? 'animate-pulse' : ''}`}
+                        style={{ background: getTaskColor(awayTask) }}
+                        title={`Away 任务 #${awayTask.id?.slice(0, 8)} - ${awayTask.status} | ${awayTask.filledShares || 0}/${awayTask.quantity} shares`}
+                    >
+                        {market.awayTeam?.slice(0, 3)} {getTaskLabel(awayTask)} {awayTask.filledShares || 0}/{awayTask.quantity}
+                    </div>
+                )}
+                {/* 任务标签 (斜角丝带) - Home 任务 (显示在右上角) */}
+                {homeTask && (
+                    <div
+                        className={`absolute top-2 -right-7 transform rotate-45 text-[9px] font-semibold uppercase tracking-wider text-white px-8 py-0.5 z-10 pointer-events-none ${isTaskExecuting(homeTask) ? 'animate-pulse' : ''}`}
+                        style={{ background: getTaskColor(homeTask) }}
+                        title={`Home 任务 #${homeTask.id?.slice(0, 8)} - ${homeTask.status} | ${homeTask.filledShares || 0}/${homeTask.quantity} shares`}
+                    >
+                        {market.homeTeam?.slice(0, 3)} {getTaskLabel(homeTask)} {homeTask.filledShares || 0}/{homeTask.quantity}
+                    </div>
+                )}
 
                 {/* Header */}
                 <div className="p-5 cursor-pointer" onClick={() => setExpanded(!expanded)}>

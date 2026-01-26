@@ -28,8 +28,11 @@ import { setPredictOrderbookCacheProvider, setPredictOrderbookRestFallbackEnable
 import { getSportsService, setSportsPredictOrderbookProvider } from './sports-service.js';
 import { initUrlMapper, getPredictSlug, getPolymarketSlug, cachePredictSlugs, generatePredictSlug } from './url-mapper.js';
 import { getBscOrderWatcher, stopBscOrderWatcher, type OrderFilledEvent as BscOrderFilledEvent } from '../services/bsc-order-watcher.js';
+import { getPredictOrderWatcher, stopPredictOrderWatcher } from '../services/predict-order-watcher.js';
+import type { WalletEventData } from '../services/predict-ws-client.js';
 import { getTokenMarketCache, stopTokenMarketCache } from '../services/token-market-cache.js';
 import { getPredictOrderbookCache, initPredictOrderbookCache, stopPredictOrderbookCache, type CachedOrderbook } from '../services/predict-orderbook-cache.js';
+import { runLiquidityScan } from '../scripts/market-liquidity-scan.js';
 
 import * as readline from 'readline';
 import { readdirSync } from 'fs';
@@ -567,6 +570,12 @@ const startTime = Date.now();
 // 平仓机会缓存（用于 SSE 推送）
 let cachedCloseOpportunities: CloseOpportunity[] = [];
 let lastCloseOpportunitiesUpdate = 0;
+
+// 流动性扫描结果缓存
+import type { LiquidityScanResult, MarketAnalysis } from '../scripts/market-liquidity-scan.js';
+let cachedLiquidityData: LiquidityScanResult | null = null;
+let lastLiquidityScanTime = 0;
+let liquidityScanInProgress = false;
 
 // SSE 客户端元数据（用于断开日志）
 interface SSEClientMeta {
@@ -1198,13 +1207,25 @@ function broadcastBscOrderFilled(payload: {
     tokenId: string;
     marketId?: number;
     marketTitle?: string;
-    side?: 'YES' | 'NO';
+    side?: string;  // YES/NO 或多选市场的 outcome 名称
 }): void {
     broadcastSSEGlobal('bscOrderFilled', JSON.stringify(payload));
 }
 
+/**
+ * 广播 Predict 钱包事件（订单生命周期：created/accepted/filled/cancelled）
+ */
+function broadcastPredictWalletEvent(payload: {
+    type: 'predictWalletEvent';
+    event: WalletEventData;
+    marketId?: number;
+    marketTitle?: string;
+}): void {
+    broadcastSSEGlobal('predictWalletEvent', JSON.stringify(payload));
+}
+
 // ============================================================================
-// 统一 SSE 广播调度器 (50ms 节流)
+// 统一 SSE 广播调度器 (200ms 节流)
 // 所有面板数据通过 markDirty() 标记，统一 flush 广播，避免乱序
 // ============================================================================
 
@@ -1217,7 +1238,7 @@ type BroadcastChannel =
     | 'closeOpportunities'
     | 'accounts';
 
-const BROADCAST_THROTTLE_MS = 50;  // 50ms 节流间隔
+const BROADCAST_THROTTLE_MS = 200;  // 200ms 节流间隔 (减少背压)
 const SPORTS_RECOMPUTE_THROTTLE_MS = 200;  // 体育重算节流
 const CLOSE_RECOMPUTE_THROTTLE_MS = 200;   // 平仓重算节流
 
@@ -1227,7 +1248,7 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * 标记通道为 dirty 并缓存 payload
- * 调度器会在 50ms 内批量 flush 所有 dirty 通道
+ * 调度器会在 200ms 内批量 flush 所有 dirty 通道
  */
 function markDirty(channel: BroadcastChannel, payload: string): void {
     pendingPayloads.set(channel, payload);
@@ -1236,7 +1257,7 @@ function markDirty(channel: BroadcastChannel, payload: string): void {
 }
 
 /**
- * 调度 flush (50ms 节流)
+ * 调度 flush (200ms 节流)
  */
 function scheduleFlush(): void {
     if (flushTimer) return;  // 已有定时器，等待 flush
@@ -1868,10 +1889,13 @@ async function initPolymarketWs(): Promise<void> {
 function subscribePolymarketTokens(additionalTokenIds: string[] = []): void {
     if (!polymarketWsClient) return;
 
-    // 主市场 tokens
-    const mainTokenIds = marketPairs
-        .map(pair => pair.polymarketTokenId)
-        .filter((tokenId): tokenId is string => Boolean(tokenId));
+    // 主市场 tokens（包含 YES 和 NO tokens，用于任务对冲）
+    const mainTokenIds: string[] = [];
+    for (const pair of marketPairs) {
+        if (pair.polymarketTokenId) mainTokenIds.push(pair.polymarketTokenId);
+        if (pair.polymarketYesTokenId) mainTokenIds.push(pair.polymarketYesTokenId);
+        if (pair.polymarketNoTokenId) mainTokenIds.push(pair.polymarketNoTokenId);
+    }
 
     // 合并主市场 + 体育市场 tokens
     const allTokenIds = [...mainTokenIds, ...additionalTokenIds];
@@ -1880,7 +1904,7 @@ function subscribePolymarketTokens(additionalTokenIds: string[] = []): void {
     if (uniqueTokenIds.length === 0) return;
 
     polymarketWsClient.subscribe(uniqueTokenIds);
-    console.log(`[WS] Subscribed to ${uniqueTokenIds.length} Polymarket tokens (main: ${mainTokenIds.length}, sports: ${additionalTokenIds.length})`);
+    console.log(`[WS] Subscribed to ${uniqueTokenIds.length} Polymarket tokens (main markets: ${marketPairs.length}, sports: ${additionalTokenIds.length})`);
 }
 
 // ============================================================================
@@ -1918,7 +1942,7 @@ async function broadcastUpdate(): Promise<void> {
         ? JSON.stringify(getSportsService().getSSEData())
         : JSON.stringify({ markets: [], opportunities: [], lastScan: null });
 
-    // 使用节流广播调度器 (50ms 节流)
+    // 使用节流广播调度器 (200ms 节流)
     // 前端监听 'opportunity', 'stats', 'accounts', 'markets', 'tasks', 'sports' 事件
     markDirty('opportunity', opportunityData);
     markDirty('stats', statsData);
@@ -1967,6 +1991,28 @@ function isLoopbackAddress(address?: string): boolean {
 }
 
 /**
+ * 检查是否是局域网私有 IP 地址
+ * - 10.0.0.0 - 10.255.255.255
+ * - 172.16.0.0 - 172.31.255.255
+ * - 192.168.0.0 - 192.168.255.255
+ */
+function isPrivateAddress(address?: string): boolean {
+    if (!address) return false;
+    // 去除 IPv6 前缀
+    const ip = address.replace(/^::ffff:/, '');
+    // 10.x.x.x
+    if (ip.startsWith('10.')) return true;
+    // 192.168.x.x
+    if (ip.startsWith('192.168.')) return true;
+    // 172.16.x.x - 172.31.x.x
+    if (ip.startsWith('172.')) {
+        const second = parseInt(ip.split('.')[1], 10);
+        if (second >= 16 && second <= 31) return true;
+    }
+    return false;
+}
+
+/**
  * 检查请求是否通过鉴权
  * - 如果配置了 DASHBOARD_API_TOKEN，需要 Bearer token 校验
  * - 如果未配置 token，只允许来自 localhost 的请求
@@ -1995,16 +2041,32 @@ function isAuthorizedRequest(req: IncomingMessage): boolean {
         return false;
     }
 
-    // 未配置 token，仅允许本机访问
+    // 未配置 token，允许本机和局域网访问
+    const remoteAddress = req.socket?.remoteAddress;
+
+    // 检查 X-Forwarded-For (代理场景)
     const forwardedFor = req.headers['x-forwarded-for'];
     if (typeof forwardedFor === 'string') {
         const forwardedIp = forwardedFor.split(',')[0].trim();
-        if (forwardedIp && !isLoopbackAddress(forwardedIp)) {
-            return false;
+        if (forwardedIp) {
+            return isLoopbackAddress(forwardedIp) || isPrivateAddress(forwardedIp);
         }
     }
 
-    return isLoopbackAddress(req.socket?.remoteAddress);
+    return isLoopbackAddress(remoteAddress) || isPrivateAddress(remoteAddress);
+}
+
+/**
+ * 检查 origin 是否来自局域网 IP
+ */
+function isPrivateOrigin(origin: string): boolean {
+    try {
+        const url = new URL(origin);
+        const host = url.hostname;
+        return isPrivateAddress(host) || isLoopbackAddress(host);
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -2012,7 +2074,8 @@ function isAuthorizedRequest(req: IncomingMessage): boolean {
  */
 function getSecureCorsHeaders(req: IncomingMessage): Record<string, string> {
     const origin = req.headers['origin'] || '';
-    if (ALLOWED_ORIGINS.includes(origin)) {
+    // 允许白名单或局域网来源
+    if (ALLOWED_ORIGINS.includes(origin) || isPrivateOrigin(origin)) {
         return {
             'Access-Control-Allow-Origin': origin,
             'Access-Control-Allow-Credentials': 'true',
@@ -2157,12 +2220,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
             ...corsHeaders,
         });
 
-        // 异步执行扫描,不阻塞响应
+        // 异步执行扫描,不阻塞响应（windowsHide 防止弹出 cmd 窗口）
         console.log('\n🔍 收到扫描请求，正在后台执行...\n');
 
         import('child_process').then(({ exec }) => {
             exec('npx tsx src/terminal/scan-all-markets.ts', {
-                cwd: join(__dirname, '..', '..')
+                cwd: join(__dirname, '..', '..'),
+                windowsHide: true,
             }, (error, stdout, stderr) => {
                 if (error) {
                     console.error('❌ 扫描失败:', error);
@@ -2233,6 +2297,18 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
             console.log(`[negRisk] Task create input: marketId=${input.marketId}, negRisk=${input.negRisk}`);
 
             const task = taskService.createTask(input);
+
+            // 动态订阅任务的 Polymarket token 到 WebSocket
+            if (polymarketWsClient && polymarketWsClient.isConnected()) {
+                const tokensToSubscribe: string[] = [];
+                if (input.polymarketNoTokenId) tokensToSubscribe.push(input.polymarketNoTokenId);
+                if (input.polymarketYesTokenId) tokensToSubscribe.push(input.polymarketYesTokenId);
+                if (tokensToSubscribe.length > 0) {
+                    polymarketWsClient.subscribe(tokensToSubscribe);
+                    console.log(`[Task] 动态订阅 ${tokensToSubscribe.length} 个 token 到 WS`);
+                }
+            }
+
             broadcastTaskUpdate(task);
             res.writeHead(201, {
                 'Content-Type': 'application/json',
@@ -2556,6 +2632,97 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
             res.end(JSON.stringify({ success: true, count: markets.length }));
         } catch (error: any) {
             console.error('[Dashboard] 体育市场扫描失败:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ success: false, error: error.message }));
+        }
+        return;
+    }
+
+    // ========================================================================
+    // 流动性分析 API
+    // ========================================================================
+
+    // GET /api/liquidity - 获取市场流动性分析数据
+    if (url === '/api/liquidity' && req.method === 'GET') {
+        const corsHeaders = getSecureCorsHeaders(req);
+        if (!isAuthorizedRequest(req)) {
+            res.writeHead(401, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
+            return;
+        }
+        try {
+            if (!cachedLiquidityData) {
+                res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+                res.end(JSON.stringify({
+                    success: true,
+                    data: null,
+                    scanning: liquidityScanInProgress,
+                    message: liquidityScanInProgress ? '正在扫描中...' : '流动性扫描尚未完成'
+                }));
+                return;
+            }
+            // 为每个市场添加 predictSlug
+            const enrichedTop20 = cachedLiquidityData.top20.map(item => ({
+                ...item,
+                predictSlug: item.categorySlug || getPredictSlug(item.marketId) || generatePredictSlug(item.title)
+            }));
+            res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({
+                success: true,
+                data: {
+                    ...cachedLiquidityData,
+                    top20: enrichedTop20
+                },
+                lastScanTime: lastLiquidityScanTime
+            }));
+        } catch (error: any) {
+            console.error('[Dashboard] 获取流动性数据失败:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ success: false, error: error.message }));
+        }
+        return;
+    }
+
+    // POST /api/liquidity/refresh - 手动刷新流动性扫描
+    if (url === '/api/liquidity/refresh' && req.method === 'POST') {
+        const corsHeaders = getSecureCorsHeaders(req);
+        if (!isAuthorizedRequest(req)) {
+            res.writeHead(401, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
+            return;
+        }
+        try {
+            const apiKeyRefresh = process.env.PREDICT_API_KEY;
+            if (!apiKeyRefresh) {
+                res.writeHead(400, { 'Content-Type': 'application/json', ...corsHeaders });
+                res.end(JSON.stringify({ success: false, error: '缺少 PREDICT_API_KEY' }));
+                return;
+            }
+            // 如果已经在扫描中，直接返回
+            if (liquidityScanInProgress) {
+                res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+                res.end(JSON.stringify({ success: true, message: '扫描已在进行中' }));
+                return;
+            }
+
+            // 异步执行，不阻塞响应
+            liquidityScanInProgress = true;
+            runLiquidityScan(apiKeyRefresh, { silent: true })
+                .then(result => {
+                    cachedLiquidityData = result;
+                    lastLiquidityScanTime = Date.now();
+                    liquidityScanInProgress = false;
+                    console.log(`[Dashboard] 流动性扫描刷新完成: ${result.valid} 个市场`);
+                })
+                .catch(err => {
+                    liquidityScanInProgress = false;
+                    console.warn('[Dashboard] 流动性扫描刷新失败:', err.message);
+                });
+
+            res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ success: true, message: '刷新已开始' }));
+        } catch (error: any) {
+            console.error('[Dashboard] 触发流动性扫描失败:', error);
             res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
             res.end(JSON.stringify({ success: false, error: error.message }));
         }
@@ -4026,6 +4193,43 @@ async function main(): Promise<void> {
                 // TokenMarketCache 失败不终止，只是没有市场名称映射
             }
         }
+
+        // 初始化 Predict WS 钱包事件监听（API 级别订单状态推送）
+        // 补充 BSC 链上事件，提供完整订单生命周期通知
+        try {
+            const predictWatcher = getPredictOrderWatcher();
+
+            // 监听所有钱包事件（包括未成交的订单状态）
+            // 监听所有钱包事件（包括订单创建、接受、取消等）
+            predictWatcher.on('walletEvent', (walletEvent: WalletEventData) => {
+                // 从事件中提取 tokenId 用于市场匹配
+                const rawData = walletEvent.rawData as any;
+                const tokenId = String(rawData?.makerAssetId || rawData?.order?.makerAssetId || rawData?.tokenId || '');
+                const tokenCache = getTokenMarketCache();
+                const marketInfo = tokenId && tokenCache.isReady() ? tokenCache.getMarketByTokenId(tokenId) : null;
+
+                broadcastPredictWalletEvent({
+                    type: 'predictWalletEvent',
+                    event: walletEvent,
+                    marketId: marketInfo?.market.marketId,
+                    marketTitle: marketInfo?.market.title,
+                });
+            });
+
+            predictWatcher.on('subscriptionLost', (info: { reason: string }) => {
+                console.warn(`[PredictOrderWatcher] 订阅断开: ${info.reason}`);
+            });
+
+            predictWatcher.on('subscriptionRestored', () => {
+                console.log('[PredictOrderWatcher] 订阅已恢复');
+            });
+
+            await predictWatcher.start();
+            console.log('✅ Predict WS 钱包事件监听已启动 (订单生命周期推送)\n');
+        } catch (err: any) {
+            console.warn('⚠️  Predict WS 钱包事件监听启动失败:', err?.message || err);
+            console.warn('   手动下单状态推送将不可用，但链上成交通知正常');
+        }
     } else {
         console.log('ℹ️  未配置 PREDICT_SMART_WALLET_ADDRESS，跳过 BSC WSS 订单监听\n');
     }
@@ -4126,17 +4330,23 @@ async function main(): Promise<void> {
             console.log('🔍 启动时刷新市场列表...\n');
         }
 
-        // 执行扫描
+        // 执行扫描（windowsHide 防止弹出 cmd 窗口）
         const { execSync } = await import('child_process');
         try {
-        const opportunities: ArbOpportunity[] = [];
-            execSync('npx tsx src/terminal/scan-all-markets.ts', {
+            const opportunities: ArbOpportunity[] = [];
+            const output = execSync('npx tsx src/terminal/scan-all-markets.ts', {
                 cwd: join(__dirname, '..', '..'),
-                stdio: 'inherit'
+                stdio: 'pipe',
+                windowsHide: true,
+                encoding: 'utf-8',
             });
+            if (output) console.log(output);
             console.log('\n✅ 市场扫描完成\n');
-        } catch (error) {
-            console.error('❌ 扫描失败:', error);
+        } catch (error: any) {
+            // execSync 失败时 stdout/stderr 在 error 对象中
+            if (error.stdout) console.log(error.stdout);
+            if (error.stderr) console.error(error.stderr);
+            console.error('❌ 扫描失败');
             if (!existsSync(matchResultPath)) {
                 console.error('   没有可用的市场数据，退出\n');
                 process.exit(1);
@@ -4145,10 +4355,11 @@ async function main(): Promise<void> {
         }
     } else if (backgroundRescan) {
         console.log('🔍 检测到 --rescan 参数，将在后台更新市场列表\n');
-        // 后台异步扫描
+        // 后台异步扫描（windowsHide 防止弹出 cmd 窗口）
         import('child_process').then(({ exec }) => {
             exec('npx tsx src/terminal/scan-all-markets.ts', {
-                cwd: join(__dirname, '..', '..')
+                cwd: join(__dirname, '..', '..'),
+                windowsHide: true,
             }, (error) => {
                 if (error) {
                     console.error('❌ 后台扫描失败:', error);
@@ -4400,6 +4611,31 @@ async function main(): Promise<void> {
     // 注入 Polymarket WS 客户端给交易执行器（仅主市场 WS，体育仍走 REST）
     taskExecutor.setPolymarketWsClient(getPolymarketWsClient());
 
+    // 动态订阅需要恢复的任务使用的 tokens（可能不在当前 marketPairs 中）
+    const recoverableStatuses: Task['status'][] = [
+        'PREDICT_SUBMITTED', 'PARTIALLY_FILLED', 'HEDGING', 'HEDGE_PENDING',
+        'HEDGE_RETRY', 'UNWINDING', 'UNWIND_PENDING', 'PAUSED',
+    ];
+    const tasksToRecover = taskService.getTasks({ status: recoverableStatuses });
+    if (tasksToRecover.length > 0 && polymarketWsClient?.isConnected()) {
+        const taskTokens: string[] = [];
+        for (const task of tasksToRecover) {
+            if (task.polymarketYesTokenId) taskTokens.push(task.polymarketYesTokenId);
+            if (task.polymarketNoTokenId) taskTokens.push(task.polymarketNoTokenId);
+        }
+        if (taskTokens.length > 0) {
+            polymarketWsClient.subscribe(taskTokens);
+            console.log(`[WS] 动态订阅 ${taskTokens.length} 个任务 token (${tasksToRecover.length} 个待恢复任务)`);
+        }
+    }
+
+    // 等待 WS 初始快照返回（订阅后服务器异步推送，通常 1-2 秒内完成）
+    // 避免 triggerAutoRecovery 时快照还没到导致 REST fallback
+    await new Promise(r => setTimeout(r, 2000));
+
+    // 在 WS 客户端注入后触发任务自动恢复
+    await taskExecutor.triggerAutoRecovery();
+
     // 启动 HTTP 服务器 (固定端口,自动清理占用进程)
     const targetPort = Number(PORT);
 
@@ -4475,6 +4711,20 @@ async function main(): Promise<void> {
             withTimeout(sportsService.scan(), 60000, '体育市场扫描')
                 .then(() => console.log(`  ✓ 体育市场扫描完成 (${sportsService!.getMarkets().length} 场比赛)`))
                 .catch(err => console.warn('  ✗ 体育市场扫描失败:', err.message))
+        );
+    }
+
+    // 4. 流动性扫描 (后台，120秒超时)
+    const apiKeyForLiquidity = process.env.PREDICT_API_KEY;
+    if (apiKeyForLiquidity) {
+        scanTasks.push(
+            withTimeout(runLiquidityScan(apiKeyForLiquidity, { silent: true }), 120000, '流动性扫描')
+                .then(result => {
+                    cachedLiquidityData = result;
+                    lastLiquidityScanTime = Date.now();
+                    console.log(`  ✓ 流动性扫描完成 (${result.valid} 个市场, CSV: ${result.csvPath})`);
+                })
+                .catch(err => console.warn('  ✗ 流动性扫描失败:', err.message))
         );
     }
 
@@ -4846,6 +5096,7 @@ function setupGracefulShutdown(): void {
             // 4.2) 停止 BSC 通知/服务（避免后台重连/心跳保活）
             try { stopBscOrderNotifier(); } catch { /* ignore */ }
             try { stopBscOrderWatcher(); } catch { /* ignore */ }
+            try { stopPredictOrderWatcher(); } catch { /* ignore */ }
             try { stopTokenMarketCache(); } catch { /* ignore */ }
 
             // 4.3) 停止 Predict 订单簿 WS 缓存

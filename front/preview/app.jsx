@@ -131,11 +131,10 @@ const App = () => {
             const startRes = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/start`, { method: 'POST' });
             const startData = await startRes.json();
 
-            if (startData.success) {
-                setActiveTab('TASKS'); // 切换到任务标签页
-            } else {
+            if (!startData.success) {
                 alert('启动任务失败: ' + startData.error);
             }
+            // 任务创建成功后不跳转，保持在当前页面
         } catch (error) {
             alert('创建 Taker 任务失败: ' + error.message);
         }
@@ -404,6 +403,7 @@ const App = () => {
                                         onOpenTaskModal={handleOpenTaskModal}
                                         onCreateTakerTask={handleCreateSportsTakerTask}
                                         accounts={accounts}
+                                        tasks={tasks}
                                     />
                                 ))}
                             </div>
