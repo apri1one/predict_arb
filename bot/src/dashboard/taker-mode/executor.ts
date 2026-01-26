@@ -297,6 +297,7 @@ export class TakerExecutor extends EventEmitter {
                 filledQty: 0,
                 remainingQty: alignedQty,
                 avgPrice: 0,
+                title: task.title,
                 error: { errorType: 'OrderSubmitFailed', message: result.error || 'Unknown error' },
             });
             throw new Error(`Taker order failed: ${result.error}`);
@@ -318,6 +319,7 @@ export class TakerExecutor extends EventEmitter {
             filledQty: 0,
             remainingQty: alignedQty,
             avgPrice: 0,
+            title: task.title,
         });
 
         // 6. 运行成本守护 + 超时监控 + 成交监控
@@ -458,6 +460,7 @@ export class TakerExecutor extends EventEmitter {
                 filledQty: 0,
                 remainingQty: alignedQty,
                 avgPrice: 0,
+                title: task.title,
                 error: { errorType: 'OrderSubmitFailed', message: result.error || 'Unknown error' },
             });
             throw new Error(`SELL order failed: ${result.error}`);
@@ -479,6 +482,7 @@ export class TakerExecutor extends EventEmitter {
             filledQty: 0,
             remainingQty: alignedQty,
             avgPrice: 0,
+            title: task.title,
         });
 
         // 7. 监控成交 + Polymarket 风控守护
@@ -688,6 +692,7 @@ export class TakerExecutor extends EventEmitter {
                         filledQty: ctx.totalPredictFilled,
                         remainingQty: orderQty - ctx.totalPredictFilled,
                         avgPrice: orderPrice,
+                        title: task.title,
                         cancelReason,
                         rawResponse: orderStatus.rawResponse,
                     });
@@ -748,6 +753,7 @@ export class TakerExecutor extends EventEmitter {
                         filledQty: ctx.totalPredictFilled,
                         remainingQty: orderQty - ctx.totalPredictFilled,
                         avgPrice: orderPrice,
+                        title: task.title,
                     });
 
                     if (newFilled > 0) {
@@ -806,6 +812,22 @@ export class TakerExecutor extends EventEmitter {
             if (cancelBscWssWatch) {
                 try { cancelBscWssWatch(); } catch { /* ignore */ }
             }
+
+            // ★ 任务取消时主动撤销 Predict 订单，防止部分成交后遗留挂单
+            if (signal.aborted && ctx.currentOrderHash) {
+                console.log(`[TakerExecutor] Task ${task.id}: Aborting - cancelling Predict order ${ctx.currentOrderHash.slice(0, 16)}...`);
+                try {
+                    const cancelled = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                    if (cancelled) {
+                        console.log(`[TakerExecutor] Task ${task.id}: ✅ Predict order cancelled on abort`);
+                    } else {
+                        console.warn(`[TakerExecutor] Task ${task.id}: ⚠️ Predict order cancel returned false (may be filled)`);
+                    }
+                } catch (e: any) {
+                    console.warn(`[TakerExecutor] Task ${task.id}: ❌ Cancel on abort failed: ${e.message}`);
+                }
+            }
+
             console.log(`[TakerExecutor] Task ${task.id}: SELL price guard stopped, bscWssEnabled=${!!bscWssWatcher?.isConnected()}`);
         }
     }
@@ -858,6 +880,7 @@ export class TakerExecutor extends EventEmitter {
             filledQty: finalFilledQty,
             remainingQty: orderQty - finalFilledQty,
             avgPrice,
+            title: task.title,
         });
 
         // 4. 如果有成交，等待风控条件满足后对冲
@@ -1175,6 +1198,7 @@ export class TakerExecutor extends EventEmitter {
                         filledQty: newFilled,
                         remainingQty: orderQty - ctx.totalPredictFilled,
                         avgPrice: avgPredictPrice,
+                        title: task.title,
                     });
 
                     this.updateTask(task.id, {
@@ -1217,6 +1241,7 @@ export class TakerExecutor extends EventEmitter {
                             filledQty: 0,
                             remainingQty: orderQty,
                             avgPrice: 0,
+                            title: task.title,
                             error: { errorType: 'FilledButEmpty', message: 'Order status FILLED but filledQty=0' },
                         });
                         this.updateTask(task.id, {
@@ -1247,6 +1272,7 @@ export class TakerExecutor extends EventEmitter {
                         filledQty: orderStatus.filledQty,
                         remainingQty: 0,
                         avgPrice: avgPredictPrice,
+                        title: task.title,
                         latency: latencyStats,
                     });
 
@@ -1323,6 +1349,21 @@ export class TakerExecutor extends EventEmitter {
                 try { cancelBscWssWatch(); } catch { /* ignore */ }
             }
 
+            // ★ 任务取消时主动撤销 Predict 订单，防止部分成交后遗留挂单
+            if (signal.aborted && ctx.currentOrderHash) {
+                console.log(`[TakerExecutor] Task ${task.id}: Aborting - cancelling Predict order ${ctx.currentOrderHash.slice(0, 16)}...`);
+                try {
+                    const cancelled = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                    if (cancelled) {
+                        console.log(`[TakerExecutor] Task ${task.id}: ✅ Predict order cancelled on abort`);
+                    } else {
+                        console.warn(`[TakerExecutor] Task ${task.id}: ⚠️ Predict order cancel returned false (may be filled)`);
+                    }
+                } catch (e: any) {
+                    console.warn(`[TakerExecutor] Task ${task.id}: ❌ Cancel on abort failed: ${e.message}`);
+                }
+            }
+
             await this.taskLogger.logCostGuard(task.id, 'COST_GUARD_STOPPED', {
                 maxTotalCost,
                 predictMarketId: task.marketId,
@@ -1395,6 +1436,7 @@ export class TakerExecutor extends EventEmitter {
             filledQty: finalFilledQty,
             remainingQty: Math.max(0, orderQty - finalFilledQty),
             avgPrice: orderPrice,
+            title: task.title,
         });
 
         // 分支处理
@@ -1482,12 +1524,20 @@ export class TakerExecutor extends EventEmitter {
         let retryCount = 0;
         let hedged = ctx.totalHedged;
 
+        // 确定对冲的方向和 outcome
+        // YES 端套利: Predict 买/卖 YES, Polymarket 对冲买/卖 NO
+        // NO 端套利: Predict 买/卖 NO, Polymarket 对冲买/卖 YES
+        const hedgeOutcome = task.arbSide === 'NO' ? 'YES' : 'NO';
+
         await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_STARTED', {
             hedgeQty: remainingToHedge,
             totalHedged: hedged,
             totalPredictFilled: filledQty,
             avgHedgePrice: hedged > 0 ? ctx.hedgePriceSum / hedged : 0,
             retryCount: 0,
+            title: task.title,
+            side: hedgeSide,
+            outcome: hedgeOutcome,
         });
 
         // 计算剩余需对冲数量，低于阈值视为完成
@@ -1510,6 +1560,9 @@ export class TakerExecutor extends EventEmitter {
                 totalPredictFilled: filledQty,
                 avgHedgePrice: hedged > 0 ? ctx.hedgePriceSum / hedged : 0,
                 retryCount,
+                title: task.title,
+                side: hedgeSide,
+                outcome: hedgeOutcome,
             });
 
             const result = await this.executeHedgeOrder(ctx, hedgeTokenId, toHedge);
@@ -1525,6 +1578,9 @@ export class TakerExecutor extends EventEmitter {
                     totalPredictFilled: filledQty,
                     avgHedgePrice: ctx.hedgePriceSum / hedged,
                     retryCount,
+                    title: task.title,
+                    side: hedgeSide,
+                    outcome: hedgeOutcome,
                 });
 
                 this.updateTask(task.id, {
@@ -1541,12 +1597,22 @@ export class TakerExecutor extends EventEmitter {
                     : undefined;
                 console.log(`[TakerExecutor] Task ${task.id}: Poly latency - submitToFill=${polyLatency}ms`);
 
+                // 计算平均总成本
+                const avgPredictPrice = task.predictPrice || 0;
+                const avgPolyPrice = hedged > 0 ? ctx.hedgePriceSum / hedged : 0;
+                const avgTotalCost = avgPredictPrice + avgPolyPrice;
+
                 await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_COMPLETED', {
                     hedgeQty: 0,
                     totalHedged: hedged,
                     totalPredictFilled: filledQty,
-                    avgHedgePrice: ctx.hedgePriceSum / hedged,
+                    avgHedgePrice: avgPolyPrice,
                     retryCount,
+                    title: task.title,
+                    side: hedgeSide,
+                    outcome: hedgeOutcome,
+                    avgPredictPrice,
+                    avgTotalCost,
                 });
 
                 // Shares 对齐检查
@@ -1600,12 +1666,22 @@ export class TakerExecutor extends EventEmitter {
                 ? ctx.polyFirstFillTime - ctx.polySubmitTime
                 : undefined;
 
+            // 计算平均总成本
+            const avgPredictPriceFinal = task.predictPrice || 0;
+            const avgPolyPriceFinal = hedged > 0 ? ctx.hedgePriceSum / hedged : 0;
+            const avgTotalCostFinal = avgPredictPriceFinal + avgPolyPriceFinal;
+
             await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_COMPLETED', {
                 hedgeQty: 0,
                 totalHedged: hedged,
                 totalPredictFilled: filledQty,
-                avgHedgePrice: hedged > 0 ? ctx.hedgePriceSum / hedged : 0,
+                avgHedgePrice: avgPolyPriceFinal,
                 retryCount,
+                title: task.title,
+                side: hedgeSide,
+                outcome: hedgeOutcome,
+                avgPredictPrice: avgPredictPriceFinal,
+                avgTotalCost: avgTotalCostFinal,
             });
 
             const profit = this.calculateProfit(ctx);
@@ -1630,6 +1706,9 @@ export class TakerExecutor extends EventEmitter {
             totalPredictFilled: filledQty,
             avgHedgePrice: hedged > 0 ? ctx.hedgePriceSum / hedged : 0,
             retryCount,
+            title: task.title,
+            side: hedgeSide,
+            outcome: hedgeOutcome,
         });
 
         // 尝试亏损对冲 (Loss Hedge)
@@ -1665,12 +1744,19 @@ export class TakerExecutor extends EventEmitter {
                 remainingQty: Math.max(0, ctx.totalPredictFilled - ctx.totalHedged),
             });
 
+            // 确定对冲方向和 outcome
+            const hedgeSide = task.type === 'BUY' ? 'BUY' : 'SELL';
+            const hedgeOutcome = task.arbSide === 'NO' ? 'YES' : 'NO';
+
             await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_PARTIAL', {
                 hedgeQty: result.filledQty,
                 totalHedged: ctx.totalHedged,
                 totalPredictFilled: ctx.totalPredictFilled,
                 avgHedgePrice: ctx.hedgePriceSum / ctx.totalHedged,
                 retryCount: 0,
+                title: task.title,
+                side: hedgeSide,
+                outcome: hedgeOutcome,
             });
         }
 
@@ -1756,12 +1842,18 @@ export class TakerExecutor extends EventEmitter {
 
         this.updateTask(task.id, { status: 'LOSS_HEDGE' });
 
+        // 确定对冲方向和 outcome
+        const hedgeOutcome = task.arbSide === 'NO' ? 'YES' : 'NO';
+
         await this.taskLogger.logHedgeEvent(task.id, 'LOSS_HEDGE_STARTED', {
             hedgeQty: remaining,
             totalHedged: hedged,
             totalPredictFilled: ctx.totalPredictFilled,
             maxAllowedPrice,
             originalMaxAsk: maxAsk,
+            title: task.title,
+            side: hedgeSide,
+            outcome: hedgeOutcome,
         });
 
         console.log(`[TakerExecutor] Task ${task.id}: LOSS_HEDGE started - remaining=${remaining.toFixed(4)}, maxAllowedPrice=${maxAllowedPrice.toFixed(4)}`);
@@ -1787,6 +1879,9 @@ export class TakerExecutor extends EventEmitter {
                     currentPrice: currentAsk,
                     maxAllowedPrice,
                     waitCount: waitingForPriceCount,
+                    title: task.title,
+                    side: hedgeSide,
+                    outcome: hedgeOutcome,
                 });
 
                 await this.delay(LOSS_HEDGE_WAIT_INTERVAL_MS);
@@ -1803,6 +1898,9 @@ export class TakerExecutor extends EventEmitter {
                 hedgePrice: currentAsk,
                 priceSource: source,
                 retryCount,
+                title: task.title,
+                side: hedgeSide,
+                outcome: hedgeOutcome,
             });
 
             const result = await this.executeHedgeOrder(ctx, hedgeTokenId, remaining);
@@ -1825,6 +1923,9 @@ export class TakerExecutor extends EventEmitter {
                     totalPredictFilled: ctx.totalPredictFilled,
                     avgHedgePrice: ctx.hedgePriceSum / hedged,
                     retryCount,
+                    title: task.title,
+                    side: hedgeSide,
+                    outcome: hedgeOutcome,
                 });
 
                 console.log(`[TakerExecutor] Task ${task.id}: LOSS_HEDGE partial - filled=${result.filledQty.toFixed(4)}, remaining=${remaining.toFixed(4)}`);
@@ -1849,14 +1950,24 @@ export class TakerExecutor extends EventEmitter {
                 completedAt: Date.now(),
             });
 
+            // 计算平均总成本
+            const avgPredictPrice = task.predictPrice || 0;
+            const avgPolyPrice = hedged > 0 ? ctx.hedgePriceSum / hedged : 0;
+            const avgTotalCost = avgPredictPrice + avgPolyPrice;
+
             await this.taskLogger.logHedgeEvent(task.id, 'LOSS_HEDGE_COMPLETED', {
                 hedgeQty: 0,
                 totalHedged: hedged,
                 totalPredictFilled: ctx.totalPredictFilled,
-                avgHedgePrice: hedged > 0 ? ctx.hedgePriceSum / hedged : 0,
+                avgHedgePrice: avgPolyPrice,
                 retryCount,
                 totalWaitCount: waitingForPriceCount,
                 elapsedMs: Date.now() - startTime,
+                title: task.title,
+                side: hedgeSide,
+                outcome: hedgeOutcome,
+                avgPredictPrice,
+                avgTotalCost,
             });
 
             await this.taskLogger.logTaskLifecycle(task.id, 'TASK_COMPLETED', {
@@ -1887,6 +1998,9 @@ export class TakerExecutor extends EventEmitter {
                 retryCount,
                 totalWaitCount: waitingForPriceCount,
                 elapsedMs,
+                title: task.title,
+                side: hedgeSide,
+                outcome: hedgeOutcome,
             });
 
             await this.taskLogger.logTaskLifecycle(task.id, 'TASK_FAILED', {
