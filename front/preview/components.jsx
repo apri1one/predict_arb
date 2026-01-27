@@ -316,6 +316,19 @@ const generatePredictSlug = (title) => {
         .replace(/^-|-$/g, '');         // 移除首尾连字符
 };
 
+/**
+ * 从 Polymarket market slug 提取 event slug
+ * market slug 格式: nba-xxx-xxx-YYYY-MM-DD[-spread-home-3pt5]
+ * event slug 格式: nba-xxx-xxx-YYYY-MM-DD
+ * 对于非体育市场，直接返回原 slug
+ */
+const extractPolymarketEventSlug = (slug) => {
+    if (!slug) return slug;
+    // 匹配体育赛事格式: sport-team1-team2-YYYY-MM-DD
+    const match = slug.match(/^([a-z]+-[a-z]+-[a-z]+-\d{4}-\d{2}-\d{2})/i);
+    return match ? match[1] : slug;
+};
+
 // Predict 图标 base64 (PNG 格式)
 const PREDICT_ICON = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADkAAAA5CAMAAAC7xnO3AAAAgVBMVEVuV/kfKjcgKzptVvZ0Wv9tV/gZJykcKDByWf8aJyweKTVwWP5vWPxEP5NJQqBrVfIYJiZnU+hMQ6VCPo8pMFEiLEBgT9g0NmsxNGQtMllkUeFbTMpUSLpQRrA7Onw5OXhTR7ZNRalIQZs3N3IkLURpVOxdTdA/PIYoL00mLklbTMcw7QOKAAAB20lEQVRIx+3VyXKjMBAGYFB3q7WZJQaMF7zbceb9H3DwSCGcjDjMIVX+L1hV/mghWiJ5553/EgIgf/E/YgNgERU8L31UEouJFG66j6Y35S7Lujuhg6iCSm0PQkpxWFxqLaU01TlXEZTUfcU6FSLVUhvRJ2X52CJMVzyx7v/d54l8BPNxipJt2HgwjjC8nZgwYCbFSPQJVas8odfyWPxII1lyoDJ7PV9KqB2K8tfpT1cFyhW8LkouX3OgokGFtwf7wfSTqiY4uceccuyk8MMzQjJBV1oMT0aurE240aTET+nlB0LSUz97oVeKpuRiLEFd/BS4tTMlHvxQt2q21F5eFMySNCzYEmNl6BqoOP1Xcxct9QoBALfsO7EuI1eoD58QsVyziHudQXrafu6v7AemsRQlA5XS+N4rFn3JGXLYnsXKEU3L5SCDN8XFb7FoKcIBJjLbwxmStZZSm2q5QaJkhuT1rjtnxwbQQoQb77ITqjkfBwLV8nff5gBAMS6cft8Hz3qDlESH7JnTEE4zFU1B7YrRe9R3C7ES91r8UJlhvFwU9QCF3EVLcptrwWyeYS7aOSukNofq61rX9fWxXuZuDrVI+a0sy1vu0MNoColz1lrnQvPMwj7JO78vfwHSjxmwHfr8iwAAAABJRU5ErkJggg==';
 
@@ -337,10 +350,12 @@ const ViewLinks = ({ predictId, predictSlug: backendSlug, polymarketSlug, polyma
         : null;
 
     // Polymarket URL: 优先使用后端提供的 slug，否则回退到搜索
-    // 格式: https://polymarket.com/event/{slug}
+    // 格式: https://polymarket.com/event/{eventSlug}
+    // 注意: 体育市场的 slug 可能是 market slug (含 -spread-/-totals- 等后缀)，需要提取 event slug
     let polymarketUrl = null;
     if (polymarketSlug) {
-        polymarketUrl = `https://polymarket.com/event/${polymarketSlug}`;
+        const eventSlug = extractPolymarketEventSlug(polymarketSlug);
+        polymarketUrl = `https://polymarket.com/event/${eventSlug}`;
     } else {
         // Fallback: 使用搜索
         const searchTerm = sportsTeams || title;
