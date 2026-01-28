@@ -266,8 +266,28 @@ export class PolymarketTrader extends EventEmitter {
             const orderType = input.orderType || 'IOC';
             const negRisk = input.negRisk || false;
 
+            // 验证数量和价格
+            if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
+                const error = `Invalid quantity: ${input.quantity}`;
+                console.error(`[PolymarketTrader] ${error}`);
+                return { success: false, error };
+            }
+            if (!Number.isFinite(input.price) || input.price <= 0 || input.price > 1) {
+                const error = `Invalid price: ${input.price}`;
+                console.error(`[PolymarketTrader] ${error}`);
+                return { success: false, error };
+            }
+
             // 计算金额 (对齐到两位小数，支持小数精度)
             const alignedQty = Math.floor(input.quantity * 100) / 100;  // 对齐到两位小数 (如 9.9477 → 9.94)
+
+            // 验证对齐后数量 > 0
+            if (alignedQty <= 0) {
+                const error = `Quantity too small after alignment: ${input.quantity} → ${alignedQty}`;
+                console.error(`[PolymarketTrader] ${error}`);
+                return { success: false, error };
+            }
+
             const sizeInUnits = BigInt(Math.round(alignedQty * 1e6));   // 小数 * 1e6 (USDC 6位精度)
             const priceInUnits = BigInt(Math.floor(input.price * 1e6));
 
@@ -284,6 +304,13 @@ export class PolymarketTrader extends EventEmitter {
             } else {
                 makerAmount = sizeInUnits;
                 takerAmount = (sizeInUnits * priceInUnits) / BigInt(1e6);
+            }
+
+            // 验证金额 > 0
+            if (makerAmount <= 0n || takerAmount <= 0n) {
+                const error = `Invalid amounts after calculation: makerAmount=${makerAmount}, takerAmount=${takerAmount} (qty=${alignedQty}, price=${input.price})`;
+                console.error(`[PolymarketTrader] ${error}`);
+                return { success: false, error };
             }
 
             // 构建订单
