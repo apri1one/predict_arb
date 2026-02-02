@@ -22,6 +22,7 @@ import { initTakerExecutor, TakerExecutor, TakerExecutorDeps } from './taker-mod
 import { getBscOrderWatcher, getSharesFromFillEvent, type BscOrderWatcher, type OrderFilledEvent } from '../services/bsc-order-watcher.js';
 import type { PolymarketWebSocketClient } from '../polymarket/ws-client.js';
 import { PolymarketRestClient } from '../polymarket/rest-client.js';
+import { calculatePredictFee } from '../trading/depth-calculator.js';
 
 // ============================================================================
 // 常量
@@ -117,6 +118,8 @@ export class TaskExecutor extends EventEmitter {
 
     /**
      * 初始化
+     * 注意：任务恢复 (autoRecoverTasks) 不在这里执行，
+     * 需要等 WS 客户端注入后通过 triggerAutoRecovery() 单独调用
      */
     async init(): Promise<void> {
         if (this.initialized) return;
@@ -141,7 +144,15 @@ export class TaskExecutor extends EventEmitter {
         // 启动任务过期检查定时器 (每 30 秒检查一次)
         this.expiryCheckInterval = setInterval(() => this.checkExpiredTasks(), 30_000);
 
-        // 自动恢复中间状态的任务
+        // 注意：autoRecoverTasks() 不再在这里调用
+        // 改为由 start-dashboard.ts 在 WS 客户端注入后调用 triggerAutoRecovery()
+    }
+
+    /**
+     * 触发任务自动恢复
+     * 由启动入口在 WS 客户端注入后调用（避免 WS miss REST fallback 造成启动缓慢）
+     */
+    async triggerAutoRecovery(): Promise<void> {
         await this.autoRecoverTasks();
     }
 
@@ -1042,6 +1053,7 @@ export class TaskExecutor extends EventEmitter {
                 pendingHedgeQty: 0,
                 lastHedgePriceEstimate: task.polymarketMaxAsk || 0.5,
                 signal,
+                abortController: ctx.abortController,
                 startTime: task.createdAt,
                 // 状态预获取相关
                 hasReceivedValidStatus: false,
@@ -1132,6 +1144,7 @@ export class TaskExecutor extends EventEmitter {
                 pendingHedgeQty: 0,
                 lastHedgePriceEstimate: task.polymarketMinBid || 0.5,
                 signal,
+                abortController: ctx.abortController,
                 startTime: task.createdAt,
                 // 状态预获取相关
                 hasReceivedValidStatus: false,
@@ -1304,6 +1317,15 @@ export class TaskExecutor extends EventEmitter {
                     if (signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
                     if (!ctx.isPaused) return;
 
+                    // 关键检查：任务可能已在其他地方被取消，不应再提交订单
+                    const currentTask = this.taskService.getTask(task.id);
+                    const terminalStatuses: TaskStatus[] = ['COMPLETED', 'FAILED', 'CANCELLED', 'HEDGE_FAILED', 'UNWIND_COMPLETED'];
+                    if (!currentTask || terminalStatuses.includes(currentTask.status)) {
+                        console.log(`[TaskExecutor] Task ${task.id} is in terminal state ${currentTask?.status}, skipping order re-submit`);
+                        ctx.priceGuardAbort?.abort();
+                        return;
+                    }
+
                     const priceType = side === 'BUY' ? 'ask' : 'bid';
                     console.log(`[TaskExecutor] Price valid again: poly ${priceType}=${currentPrice.toFixed(4)}`);
 
@@ -1453,7 +1475,11 @@ export class TaskExecutor extends EventEmitter {
          */
         const resetForNewOrder = (orderHash: string) => {
             // 切换订单前先合并一次，避免已到达的 WSS/REST 增量被清空
+            const preBase = baseFilledBeforeOrder;
+            const preWss = ctx.wssFilledQty;
+            const preRest = ctx.restFilledQty;
             mergeFilledQty();
+            console.log(`[TaskExecutor] Task ${task.id}: resetForNewOrder merge (prevBase=${preBase.toFixed(2)}, wss=${preWss.toFixed(2)}, rest=${preRest.toFixed(2)}) -> total=${ctx.totalPredictFilled.toFixed(2)}`);
 
             // 设置基准偏移：当前已累计的成交量
             baseFilledBeforeOrder = ctx.totalPredictFilled;
@@ -1618,7 +1644,13 @@ export class TaskExecutor extends EventEmitter {
                             }
                         }
 
+                        // 更新基准偏移并清零增量，避免下次 mergeFilledQty 双重计数
+                        console.log(`[TaskExecutor] Task ${task.id}: Order hash -> null, reset increments (base=${baseFilledBeforeOrder.toFixed(2)}, wss=${ctx.wssFilledQty.toFixed(2)}, rest=${ctx.restFilledQty.toFixed(2)}, total=${ctx.totalPredictFilled.toFixed(2)})`);
                         baseFilledBeforeOrder = ctx.totalPredictFilled;
+                        ctx.wssFilledQty = 0;
+                        ctx.restFilledQty = 0;
+                        ctx.wssFillEvents.clear();
+                        ctx.wssFirstFillTime = undefined;
                         if (!ctx.isPaused) {
                             cancelWatcherIfAny();
                             watchedOrderHash = null;
@@ -1781,8 +1813,60 @@ export class TaskExecutor extends EventEmitter {
                     await this.refreshTrackedPolyFills(ctx);
 
                     if (ctx.totalPredictFilled > ctx.totalHedged) {
-                        // 有未对冲的部分，需要 UNWIND
-                        console.error(`[TaskExecutor] Order ${status.status} with unhedged position`);
+                        // 有未对冲的部分
+                        const unhedgedQty = ctx.totalPredictFilled - ctx.totalHedged;
+
+                        // 检查是否是深度/价格保护导致的取消
+                        if (ctx.currentOrderHash !== watchedOrderHash) {
+                            console.log(`[TaskExecutor] Task ${task.id}: Order cancelled by guard with fills (${ctx.totalPredictFilled} filled, ${unhedgedQty} unhedged), hedging and continuing...`);
+
+                            // 记录订单取消事件
+                            await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
+                                platform: 'predict',
+                                orderId: watchedOrderHash!,
+                                side: side,
+                                price: task.predictPrice,
+                                quantity: task.quantity,
+                                filledQty: ctx.totalPredictFilled,
+                                remainingQty: task.quantity - ctx.totalPredictFilled,
+                                avgPrice: task.predictPrice,
+                                cancelReason: status.cancelReason,
+                                rawResponse: status.rawResponse,
+                            }, watchedOrderHash ?? undefined);
+
+                            // 对冲已成交部分
+                            const hedgeCheck = await this.checkShouldHedge(ctx, unhedgedQty, false);
+                            if (hedgeCheck.shouldHedge) {
+                                const hedgeResult = await this.executeIncrementalHedge(ctx, hedgeCheck.hedgeQty, side);
+                                if (hedgeResult.filledQty > 0) {
+                                    console.log(`[TaskExecutor] Hedge delta after guard cancel: ${hedgeResult.filledQty}, total hedged: ${ctx.totalHedged}`);
+                                    const avgHedgePrice = ctx.totalHedged > 0 ? ctx.hedgePriceSum / ctx.totalHedged : 0;
+                                    task = this.updateTask(task.id, {
+                                        hedgedQty: ctx.totalHedged,
+                                        avgPolymarketPrice: avgHedgePrice,
+                                        remainingQty: ctx.totalPredictFilled - ctx.totalHedged,
+                                    });
+                                    ctx.task = task;
+                                }
+                                if (!hedgeResult.success) {
+                                    console.error(`[TaskExecutor] Hedge failed after guard cancel, initiating UNWIND`);
+                                    await this.executeUnwind(ctx);
+                                    return;
+                                }
+                            }
+
+                            // 继续监控新订单
+                            if (ctx.currentOrderHash) {
+                                resetForNewOrder(ctx.currentOrderHash);
+                            } else {
+                                cancelWatcherIfAny();
+                                watchedOrderHash = null;
+                            }
+                            continue;
+                        }
+
+                        // 订单确实被外部取消（非保护机制），执行 UNWIND
+                        console.error(`[TaskExecutor] Order ${status.status} with unhedged position (external cancel)`);
 
                         // 记录订单过期/取消
                         await this.taskLogger.logOrderEvent(task.id, status.status === 'CANCELLED' ? 'ORDER_CANCELLED' : 'ORDER_EXPIRED', {
@@ -1801,7 +1885,36 @@ export class TaskExecutor extends EventEmitter {
                         await this.executeUnwind(ctx);
                         return;
                     } else if (ctx.totalPredictFilled === 0) {
-                        // 没有成交，直接取消
+                        // 没有成交，检查是否是深度/价格保护导致的取消
+                        // 如果 ctx.currentOrderHash 已变化（被清空或更新为新订单），说明保护机制正在处理
+                        if (ctx.currentOrderHash !== watchedOrderHash) {
+                            console.log(`[TaskExecutor] Task ${task.id}: Order cancelled by guard (hash changed: ${watchedOrderHash?.slice(0, 10)} → ${ctx.currentOrderHash?.slice(0, 10) || 'null'}), continuing...`);
+                            // 记录订单取消事件
+                            await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
+                                platform: 'predict',
+                                orderId: watchedOrderHash!,
+                                side: side,
+                                price: task.predictPrice,
+                                quantity: task.quantity,
+                                filledQty: 0,
+                                remainingQty: task.quantity,
+                                avgPrice: task.predictPrice,
+                                cancelReason: status.cancelReason,
+                                rawResponse: status.rawResponse,
+                            }, watchedOrderHash ?? undefined);
+                            // 不取消任务，继续监控循环
+                            if (ctx.currentOrderHash) {
+                                // 已有新订单，重置监控状态
+                                resetForNewOrder(ctx.currentOrderHash);
+                            } else {
+                                // 等待新订单提交
+                                cancelWatcherIfAny();
+                                watchedOrderHash = null;
+                            }
+                            continue;
+                        }
+
+                        // 订单确实被外部取消（非保护机制），取消任务
                         await this.taskLogger.logOrderEvent(task.id, status.status === 'CANCELLED' ? 'ORDER_CANCELLED' : 'ORDER_EXPIRED', {
                             platform: 'predict',
                             orderId: ctx.currentOrderHash!,
@@ -2157,181 +2270,42 @@ export class TaskExecutor extends EventEmitter {
     }
 
     /**
-     * 执行反向平仓 (UNWIND)
+     * 处理对冲失败 (禁用 UNWIND)
      *
-     * 当对冲失败时，需要在 Predict 上卖出已买入的 YES 仓位
+     * 当对冲失败时，不执行反向平仓，仅标记任务状态为 HEDGE_FAILED
+     * 用户需要手动处理未对冲的仓位
      */
     private async executeUnwind(ctx: TaskContext): Promise<void> {
         const task = ctx.task;
 
-        // UNWIND 前刷新本次进程内追踪的 Poly 订单，避免“迟到成交”导致过量平仓
+        // 刷新 Poly 迟到成交，获取准确的未对冲数量
         await this.refreshTrackedPolyFills(ctx);
 
-        const theoreticalUnhedged = ctx.totalPredictFilled - ctx.totalHedged;
-
-        if (theoreticalUnhedged <= 0) {
-            console.log('[TaskExecutor] No position to unwind');
-            return;
-        }
-
-        // 查询实际持仓数量（扣除手续费后的可用量）
-        const outcome = task.type === 'BUY' ? 'YES' : 'NO';
-        const actualPosition = await this.predictTrader.getPositionQuantity(task.marketId, outcome);
-
-        // 使用实际持仓与理论未对冲量中的较小值
-        const unhedgedQty = actualPosition > 0
-            ? Math.min(theoreticalUnhedged, actualPosition)
-            : theoreticalUnhedged;
+        const unhedgedQty = ctx.totalPredictFilled - ctx.totalHedged;
 
         if (unhedgedQty <= 0) {
-            console.log('[TaskExecutor] No actual position to unwind');
+            console.log('[TaskExecutor] No unhedged position');
             return;
         }
 
-        console.log(`[TaskExecutor] Unwinding ${unhedgedQty} shares (actual: ${actualPosition}, theoretical: ${theoreticalUnhedged})`);
+        // 计算潜在损失（仅用于记录）
+        const estimatedLoss = this.calculateUnwindLoss(task, ctx, unhedgedQty);
 
-        // 记录 UNWIND 开始
-        await this.taskLogger.logUnwindEvent(task.id, 'UNWIND_STARTED', {
-            unhedgedQty,
-            unwoundQty: 0,
-            estimatedLoss: this.calculateUnwindLoss(task, ctx, unhedgedQty),
-            retryCount: 0,
-        });
+        console.warn(`[TaskExecutor] ⚠️ HEDGE_FAILED: ${unhedgedQty} shares unhedged (Predict filled: ${ctx.totalPredictFilled}, hedged: ${ctx.totalHedged})`);
+        console.warn(`[TaskExecutor] ⚠️ UNWIND 已禁用，需要手动处理未对冲仓位`);
 
-        this.updateTask(task.id, {
-            status: 'UNWINDING',
-            error: 'Hedge failed, unwinding position',
-        });
-
-        let retryCount = 0;
-        let totalUnwound = 0;
-
-        let unwindPrice = 0;  // 记录实际 UNWIND 价格
-
-        while (retryCount < UNWIND_MAX_RETRIES && totalUnwound < unhedgedQty) {
-            try {
-                const remaining = unhedgedQty - totalUnwound;
-
-                // 获取当前订单簿，按卖一价 (best bid) 挂单
-                const orderbook = await this.predictTrader.getOrderbook(task.marketId);
-                if (!orderbook || orderbook.bids.length === 0) {
-                    throw new Error('Cannot get orderbook or no bids available');
-                }
-                const bestBid = orderbook.bids[0][0];  // [price, size]
-                unwindPrice = bestBid;
-
-                console.log(`[TaskExecutor] UNWIND using best bid: ${bestBid.toFixed(4)}`);
-
-                // 记录 UNWIND 尝试
-                await this.taskLogger.logUnwindEvent(task.id, 'UNWIND_ATTEMPT', {
-                    unhedgedQty,
-                    unwoundQty: totalUnwound,
-                    estimatedLoss: this.calculateUnwindLoss(task, ctx, remaining),
-                    retryCount,
-                });
-
-                // 在 Predict 上以卖一价卖出
-                // 反向操作: BUY 任务的 UNWIND 是 SELL YES
-                const unwindSide = task.type === 'BUY' ? 'SELL' : 'BUY';
-
-                // 创建带有 UNWIND 价格的任务副本
-                const unwindTask = { ...task, predictPrice: bestBid, quantity: remaining };
-                const result = await this.submitPredictOrder(unwindTask, unwindSide);
-
-                if (!result.success) {
-                    throw new Error(`Unwind order failed: ${result.error}`);
-                }
-
-                // 记录 UNWIND 订单提交
-                await this.taskLogger.logOrderEvent(task.id, 'ORDER_SUBMITTED', {
-                    platform: 'predict',
-                    orderId: result.hash!,
-                    side: unwindSide,
-                    price: bestBid,  // 使用实际 UNWIND 价格
-                    quantity: remaining,
-                    filledQty: 0,
-                    remainingQty: remaining,
-                    avgPrice: 0,
-                }, result.hash);
-
-                // 等待成交
-                const status = await this.predictTrader.pollOrderUntilFilled(
-                    result.hash!,
-                    30000,
-                    500
-                );
-
-                if (status && status.filledQty > 0) {
-                    totalUnwound += status.filledQty;
-
-                    // 记录 UNWIND 订单成交
-                    await this.taskLogger.logOrderEvent(task.id, 'ORDER_FILLED', {
-                        platform: 'predict',
-                        orderId: result.hash!,
-                        side: unwindSide,
-                        price: unwindPrice,  // 使用实际 UNWIND 挂单价格
-                        quantity: remaining,
-                        filledQty: status.filledQty,
-                        remainingQty: remaining - status.filledQty,
-                        avgPrice: unwindPrice,
-                    }, result.hash);
-
-                    // 记录部分 UNWIND
-                    if (totalUnwound < unhedgedQty) {
-                        await this.taskLogger.logUnwindEvent(task.id, 'UNWIND_PARTIAL', {
-                            unhedgedQty,
-                            unwoundQty: totalUnwound,
-                            estimatedLoss: this.calculateUnwindLoss(task, ctx, totalUnwound),
-                            retryCount,
-                        });
-                    }
-
-                    console.log(`[TaskExecutor] Unwound: ${status.filledQty} @ ${unwindPrice}`);
-                }
-
-            } catch (error: any) {
-                retryCount++;
-                console.error(`[TaskExecutor] Unwind attempt ${retryCount} failed:`, error.message);
-
-                if (retryCount < UNWIND_MAX_RETRIES) {
-                    await this.delay(2000);
-                }
-            }
-        }
-
-        // 计算 UNWIND 损失
-        const unwindLoss = this.calculateUnwindLoss(task, ctx, totalUnwound);
-
-        // 记录 UNWIND 完成或失败
-        if (totalUnwound >= unhedgedQty) {
-            await this.taskLogger.logUnwindEvent(task.id, 'UNWIND_COMPLETED', {
-                unhedgedQty,
-                unwoundQty: totalUnwound,
-                estimatedLoss: unwindLoss,
-                retryCount,
-            });
-        } else {
-            await this.taskLogger.logUnwindEvent(task.id, 'UNWIND_FAILED', {
-                unhedgedQty,
-                unwoundQty: totalUnwound,
-                estimatedLoss: unwindLoss,
-                retryCount,
-                error: new Error(`Unwind incomplete: ${totalUnwound}/${unhedgedQty}`),
-            });
-        }
-
-        // 记录任务失败
+        // 记录对冲失败事件
         await this.taskLogger.logTaskLifecycle(task.id, 'TASK_FAILED', {
-            status: totalUnwound >= unhedgedQty ? 'UNWIND_COMPLETED' : 'HEDGE_FAILED',
-            previousStatus: 'UNWINDING',
-            reason: `Hedge failed, unwound ${totalUnwound}/${unhedgedQty}, loss: $${unwindLoss.toFixed(2)}`,
+            status: 'HEDGE_FAILED',
+            previousStatus: task.status,
+            reason: `Hedge failed, ${unhedgedQty} shares unhedged, est. loss: $${estimatedLoss.toFixed(2)} (UNWIND disabled)`,
         });
 
+        // 更新任务状态
         this.updateTask(task.id, {
-            status: totalUnwound >= unhedgedQty ? 'UNWIND_COMPLETED' : 'HEDGE_FAILED',
-            unwindQty: totalUnwound,
-            unwindLoss: unwindLoss,
-            unwindPrice: unwindPrice,  // 记录 UNWIND 挂单价格
+            status: 'HEDGE_FAILED',
+            error: `Hedge failed, ${unhedgedQty} shares unhedged`,
+            remainingQty: unhedgedQty,
             completedAt: Date.now(),
         });
 
@@ -2340,19 +2314,17 @@ export class TaskExecutor extends EventEmitter {
             type: task.type,
             marketId: task.marketId,
             title: task.title,
-            status: totalUnwound >= unhedgedQty ? 'UNWIND_COMPLETED' : 'HEDGE_FAILED',
+            status: 'HEDGE_FAILED',
             predictFilledQty: ctx.totalPredictFilled,
             hedgedQty: ctx.totalHedged,
             avgPredictPrice: task.predictPrice,
             avgPolymarketPrice: ctx.totalHedged > 0 ? ctx.hedgePriceSum / ctx.totalHedged : 0,
             actualProfit: 0,
-            unwindLoss,
+            unwindLoss: 0,  // 未执行 UNWIND，无实际损失
             pauseCount: task.pauseCount,
             hedgeRetryCount: task.hedgeRetryCount,
             createdAt: task.createdAt,
         });
-
-        console.log(`[TaskExecutor] Unwind completed. Loss: $${unwindLoss.toFixed(2)}`);
     }
 
     // ========================================================================
@@ -2480,6 +2452,15 @@ export class TaskExecutor extends EventEmitter {
 
         const checkDepth = async () => {
             if (ctx.signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
+
+            // 检查任务是否已进入终态，避免在取消后继续操作
+            const currentTask = this.taskService.getTask(ctx.task.id);
+            const terminalStatuses: TaskStatus[] = ['COMPLETED', 'FAILED', 'CANCELLED', 'HEDGE_FAILED', 'UNWIND_COMPLETED'];
+            if (!currentTask || terminalStatuses.includes(currentTask.status)) {
+                console.log(`[TaskExecutor] Depth monitor: task ${ctx.task.id} in terminal state ${currentTask?.status}, stopping`);
+                return;
+            }
+
             if (ctx.isPaused) {
                 // 暂停时继续监控，等待深度恢复
                 setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
@@ -2579,6 +2560,13 @@ export class TaskExecutor extends EventEmitter {
                 quantity: newQuantity,
             });
             ctx.task = updatedTask;
+
+            // 重新下单前再次检查任务状态（取消订单后可能触发任务取消）
+            const taskBeforeResubmit = this.taskService.getTask(ctx.task.id);
+            if (!taskBeforeResubmit || terminalStatuses.includes(taskBeforeResubmit.status)) {
+                console.log(`[TaskExecutor] Depth adjustment: task ${ctx.task.id} became ${taskBeforeResubmit?.status} after order cancel, aborting resubmit`);
+                return;
+            }
 
             // 重新下单（新的剩余量）
             const newRemainingQty = newQuantity - ctx.totalPredictFilled;
@@ -2801,8 +2789,13 @@ export class TaskExecutor extends EventEmitter {
             } : null;
 
             // 计算套利指标
+            // MAKER 模式不需要手续费，TAKER 模式需要计算手续费
             const bestPolyAsk = polyBook?.asks[0]?.price ?? 1;
-            const totalCost = task.predictPrice + bestPolyAsk;
+            const isTaker = task.strategy === 'TAKER';
+            const predictFee = isTaker && task.feeRateBps
+                ? calculatePredictFee(task.predictPrice, task.feeRateBps)
+                : 0;
+            const totalCost = task.predictPrice + bestPolyAsk + predictFee;
             const profitPercent = (1 - totalCost) * 100;
 
             await this.taskLogger.captureOrderBookSnapshot(

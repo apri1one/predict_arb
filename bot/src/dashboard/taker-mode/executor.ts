@@ -64,6 +64,10 @@ const FEE_REBATE_PERCENT = 0.10;  // Predict 10% 返点
 const COST_CHECK_THROTTLE_MS = Number(process.env.COST_CHECK_THROTTLE_MS) || 200;  // 成本检查节流 200ms
 const COST_CHECK_FALLBACK_INTERVAL = 5;  // 无 WS 时的轮询降级间隔 (每 N 次轮询)
 
+// IOC 安全阀: cancel 后轮询确认终态
+const IOC_RESOLVE_TIMEOUT_MS = Math.max(Number(process.env.IOC_RESOLVE_TIMEOUT_MS) || 3000, 500);      // 最大等待 3s，下限 500ms
+const IOC_RESOLVE_INTERVAL_MS = Math.max(Number(process.env.IOC_RESOLVE_INTERVAL_MS) || 500, 100);     // 每 500ms 检查一次，下限 100ms
+
 // 亏损对冲 (Loss Hedge) 相关常量
 const LOSS_HEDGE_MAX_PRICE_DEVIATION = Number(process.env.LOSS_HEDGE_MAX_PRICE_DEVIATION) || 0.02;  // 最大价格偏离 2%
 const LOSS_HEDGE_WAIT_INTERVAL_MS = Number(process.env.LOSS_HEDGE_WAIT_INTERVAL_MS) || 5000;  // 等待价格回落间隔 5s
@@ -622,6 +626,7 @@ export class TakerExecutor extends EventEmitter {
                         console.log(`[TakerExecutor] Task ${task.id}: Catching up hedge for ${unhedgedQty} (accumulated during pause)`);
                         if (unhedgedQty > 0) {
                             await this.incrementalHedge(ctx, hedgeTokenId, unhedgedQty);
+                            if (signal.aborted) return;
                         }
                     }
 
@@ -761,6 +766,7 @@ export class TakerExecutor extends EventEmitter {
                             // 暂停期间检测到成交，强制对冲以避免风险暴露
                             console.log(`[TakerExecutor] Task ${task.id}: Fill detected while paused, hedging to avoid exposure...`);
                             await this.incrementalHedge(ctx, hedgeTokenId, newFilled);
+                            if (signal.aborted) return;
                         } else {
                             // 检查是否应该触发对冲 (考虑 $1 名义金额阈值)
                             const isPredictFullyFilled = orderStatus.status === 'FILLED' || orderStatus.remainingQty === 0;
@@ -768,6 +774,7 @@ export class TakerExecutor extends EventEmitter {
 
                             if (hedgeCheck.shouldHedge) {
                                 await this.incrementalHedge(ctx, hedgeTokenId, hedgeCheck.hedgeQty);
+                                if (signal.aborted) return;
                             }
                         }
                     }
@@ -1222,6 +1229,7 @@ export class TakerExecutor extends EventEmitter {
 
                     if (hedgeCheck.shouldHedge) {
                         await this.incrementalHedge(ctx, hedgeTokenId, hedgeCheck.hedgeQty);
+                        if (signal.aborted) return;
                     }
                 }
 
@@ -1543,6 +1551,8 @@ export class TakerExecutor extends EventEmitter {
         // 计算剩余需对冲数量，低于阈值视为完成
         const remainingUnhedged = () => filledQty - hedged;
         const isHedgeComplete = () => remainingUnhedged() <= MIN_HEDGE_THRESHOLD;
+        let abortedByError = false;  // IOC 安全阀超时等致命错误，跳过 LOSS_HEDGE
+        let abortError: any = null;
 
         while (!isHedgeComplete() && retryCount < maxRetries) {
             retryCount++;
@@ -1554,6 +1564,7 @@ export class TakerExecutor extends EventEmitter {
                 break;
             }
 
+            // 先记录 ATTEMPT（即使下单失败也有审计记录）
             await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_ATTEMPT', {
                 hedgeQty: toHedge,
                 totalHedged: hedged,
@@ -1565,7 +1576,26 @@ export class TakerExecutor extends EventEmitter {
                 outcome: hedgeOutcome,
             });
 
-            const result = await this.executeHedgeOrder(ctx, hedgeTokenId, toHedge);
+            let result: HedgeResult;
+            try {
+                result = await this.executeHedgeOrder(ctx, hedgeTokenId, toHedge);
+            } catch (hedgeErr: any) {
+                // IOC 安全阀超时 or 其他错误: 中止重试循环，跳过 LOSS_HEDGE
+                console.error(`[TakerExecutor] Task ${task.id}: executeHedgeOrder error, aborting retry loop: ${hedgeErr.message}`);
+                abortedByError = true;
+                abortError = hedgeErr;
+                await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_FAILED', {
+                    hedgeQty: toHedge,
+                    totalHedged: hedged,
+                    totalPredictFilled: filledQty,
+                    retryCount,
+                    title: task.title,
+                    side: hedgeSide,
+                    outcome: hedgeOutcome,
+                    error: hedgeErr,
+                });
+                break;
+            }
 
             if (result.filledQty > 0) {
                 hedged += result.filledQty;
@@ -1581,6 +1611,8 @@ export class TakerExecutor extends EventEmitter {
                     title: task.title,
                     side: hedgeSide,
                     outcome: hedgeOutcome,
+                    orderId: result.orderId,
+                    orderStatus: result.isComplete ? 'MATCHED' : 'CANCELLED',
                 });
 
                 this.updateTask(task.id, {
@@ -1699,7 +1731,35 @@ export class TakerExecutor extends EventEmitter {
             return;
         }
 
-        // 对冲失败（剩余数量超过阈值）- 进入亏损对冲模式
+        // 致命错误中止: 已在 catch 中记录 HEDGE_FAILED，不再重试/补偿
+        if (abortedByError) {
+            console.log(`[TakerExecutor] Task ${task.id}: Hedge aborted by error, skipping LOSS_HEDGE. Unhedged=${finalUnhedged.toFixed(4)}`);
+            this.updateTask(task.id, {
+                status: 'HEDGE_FAILED',
+                remainingQty: finalUnhedged,
+            });
+            const avgHedgePrice = hedged > 0 ? ctx.hedgePriceSum / hedged : 0;
+            const abortReason = abortError?.message || 'Hedge aborted by error';
+            await this.taskLogger.logTaskLifecycle(task.id, 'TASK_FAILED', {
+                status: 'HEDGE_FAILED',
+                reason: abortReason,
+                error: abortError,
+            });
+            await this.polyTrader.notifyOrderAlert({
+                type: 'FAILED',
+                platform: 'POLYMARKET',
+                marketName: `⚠️ HEDGE ABORTED - ${task.title || `Task ${task.id}`}`,
+                action: hedgeSide,
+                side: hedgeOutcome,
+                price: avgHedgePrice,
+                quantity: filledQty,
+                filledQuantity: hedged,
+                error: `${abortReason}. Unhedged: ${finalUnhedged.toFixed(4)} shares. MANUAL INTERVENTION REQUIRED.`,
+            });
+            return;
+        }
+
+        // 正常重试耗尽 - 进入亏损对冲模式
         await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_FAILED', {
             hedgeQty: finalUnhedged,
             totalHedged: hedged,
@@ -1729,10 +1789,51 @@ export class TakerExecutor extends EventEmitter {
         newFilled: number
     ): Promise<void> {
         const { task } = ctx;
+        const hedgeSide = task.type === 'BUY' ? 'BUY' : 'SELL';
+        const hedgeOutcome = task.arbSide === 'NO' ? 'YES' : 'NO';
 
         this.updateTask(task.id, { status: 'HEDGING' });
 
-        const result = await this.executeHedgeOrder(ctx, hedgeTokenId, newFilled);
+        let result: HedgeResult;
+        try {
+            result = await this.executeHedgeOrder(ctx, hedgeTokenId, newFilled);
+        } catch (hedgeErr: any) {
+            // IOC 安全阀超时等错误: 记录后中止任务，避免继续对冲导致超量
+            const unhedged = Math.max(0, ctx.totalPredictFilled - ctx.totalHedged);
+            const avgHedgePrice = ctx.totalHedged > 0 ? ctx.hedgePriceSum / ctx.totalHedged : 0;
+            console.error(`[TakerExecutor] Task ${task.id}: incrementalHedge error: ${hedgeErr.message}`);
+            await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_FAILED', {
+                hedgeQty: newFilled,
+                totalHedged: ctx.totalHedged,
+                totalPredictFilled: ctx.totalPredictFilled,
+                title: task.title,
+                side: hedgeSide,
+                outcome: hedgeOutcome,
+                error: hedgeErr,
+            });
+            this.updateTask(task.id, {
+                status: 'HEDGE_FAILED',
+                remainingQty: unhedged,
+            });
+            await this.taskLogger.logTaskLifecycle(task.id, 'TASK_FAILED', {
+                status: 'HEDGE_FAILED',
+                reason: hedgeErr?.message || 'Incremental hedge aborted',
+                error: hedgeErr,
+            });
+            await this.polyTrader.notifyOrderAlert({
+                type: 'FAILED',
+                platform: 'POLYMARKET',
+                marketName: `⚠️ HEDGE ABORTED - ${task.title || `Task ${task.id}`}`,
+                action: hedgeSide,
+                side: hedgeOutcome,
+                price: avgHedgePrice,
+                quantity: ctx.totalPredictFilled,
+                filledQuantity: ctx.totalHedged,
+                error: `${hedgeErr?.message || 'Incremental hedge aborted'}. Unhedged: ${unhedged.toFixed(4)} shares. MANUAL INTERVENTION REQUIRED.`,
+            });
+            ctx.abortController?.abort();
+            return;
+        }
 
         if (result.filledQty > 0) {
             ctx.totalHedged += result.filledQty;
@@ -1744,10 +1845,6 @@ export class TakerExecutor extends EventEmitter {
                 remainingQty: Math.max(0, ctx.totalPredictFilled - ctx.totalHedged),
             });
 
-            // 确定对冲方向和 outcome
-            const hedgeSide = task.type === 'BUY' ? 'BUY' : 'SELL';
-            const hedgeOutcome = task.arbSide === 'NO' ? 'YES' : 'NO';
-
             await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_PARTIAL', {
                 hedgeQty: result.filledQty,
                 totalHedged: ctx.totalHedged,
@@ -1757,6 +1854,8 @@ export class TakerExecutor extends EventEmitter {
                 title: task.title,
                 side: hedgeSide,
                 outcome: hedgeOutcome,
+                orderId: result.orderId,
+                orderStatus: result.isComplete ? 'MATCHED' : 'CANCELLED',
             });
         }
 
@@ -1858,6 +1957,9 @@ export class TakerExecutor extends EventEmitter {
 
         console.log(`[TakerExecutor] Task ${task.id}: LOSS_HEDGE started - remaining=${remaining.toFixed(4)}, maxAllowedPrice=${maxAllowedPrice.toFixed(4)}`);
 
+        let abortedByError = false;  // IOC 安全阀超时等致命错误，跳过后续重复日志
+        let abortError: any = null;
+
         while (remaining >= MIN_HEDGE_THRESHOLD && retryCount < LOSS_HEDGE_MAX_RETRIES) {
             // 检查超时
             if (Date.now() - startTime > LOSS_HEDGE_MAX_WAIT_TIME_MS) {
@@ -1892,6 +1994,7 @@ export class TakerExecutor extends EventEmitter {
             retryCount++;
             console.log(`[TakerExecutor] Task ${task.id}: LOSS_HEDGE attempt #${retryCount} - price=${currentAsk.toFixed(4)}, qty=${remaining.toFixed(4)}`);
 
+            // 先记录 ATTEMPT（即使下单失败也有审计记录）
             await this.taskLogger.logHedgeEvent(task.id, 'LOSS_HEDGE_ATTEMPT', {
                 hedgeQty: remaining,
                 totalHedged: hedged,
@@ -1903,7 +2006,26 @@ export class TakerExecutor extends EventEmitter {
                 outcome: hedgeOutcome,
             });
 
-            const result = await this.executeHedgeOrder(ctx, hedgeTokenId, remaining);
+            let result: HedgeResult;
+            try {
+                result = await this.executeHedgeOrder(ctx, hedgeTokenId, remaining);
+            } catch (hedgeErr: any) {
+                // IOC 安全阀超时 or 其他错误: 中止重试循环
+                console.error(`[TakerExecutor] Task ${task.id}: LOSS_HEDGE executeHedgeOrder error, aborting: ${hedgeErr.message}`);
+                await this.taskLogger.logHedgeEvent(task.id, 'LOSS_HEDGE_FAILED', {
+                    hedgeQty: remaining,
+                    totalHedged: hedged,
+                    totalPredictFilled: ctx.totalPredictFilled,
+                    retryCount,
+                    title: task.title,
+                    side: hedgeSide,
+                    outcome: hedgeOutcome,
+                    error: hedgeErr,
+                });
+                abortedByError = true;
+                abortError = hedgeErr;
+                break;
+            }
 
             if (result.filledQty > 0) {
                 hedged += result.filledQty;
@@ -1926,6 +2048,8 @@ export class TakerExecutor extends EventEmitter {
                     title: task.title,
                     side: hedgeSide,
                     outcome: hedgeOutcome,
+                    orderId: result.orderId,
+                    orderStatus: result.isComplete ? 'MATCHED' : 'CANCELLED',
                 });
 
                 console.log(`[TakerExecutor] Task ${task.id}: LOSS_HEDGE partial - filled=${result.filledQty.toFixed(4)}, remaining=${remaining.toFixed(4)}`);
@@ -1935,6 +2059,34 @@ export class TakerExecutor extends EventEmitter {
             if (remaining >= MIN_HEDGE_THRESHOLD) {
                 await this.delay(HEDGE_WAIT_DELAY);
             }
+        }
+
+        // 致命错误中止: 已在 catch 中记录 LOSS_HEDGE_FAILED，不再重复记录
+        if (abortedByError) {
+            console.log(`[TakerExecutor] Task ${task.id}: LOSS_HEDGE aborted by error. Unhedged=${remaining.toFixed(4)}`);
+            this.updateTask(task.id, {
+                status: 'HEDGE_FAILED',
+                remainingQty: remaining,
+            });
+            const avgHedgePrice = hedged > 0 ? ctx.hedgePriceSum / hedged : 0;
+            const abortReason = abortError?.message || 'Loss hedge aborted by error';
+            await this.taskLogger.logTaskLifecycle(task.id, 'TASK_FAILED', {
+                status: 'HEDGE_FAILED',
+                reason: abortReason,
+                error: abortError,
+            });
+            await this.polyTrader.notifyOrderAlert({
+                type: 'FAILED',
+                platform: 'POLYMARKET',
+                marketName: `⚠️ LOSS_HEDGE ABORTED - ${task.title || `Task ${task.id}`}`,
+                action: hedgeSide,
+                side: hedgeOutcome,
+                price: avgHedgePrice,
+                quantity: ctx.totalPredictFilled,
+                filledQuantity: hedged,
+                error: `${abortReason}. Unhedged: ${remaining.toFixed(4)} shares. MANUAL INTERVENTION REQUIRED.`,
+            });
+            return;
         }
 
         // 检查最终结果
@@ -2082,8 +2234,53 @@ export class TakerExecutor extends EventEmitter {
         }
 
         // 获取成交状态（优先用 pollOrderStatus，内部可走 WS 加速；失败回退单次查询）
-        const status = await this.polyTrader.pollOrderStatus(result.orderId, 5, 100)
+        let status = await this.polyTrader.pollOrderStatus(result.orderId, 5, 100)
             ?? await this.polyTrader.getOrderStatus(result.orderId);
+
+        // IOC 安全阀: 如果 poll 后订单仍非终态(MATCHED/CANCELLED)，
+        // 主动取消并循环确认，直到终态或超时。
+        // 超时仍非终态时抛错中止重试，防止重复成交 (8x over-hedge bug)
+        const statusBeforeCancel = status?.status ?? 'unknown';
+        const isFinal = statusBeforeCancel === 'MATCHED' || statusBeforeCancel === 'CANCELLED';
+        if (!isFinal) {
+            console.log(`[TakerExecutor] Task ${task.id}: IOC order ${result.orderId.slice(0, 10)}... status=${statusBeforeCancel} after poll, forcing cancel`);
+            try {
+                await this.polyTrader.cancelOrder(result.orderId, { skipTelegram: true });
+            } catch (cancelErr: any) {
+                console.log(`[TakerExecutor] IOC cancel (may already resolved): ${cancelErr.message}`);
+            }
+
+            // 循环确认终态，直到 MATCHED/CANCELLED 或超时
+            const resolveStart = Date.now();
+            let resolved = false;
+            while (Date.now() - resolveStart < IOC_RESOLVE_TIMEOUT_MS) {
+                await this.delay(IOC_RESOLVE_INTERVAL_MS);
+                const refreshed = await this.polyTrader.getOrderStatus(result.orderId);
+                if (refreshed) {
+                    status = refreshed;
+                    if (refreshed.status === 'MATCHED' || refreshed.status === 'CANCELLED') {
+                        resolved = true;
+                        break;
+                    }
+                }
+            }
+
+            // 记录 IOC_FORCE_CANCEL 事件
+            const statusAfterCancel = status?.status ?? 'unknown';
+            await this.taskLogger.logTakerEvent(task.id, 'IOC_FORCE_CANCEL', {
+                orderId: result.orderId,
+                statusBeforeCancel,
+                statusAfterCancel,
+                finalFilledQty: status?.filledQty ?? 0,
+            });
+
+            // 超时仍非终态: 中止对冲流程，防止重复下单
+            if (!resolved) {
+                const errMsg = `IOC order ${result.orderId.slice(0, 10)}... unresolved after ${IOC_RESOLVE_TIMEOUT_MS}ms (status=${statusAfterCancel}), aborting hedge to prevent over-hedge`;
+                console.error(`[TakerExecutor] Task ${task.id}: ${errMsg}`);
+                throw new Error(errMsg);
+            }
+        }
 
         // 记录首次 Poly 成交时间
         if (status?.filledQty && status.filledQty > 0 && !ctx.polyFirstFillTime) {

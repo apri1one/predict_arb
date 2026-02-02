@@ -163,6 +163,8 @@ export interface OrderEventPayload {
     remainingQty: number;
     avgPrice: number;
     error?: StructuredError;
+    // 市场信息 (用于通知显示)
+    title?: string;              // 市场标题
     // 订单簿快照引用
     orderbookSnapshotSeq?: number;
     // 延迟统计 (ms)
@@ -231,7 +233,8 @@ export type TakerEventType =
     | 'FORCED_FILL_REFRESH'      // cancel 前强制刷新成交量
     | 'HEDGE_PRICE_SOURCE'       // 对冲取价来源 (WS_CACHE / REST_FALLBACK)
     | 'HEDGE_PRICE_INVALID'      // 对冲价格超出 polymarketMaxAsk
-    | 'SHARES_MISALIGNMENT';     // Predict/Polymarket shares 不对齐
+    | 'SHARES_MISALIGNMENT'      // Predict/Polymarket shares 不对齐
+    | 'IOC_FORCE_CANCEL';        // IOC 安全阀: poll 超时后主动取消订单
 
 export interface TakerEventPayload {
     // ORDER_TIMEOUT
@@ -259,6 +262,12 @@ export interface TakerEventPayload {
     predictFilled?: number;
     polyHedged?: number;
     difference?: number;
+
+    // IOC_FORCE_CANCEL
+    orderId?: string;            // Polymarket orderId
+    statusBeforeCancel?: string; // cancel 前的状态 (LIVE/unknown)
+    statusAfterCancel?: string;  // cancel 后刷新的状态
+    finalFilledQty?: number;     // cancel 后最终确认的成交量
 }
 
 export interface TakerEvent extends BaseLogEvent {
@@ -307,6 +316,16 @@ export interface HedgePayload {
     retryCount?: number;
     error?: StructuredError;
     reason?: string;             // HEDGE_SKIPPED 原因
+    // 市场信息 (用于通知显示)
+    title?: string;              // 市场标题
+    side?: 'BUY' | 'SELL';       // 对冲方向
+    outcome?: 'YES' | 'NO';      // 对冲 outcome
+    // 订单对账 (Polymarket orderId)
+    orderId?: string;            // Polymarket orderId，用于审计和对账
+    orderStatus?: string;        // 订单最终状态: MATCHED=全部成交, CANCELLED=IOC 部分/未成交后取消
+    // 成本信息 (用于 HEDGE_COMPLETED)
+    avgPredictPrice?: number;    // Predict 平均成交价
+    avgTotalCost?: number;       // 平均总成本/share (Predict + Polymarket)
     // 订单簿快照引用
     orderbookSnapshotSeq?: number;
     // 亏损对冲 (Loss Hedge) 相关字段
@@ -401,6 +420,7 @@ export const EVENT_PRIORITY_MAP: Record<TaskLogEventType, EventPriority> = {
     HEDGE_PRICE_SOURCE: 'INFO',
     HEDGE_PRICE_INVALID: 'CRITICAL',
     SHARES_MISALIGNMENT: 'CRITICAL',
+    IOC_FORCE_CANCEL: 'CRITICAL',
     // 对冲 - CRITICAL
     HEDGE_STARTED: 'CRITICAL',
     HEDGE_ATTEMPT: 'INFO',

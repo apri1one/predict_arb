@@ -403,7 +403,7 @@ export class TaskLogger extends EventEmitter {
      */
     async logTakerEvent(
         taskId: string,
-        type: 'ORDER_TIMEOUT' | 'FORCED_FILL_REFRESH' | 'HEDGE_PRICE_SOURCE' | 'HEDGE_PRICE_INVALID' | 'SHARES_MISALIGNMENT',
+        type: 'ORDER_TIMEOUT' | 'FORCED_FILL_REFRESH' | 'HEDGE_PRICE_SOURCE' | 'HEDGE_PRICE_INVALID' | 'SHARES_MISALIGNMENT' | 'IOC_FORCE_CANCEL',
         payload: {
             orderHash?: string;
             timeoutMs?: number;
@@ -422,6 +422,11 @@ export class TaskLogger extends EventEmitter {
             predictFilled?: number;
             polyHedged?: number;
             difference?: number;
+            // IOC_FORCE_CANCEL
+            orderId?: string;
+            statusBeforeCancel?: string;
+            statusAfterCancel?: string;
+            finalFilledQty?: number;
         }
     ): Promise<void> {
         const event: TaskLogEvent = {
@@ -797,10 +802,15 @@ export class TaskLogger extends EventEmitter {
         let side: string | undefined;
         let detail = '';
 
+        // 直接从 payload.title 提取标题 (Order/Hedge 事件)
+        if (payload.title) {
+            title = payload.title as string;
+        }
+
         // TaskLifecycle 事件 - 提取 taskConfig
         if (payload.taskConfig) {
             const config = payload.taskConfig as { title?: string; type?: string; quantity?: number; predictPrice?: number };
-            title = config.title;
+            if (!title) title = config.title;
             side = config.type;
             if (config.quantity !== undefined && config.predictPrice !== undefined) {
                 detail += `<b>数量:</b> ${config.quantity} shares\n`;
@@ -808,7 +818,7 @@ export class TaskLogger extends EventEmitter {
             }
         }
 
-        // Order 事件 - 提取订单详情
+        // Order/Hedge 事件 - 提取 side/outcome
         if (payload.platform !== undefined) {
             platform = payload.platform as string;
         }
@@ -843,6 +853,10 @@ export class TaskLogger extends EventEmitter {
             }
             if (payload.avgHedgePrice !== undefined) {
                 detail += `<b>平均价格:</b> $${(payload.avgHedgePrice as number).toFixed(2)}\n`;
+            }
+            // 对冲完成时显示总成本
+            if (payload.avgTotalCost !== undefined) {
+                detail += `<b>总成本/share:</b> $${(payload.avgTotalCost as number).toFixed(4)}\n`;
             }
         }
 

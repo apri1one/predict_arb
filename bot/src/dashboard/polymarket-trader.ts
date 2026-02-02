@@ -419,6 +419,8 @@ export class PolymarketTrader extends EventEmitter {
                     outcome: input.outcomeName,  // 多选市场的选项名
                     price: input.price,
                     quantity: input.quantity,
+                    role: orderType === 'IOC' ? 'Taker' : 'Maker',
+                    orderHash: orderId,
                     timestamp: Date.now(),
                 }).catch(() => {});
             }
