@@ -126,6 +126,11 @@ export class BscOrderNotifier extends EventEmitter {
 
         const marketTitle = lookup?.market.title || '未知市场';
         const tokenSide = lookup?.side || '?';  // YES/NO
+        // 体育市场显示队名 (如 "NO (Wizards)")，普通市场仅显示 YES/NO
+        const outcomeName = tokenSide === 'YES' ? lookup?.market.yesName : lookup?.market.noName;
+        const sideDisplay = outcomeName && outcomeName !== 'Yes' && outcomeName !== 'No'
+            ? `${tokenSide} (${outcomeName})`
+            : tokenSide;
 
         // 使用统一工具函数
         const shares = getSharesFromFillEvent(event);
@@ -151,7 +156,7 @@ export class BscOrderNotifier extends EventEmitter {
 
 <b>类型:</b> ${actionEmoji} ${actionText}
 <b>市场:</b> ${this.escapeHtml(marketTitle.slice(0, 60))}${marketTitle.length > 60 ? '...' : ''}
-<b>方向:</b> ${tokenSide}
+<b>方向:</b> ${sideDisplay}
 <b>角色:</b> ${role}
 <b>成交价:</b> ${(price * 100).toFixed(1)}¢
 <b>成交量:</b> ${shares.toFixed(2)} 股

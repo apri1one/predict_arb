@@ -139,6 +139,8 @@ export interface MarketTokenInfo {
     title: string;
     yesTokenId: string;
     noTokenId: string;
+    yesName?: string;
+    noName?: string;
     status: string;
 }
 

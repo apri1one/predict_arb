@@ -2519,6 +2519,9 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, task
             predictAsk: direction === 'away' ? pred.awayAsk : pred.homeAsk,
             isSportsMarket: true,  // 体育市场标识，使用 REST API 获取订单簿
             gameStartTime: market.gameStartTime,  // 供 TaskModal 计算默认倒计时
+            // URL 导航 (对齐体育面板 ViewLinks)
+            predictSlug: market.predictSlug,
+            polymarketSlug: market.polymarketSlug,
         };
 
         onOpenTaskModal(taskData, 'BUY');
@@ -2587,6 +2590,9 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, task
             feeRateBps: feeRateBps,
             isInverted: false,
             isSportsMarket: true,  // 体育市场标识，使用 REST API 获取订单簿
+            // URL 导航 (对齐体育面板 ViewLinks)
+            predictSlug: market.predictSlug,
+            polymarketSlug: market.polymarketSlug,
         };
 
         // 调用 Taker 任务创建函数

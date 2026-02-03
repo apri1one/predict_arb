@@ -24,6 +24,8 @@ export interface MarketTokenInfo {
     title: string;
     yesTokenId: string;
     noTokenId: string;
+    yesName?: string;   // outcome 名称 (体育市场为队名，如 "Wizards")
+    noName?: string;
     status: string;
     conditionId?: string;
     isNegRisk?: boolean;
@@ -179,12 +181,28 @@ export class TokenMarketCache extends EventEmitter {
         const outcomes = market.outcomes || [];
         let yesTokenId = '';
         let noTokenId = '';
+        let yesName = '';
+        let noName = '';
 
         for (const outcome of outcomes) {
             const name = (outcome.name || outcome.outcome || '').toLowerCase();
+            const rawName = outcome.name || outcome.outcome || '';
             const tokenId = outcome.onChainId || outcome.tokenId || '';
-            if (name === 'yes' || name === 'up') yesTokenId = tokenId;
-            else if (name === 'no' || name === 'down') noTokenId = tokenId;
+            if (name === 'yes' || name === 'up') { yesTokenId = tokenId; yesName = rawName; }
+            else if (name === 'no' || name === 'down') { noTokenId = tokenId; noName = rawName; }
+        }
+
+        // Fallback: 体育等市场的 outcome name 是队名而非 Yes/No，
+        // 使用 indexSet 识别 (CTF: indexSet 1=YES, 2=NO)
+        // 与 predict-trader.ts 的 getMarketInfo 保持一致
+        if (!yesTokenId || !noTokenId) {
+            for (const outcome of outcomes) {
+                const tokenId = outcome.onChainId || outcome.tokenId || '';
+                const rawName = outcome.name || outcome.outcome || '';
+                if (!tokenId) continue;
+                if (outcome.indexSet === 1 && !yesTokenId) { yesTokenId = tokenId; yesName = rawName; }
+                else if (outcome.indexSet === 2 && !noTokenId) { noTokenId = tokenId; noName = rawName; }
+            }
         }
 
         const marketId = Number(market.id);
@@ -195,6 +213,8 @@ export class TokenMarketCache extends EventEmitter {
             title: market.title || market.question || '',
             yesTokenId,
             noTokenId,
+            yesName: yesName || undefined,
+            noName: noName || undefined,
             status: market.status || '',
             conditionId: market.conditionId,
             isNegRisk: market.isNegRisk,
