@@ -466,14 +466,22 @@ async function fetchPredictAccount(): Promise<AccountData['predict']> {
         const costBasisFallback = positions.reduce((sum, p) => sum + (p.qty * p.avgPrice / 100), 0);
         const portfolio = graphqlTotalValue > 0 ? graphqlTotalValue : costBasisFallback;
 
-        // 注意: Predict 使用链上托管模型 - 下单时 USDT 已转移到交易合约
-        // 因此链上余额已经是可用余额，不需要再减去订单锁定
-        // (与 Polymarket 不同，Polymarket 使用逻辑锁定)
-        console.log(`[AccountService] Predict: available=${balance.toFixed(2)}, portfolio=${portfolio.toFixed(2)} (valueUsd=${graphqlTotalValue?.toFixed(2) || 'N/A'}), total=${(balance + portfolio).toFixed(2)}`);
+        // Predict: 链上余额即“可用余额”；订单不锁定资金（链上余额不会减少）
+        const orderLocked = openOrders
+            .filter(o => o.side === 'BUY')
+            .reduce((sum, o) => {
+                const remaining = Math.max(0, (o.qty || 0) - (o.filled || 0));
+                const price = o.price || 0;
+                return sum + remaining * price;
+            }, 0);
+
+        const available = balance;
+
+        console.log(`[AccountService] Predict: available=${available.toFixed(2)}, locked(orders)=${orderLocked.toFixed(2)}, portfolio=${portfolio.toFixed(2)} (valueUsd=${graphqlTotalValue?.toFixed(2) || 'N/A'}), total=${(balance + portfolio).toFixed(2)}`);
 
         return {
-            total: balance + portfolio,  // 总资产 = 可用 + 持仓
-            available: balance,          // 可用 = 链上 USDT (已扣除托管)
+            total: balance + portfolio,  // 总资产 = 链上余额 + 持仓
+            available,                  // 可用 = 链上余额 - 未成交 BUY 订单占用
             portfolio,                   // 持仓价值
             positions,
             openOrders

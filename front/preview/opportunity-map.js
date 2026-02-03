@@ -78,6 +78,9 @@ const mapOpportunity = (raw) => {
         isInverted: Boolean(raw?.isInverted),
         isNew: Boolean(raw?.isNew),     // 是否是新发现的机会
         endDate: raw?.endDate || null,  // 结算时间 (ISO 8601)
+        boosted: Boolean(raw?.boosted),
+        boostStartTime: raw?.boostStartTime || null,
+        boostEndTime: raw?.boostEndTime || null,
         risk: {
             level: riskLevel,
             slippage,

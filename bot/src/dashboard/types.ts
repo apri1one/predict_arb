@@ -53,6 +53,11 @@ export interface ArbOpportunity {
         total: number;
     };
     endDate?: string;
+
+    // Boost state
+    boosted?: boolean;
+    boostStartTime?: string;
+    boostEndTime?: string;
 }
 
 export interface MarketInfo {

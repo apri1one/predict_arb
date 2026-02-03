@@ -26,6 +26,7 @@ import { calculateCloseOpportunities, getClosePositions, getPositionMarketIds, g
 import { setPolymarketWsOrderbookProvider } from './polymarket-trader.js';
 import { setPredictOrderbookCacheProvider, setPredictOrderbookRestFallbackEnabled } from './predict-trader.js';
 import { getSportsService, setSportsPredictOrderbookProvider } from './sports-service.js';
+import { fetchBoostData, isMarketBoosted, getBoostCache } from './boost-cache.js';
 import { initUrlMapper, getPredictSlug, getPolymarketSlug, cachePredictSlugs, generatePredictSlug } from './url-mapper.js';
 import { getBscOrderWatcher, stopBscOrderWatcher, type OrderFilledEvent as BscOrderFilledEvent } from '../services/bsc-order-watcher.js';
 import { getPredictOrderWatcher, stopPredictOrderWatcher } from '../services/predict-order-watcher.js';
@@ -604,6 +605,8 @@ let httpServer: ReturnType<typeof createServer> | null = null;
 let mainPollInterval: ReturnType<typeof setInterval> | null = null;
 let polyRefreshInterval: ReturnType<typeof setInterval> | null = null;
 let predictRefreshInterval: ReturnType<typeof setInterval> | null = null;
+let boostRefreshInterval: ReturnType<typeof setInterval> | null = null;
+const BOOST_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 let wsDisconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let wsResumeTimer: ReturnType<typeof setTimeout> | null = null;
 let wsPauseActive = false;
@@ -3817,6 +3820,16 @@ async function detectArbitrageOpportunities(): Promise<void> {
     const fetchedIds = new Set<string>();
     const newActiveMarkets = new Set<number>();
 
+    // Inject boost flags
+    for (const opp of opportunities) {
+        const boost = isMarketBoosted(opp.marketId);
+        if (boost.boosted) {
+            opp.boosted = true;
+            opp.boostStartTime = boost.boostStartTime;
+            opp.boostEndTime = boost.boostEndTime;
+        }
+    }
+
     for (const opp of opportunities) {
         const key = makeOpportunityKey(opp.marketId, opp.side, opp.strategy);
         fetchedIds.add(key);
@@ -4703,6 +4716,10 @@ async function main(): Promise<void> {
         withTimeout(getAccountData(), 10000, '账户数据')
             .then(() => console.log('  ✓ 账户数据预加载完成'))
             .catch(err => console.warn('  ✗ 账户数据预加载失败:', err.message)),
+        // 3. Boost data fetch (15s timeout)
+        withTimeout(fetchBoostData(), 15000, 'BoostData')
+            .then(() => console.log(`  OK Boost data fetched (${getBoostCache().size} boosted markets)`))
+            .catch(err => console.warn('  WARN Boost data fetch failed:', err.message)),
     ];
 
     // 3. 体育市场扫描 (仅当启用时)
@@ -4770,6 +4787,12 @@ async function main(): Promise<void> {
     }, POLL_INTERVAL_MS);
 
     // 注入 Predict 订单簿缓存提供者（任务执行时复用缓存，减少 API 调用）
+    // Boost data refresh (5 minutes)
+    boostRefreshInterval = setInterval(async () => {
+        if (shutdownRequested) return;
+        await fetchBoostData();
+    }, BOOST_REFRESH_INTERVAL_MS);
+
     setPredictOrderbookCacheProvider(getPredictOrderbookFromCache);  // PredictTrader 用
     setPredictOrderbookRestFallbackEnabled(!usePredictWsMode);
     setClosePredictOrderbookProvider(getPredictOrderbookForCloseService);  // close-service 用
@@ -4937,6 +4960,14 @@ async function main(): Promise<void> {
         }, { warnThresholdMs: SPORTS_BROADCAST_MS * 5, runImmediately: true }));
     }
 
+    // Sports incremental scan (5 minutes)
+    if (sportsService) {
+        const SPORTS_INCREMENTAL_SCAN_MS = 5 * 60 * 1000;
+        serialSchedulerStops.push(createSerialScheduler('SportsIncrementalScan', SPORTS_INCREMENTAL_SCAN_MS, async () => {
+            await sportsService!.scanIncremental();
+        }, { warnThresholdMs: SPORTS_INCREMENTAL_SCAN_MS * 0.5, runImmediately: false }));
+    }
+
     // ========================================================================
     // Predict WS 健康日志 (30秒，WS 模式下输出统计)
     // ========================================================================
@@ -5046,9 +5077,11 @@ function setupGracefulShutdown(): void {
             if (mainPollInterval) clearInterval(mainPollInterval);
             if (polyRefreshInterval) clearInterval(polyRefreshInterval);
             if (predictRefreshInterval) clearInterval(predictRefreshInterval);
+            if (boostRefreshInterval) clearInterval(boostRefreshInterval);
             mainPollInterval = null;
             polyRefreshInterval = null;
             predictRefreshInterval = null;
+            boostRefreshInterval = null;
             if (wsDisconnectTimer) clearTimeout(wsDisconnectTimer);
             if (wsResumeTimer) clearTimeout(wsResumeTimer);
             wsDisconnectTimer = null;

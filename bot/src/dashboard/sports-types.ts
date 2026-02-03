@@ -212,6 +212,11 @@ export interface SportsMatchedMarket {
     };
 
     // 状态
+    // Boost state
+    boosted?: boolean;
+    boostStartTime?: string;
+    boostEndTime?: string;
+
     polymarketLiquidity: number;
     polymarketVolume: number;
     predictVolume: number;

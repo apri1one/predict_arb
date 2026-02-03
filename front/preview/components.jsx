@@ -46,6 +46,83 @@ const FlashValue = ({ value, children, className = '' }) => {
     );
 };
 
+
+/** Parse boost time (ISO / seconds / milliseconds). */
+const parseBoostTimeMs = (value) => {
+    if (!value) return null;
+    if (typeof value === 'number') return value > 1e12 ? value : value * 1000;
+    if (typeof value !== 'string') return null;
+    if (/^\d+$/.test(value)) {
+        const num = Number(value);
+        return num > 1e12 ? num : num * 1000;
+    }
+    const hasTz = /[zZ]|[+-]\d{2}:\d{2}$/.test(value);
+    const ts = Date.parse(hasTz ? value : `${value}Z`);
+    return Number.isNaN(ts) ? null : ts;
+};
+
+/** Format boost time as HH:MM (local). */
+const formatBoostClock = (ms) => {
+    if (!ms) return null;
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return null;
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+};
+
+/** Boost countdown text (returns {text, phase}, null if expired). */
+const formatBoostCountdown = (boostStartTime, boostEndTime) => {
+    const startMs = parseBoostTimeMs(boostStartTime);
+    const endMs = parseBoostTimeMs(boostEndTime);
+    if (!startMs && !endMs) return null;
+    const now = Date.now();
+    const remaining = (targetMs) => targetMs - now;
+    const fmt = (ms) => {
+        const hours = Math.floor(ms / 3600000);
+        const mins = Math.floor((ms % 3600000) / 60000);
+        if (hours > 0) return `${hours}h ${mins}m`;
+        return `${mins}m`;
+    };
+
+    if (startMs && now < startMs) {
+        const ms = remaining(startMs);
+        if (ms <= 0) return null;
+        return { text: fmt(ms), phase: 'UPCOMING' };
+    }
+    if (endMs && now < endMs) {
+        const ms = remaining(endMs);
+        if (ms <= 0) return null;
+        return { text: fmt(ms), phase: 'ACTIVE' };
+    }
+    if (startMs && now >= startMs && !endMs) {
+        const clock = formatBoostClock(startMs);
+        return { text: clock || 'LIVE', phase: 'ACTIVE' };
+    }
+    return null;
+};
+
+/** BoostCountdown - self-updating every 60s. */
+const BoostCountdown = ({ boostStartTime, boostEndTime }) => {
+    const [state, setState] = useState(() => formatBoostCountdown(boostStartTime, boostEndTime));
+
+    useEffect(() => {
+        if (!boostStartTime && !boostEndTime) return;
+        const update = () => setState(formatBoostCountdown(boostStartTime, boostEndTime));
+        update();
+        const timer = setInterval(update, 60000);
+        return () => clearInterval(timer);
+    }, [boostStartTime, boostEndTime]);
+
+    if (!state) return null;
+    const label = state.phase === 'UPCOMING' ? `BOOST IN ${state.text}` : `BOOST ${state.text}`;
+    return (
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 border border-amber-500/40 text-amber-400 font-semibold">
+            {label}
+        </span>
+    );
+};
+
 const Badge = ({ children, variant = 'default', icon }) => {
     const styles = {
         default: "bg-zinc-800/50 text-zinc-400 border-zinc-700/50",
@@ -447,6 +524,9 @@ const OpportunityCard = ({ opp, onOpenTaskModal, activeTask }) => {
                             {opp.isInverted && <Badge variant="inverted" icon="arrow-left-right">INV</Badge>}
                             {opp.profitPercent > 2.5 && <Badge variant="warning">HOT</Badge>}
                             {opp.risk.level === 'HIGH' && <Badge variant="danger" icon="alert-triangle">RISK</Badge>}
+                            {(opp.boostStartTime || opp.boostEndTime) && (
+                                <BoostCountdown boostStartTime={opp.boostStartTime} boostEndTime={opp.boostEndTime} />
+                            )}
                             {opp.endDate && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-400 font-mono">
                                     <Icon name="clock" size={10} className="inline mr-1" />
@@ -2562,6 +2642,9 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, task
                                 <span className="text-lg">{sportIcon}</span>
                                 <Badge variant="default">{market.sport?.toUpperCase()}</Badge>
                                 {hasArb && <Badge variant="success">ARB</Badge>}
+                                {(market.boostStartTime || market.boostEndTime) && (
+                                    <BoostCountdown boostStartTime={market.boostStartTime} boostEndTime={market.boostEndTime} />
+                                )}
                                 {!market.consistency?.isValid && <Badge variant="danger" icon="alert-triangle">异常</Badge>}
                             </div>
                             <div className="flex items-center gap-2">

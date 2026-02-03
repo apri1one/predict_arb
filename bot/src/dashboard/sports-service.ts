@@ -16,6 +16,7 @@ import { PolymarketRestClient } from '../polymarket/rest-client.js';
 import { calculatePredictFee } from '../trading/depth-calculator.js';
 import { getPredictSlug, getPredictSlugByTitle } from './url-mapper.js';
 import { getPredictOrderbookCache } from '../services/predict-orderbook-cache.js';
+import { isMarketBoosted } from './boost-cache.js';
 
 // ============================================================================
 // Predict 订单簿 Provider (WS 模式支持)
@@ -249,6 +250,77 @@ export class SportsService {
      * 刷新已匹配市场的订单簿 (定时调用)
      * 只获取订单簿，不重新匹配市场
      */
+    /**
+     * Incremental scan: re-match markets and only fetch orderbooks for new ones.
+     */
+    async scanIncremental(): Promise<{ added: number; removed: number; total: number; elapsedMs: number }> {
+        if (this.isScanning) {
+            console.log('[SportsService] Incremental scan already in progress, skipping');
+            return { added: 0, removed: 0, total: this.cachedMarkets.length, elapsedMs: 0 };
+        }
+
+        this.isScanning = true;
+        const startTime = Date.now();
+
+        try {
+            const matchedMarkets = await this.fetchAndMatchMarkets();
+            if (matchedMarkets.length === 0) {
+                console.warn('[SportsService] Incremental scan returned 0 markets, skipping cache update');
+                return { added: 0, removed: 0, total: this.cachedMarkets.length, elapsedMs: Date.now() - startTime };
+            }
+
+            const prevIds = new Set(this.matchedMarketsCache.map(m => m.predictId));
+            const nextIds = new Set(matchedMarkets.map(m => m.predictId));
+            const newMatches = matchedMarkets.filter(m => !prevIds.has(m.predictId));
+            const removedMatches = this.matchedMarketsCache.filter(m => !nextIds.has(m.predictId));
+
+            if (removedMatches.length > 0) {
+                this.pruneCaches(removedMatches);
+            }
+
+            // Update matched cache to latest set
+            this.matchedMarketsCache = matchedMarkets;
+
+            if (newMatches.length > 0) {
+                await this.calculateArbitrage(newMatches);
+            }
+
+            // Rebuild from cache so new markets are visible
+            this.rebuildMarketsFromCache();
+
+            const elapsed = Date.now() - startTime;
+            console.log(`[SportsService] Incremental scan: +${newMatches.length}, -${removedMatches.length}, total ${this.cachedMarkets.length}, ${elapsed}ms`);
+            return { added: newMatches.length, removed: removedMatches.length, total: this.cachedMarkets.length, elapsedMs: elapsed };
+        } catch (error) {
+            console.error('[SportsService] Incremental scan error:', error);
+            throw error;
+        } finally {
+            this.isScanning = false;
+        }
+    }
+
+    private pruneCaches(removedMatches: InternalMatchedMarket[]): void {
+        for (const match of removedMatches) {
+            this.orderbookCache.delete(match.predictId);
+            this.predictOrderbookCache.delete(match.predictId);
+
+            if (match.isNbaMultiMarket && match.predictHomeMarket?.id) {
+                this.predictOrderbookCache.delete(match.predictHomeMarket.id);
+            }
+
+            try {
+                const clobTokenIds = JSON.parse(match.polyMarket.clobTokenIds || '[]') as string[];
+                if (clobTokenIds.length >= 2) {
+                    this.polyOrderbookCache.delete(clobTokenIds[0]);
+                    this.polyOrderbookCache.delete(clobTokenIds[1]);
+                }
+            } catch {
+                // Ignore malformed cache entries
+            }
+        }
+    }
+
+
     async refreshOrderbooks(): Promise<SportsMatchedMarket[]> {
         if (this.matchedMarketsCache.length === 0) {
             // 尚未完成初始匹配，跳过
@@ -1295,6 +1367,15 @@ export class SportsService {
             ? match.predictHomeMarket.id
             : match.predictId;
 
+        // Boost: check main/away/home market ids
+        const boostMain = isMarketBoosted(match.predictId);
+        const boostAway = predictAwayMarketId !== match.predictId ? isMarketBoosted(predictAwayMarketId) : { boosted: false };
+        const boostHome = predictHomeMarketId !== match.predictId ? isMarketBoosted(predictHomeMarketId) : { boosted: false };
+        const isBoosted = boostMain.boosted || boostAway.boosted || boostHome.boosted;
+        const boostSource = boostMain.boosted ? boostMain : (boostAway.boosted ? boostAway : (boostHome.boosted ? boostHome : undefined));
+        const boostStart = boostSource?.boostStartTime;
+        const boostEnd = boostSource?.boostEndTime;
+
         // 查找 Predict slug
         // 对于体育市场，优先使用 categorySlug (如果是有效的 slug 格式)
         let predictSlug: string | undefined;
@@ -1362,6 +1443,10 @@ export class SportsService {
             } : undefined,
 
             consistency,
+
+            boosted: isBoosted || undefined,
+            boostStartTime: boostStart,
+            boostEndTime: boostEnd,
 
             polymarketLiquidity: match.polymarketLiquidity,
             polymarketVolume: match.polymarketVolume || 0,
