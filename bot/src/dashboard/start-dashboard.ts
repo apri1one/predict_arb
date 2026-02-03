@@ -22,7 +22,7 @@ import { startWsOrderNotifierFromEnv, stopWsOrderNotifier } from '../notificatio
 import { startBscOrderNotifierFromEnv, stopBscOrderNotifier } from '../notification/bsc-order-notifier.js';
 import type { CreateTaskInput, TaskFilter, Task, ArbOpportunity, CloseOpportunity } from './types.js';
 import { getLogQueryService } from './log-query-service.js';
-import { calculateCloseOpportunities, getClosePositions, getPositionMarketIds, getUnmatchedPositions, refreshMarketMatches, setPolyOrderbookProvider, setPredictOrderbookProvider as setClosePredictOrderbookProvider } from './close-service.js';
+import { calculateCloseOpportunities, getClosePositions, getPositionMarketIds, getUnmatchedPositions, refreshMarketMatches, setPolyOrderbookProvider, setPredictOrderbookProvider as setClosePredictOrderbookProvider, setPredictApiKeyProvider } from './close-service.js';
 import { setPolymarketWsOrderbookProvider } from './polymarket-trader.js';
 import { setPredictOrderbookCacheProvider, setPredictOrderbookRestFallbackEnabled } from './predict-trader.js';
 import { getSportsService, setSportsPredictOrderbookProvider } from './sports-service.js';
@@ -33,8 +33,6 @@ import { getPredictOrderWatcher, stopPredictOrderWatcher } from '../services/pre
 import type { WalletEventData } from '../services/predict-ws-client.js';
 import { getTokenMarketCache, stopTokenMarketCache } from '../services/token-market-cache.js';
 import { getPredictOrderbookCache, initPredictOrderbookCache, stopPredictOrderbookCache, type CachedOrderbook } from '../services/predict-orderbook-cache.js';
-import { runLiquidityScan } from '../scripts/market-liquidity-scan.js';
-
 import * as readline from 'readline';
 import { readdirSync } from 'fs';
 
@@ -572,12 +570,6 @@ const startTime = Date.now();
 let cachedCloseOpportunities: CloseOpportunity[] = [];
 let lastCloseOpportunitiesUpdate = 0;
 
-// 流动性扫描结果缓存
-import type { LiquidityScanResult, MarketAnalysis } from '../scripts/market-liquidity-scan.js';
-let cachedLiquidityData: LiquidityScanResult | null = null;
-let lastLiquidityScanTime = 0;
-let liquidityScanInProgress = false;
-
 // SSE 客户端元数据（用于断开日志）
 interface SSEClientMeta {
     ip: string;
@@ -888,27 +880,47 @@ const EXPOSURE_THRESHOLD = 10; // shares 阈值
  * 定时轮询全局敞口（每 30s 一次）
  * 避免在成交事件瞬间检测导致对冲尚未完成时误报
  */
+// 只有这些状态的任务才可能产生真正的未对冲敞口
+const EXPOSURE_ACTIVE_STATUSES = new Set([
+    'EXECUTING',
+    'PREDICT_SUBMITTED',
+    'PARTIALLY_FILLED',
+    'FILL_COMPLETED',
+    'HEDGING',
+    'HEDGE_PENDING',
+    'HEDGE_RETRY',
+    'HEDGE_IN_PROGRESS',
+    'PAUSED',
+]);
+
 function startExposureMonitor(): void {
     setInterval(() => {
-        const activeTasks = taskService.getTasks(); // 默认过滤终态
+        const allTasks = taskService.getTasks();
         let totalExposure = 0;
         const exposedTasks: { id: string; title: string; exposure: number; predictFilled: number; hedged: number }[] = [];
 
-        for (const t of activeTasks) {
-            const exposure = (t.predictFilledQty || 0) - (t.hedgedQty || 0);
-            if (exposure > 0) {
-                totalExposure += exposure;
-                exposedTasks.push({
-                    id: t.id,
-                    title: t.title,
-                    exposure,
-                    predictFilled: t.predictFilledQty || 0,
-                    hedged: t.hedgedQty || 0,
-                });
-            }
+        for (const t of allTasks) {
+            // 只检查执行中的任务
+            if (!EXPOSURE_ACTIVE_STATUSES.has(t.status)) continue;
+
+            const filled = Number(t.predictFilledQty) || 0;
+            const hedged = Number(t.hedgedQty) || 0;
+            // 过滤异常值 (wei 未转换等): 合理范围 < 1e8
+            if (!Number.isFinite(filled) || filled > 1e8) continue;
+            const exposure = filled - hedged;
+            // 只关注有意义的敞口 (>= 10 shares)
+            if (!Number.isFinite(exposure) || exposure < 10) continue;
+            totalExposure += exposure;
+            exposedTasks.push({
+                id: t.id,
+                title: t.title || `Task #${t.id?.slice(0, 8) || 'unknown'}`,
+                exposure,
+                predictFilled: filled,
+                hedged,
+            });
         }
 
-        if (totalExposure <= EXPOSURE_THRESHOLD) return;
+        if (!Number.isFinite(totalExposure) || totalExposure <= EXPOSURE_THRESHOLD) return;
 
         const now = Date.now();
 
@@ -940,7 +952,7 @@ async function sendExposureTelegramAlert(
         ``,
     ];
     for (const t of exposedTasks) {
-        lines.push(`• <b>${t.title.slice(0, 30)}</b>: ${t.exposure.toFixed(1)} shares (成交${(t.predictFilled ?? 0).toFixed(0)}/对冲${(t.hedged ?? 0).toFixed(0)})`);
+        lines.push(`• <b>${(t.title || '').slice(0, 30)}</b>: ${(t.exposure || 0).toFixed(1)} shares (成交${(t.predictFilled ?? 0).toFixed(0)}/对冲${(t.hedged ?? 0).toFixed(0)})`);
     }
 
     // 取消上一条置顶
@@ -2715,97 +2727,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     }
 
     // ========================================================================
-    // 流动性分析 API
-    // ========================================================================
-
-    // GET /api/liquidity - 获取市场流动性分析数据
-    if (url === '/api/liquidity' && req.method === 'GET') {
-        const corsHeaders = getSecureCorsHeaders(req);
-        if (!isAuthorizedRequest(req)) {
-            res.writeHead(401, { 'Content-Type': 'application/json', ...corsHeaders });
-            res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
-            return;
-        }
-        try {
-            if (!cachedLiquidityData) {
-                res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
-                res.end(JSON.stringify({
-                    success: true,
-                    data: null,
-                    scanning: liquidityScanInProgress,
-                    message: liquidityScanInProgress ? '正在扫描中...' : '流动性扫描尚未完成'
-                }));
-                return;
-            }
-            // 为每个市场添加 predictSlug
-            const enrichedTop20 = cachedLiquidityData.top20.map(item => ({
-                ...item,
-                predictSlug: item.categorySlug || getPredictSlug(item.marketId) || generatePredictSlug(item.title)
-            }));
-            res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
-            res.end(JSON.stringify({
-                success: true,
-                data: {
-                    ...cachedLiquidityData,
-                    top20: enrichedTop20
-                },
-                lastScanTime: lastLiquidityScanTime
-            }));
-        } catch (error: any) {
-            console.error('[Dashboard] 获取流动性数据失败:', error);
-            res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
-            res.end(JSON.stringify({ success: false, error: error.message }));
-        }
-        return;
-    }
-
-    // POST /api/liquidity/refresh - 手动刷新流动性扫描
-    if (url === '/api/liquidity/refresh' && req.method === 'POST') {
-        const corsHeaders = getSecureCorsHeaders(req);
-        if (!isAuthorizedRequest(req)) {
-            res.writeHead(401, { 'Content-Type': 'application/json', ...corsHeaders });
-            res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
-            return;
-        }
-        try {
-            const apiKeyRefresh = process.env.PREDICT_API_KEY;
-            if (!apiKeyRefresh) {
-                res.writeHead(400, { 'Content-Type': 'application/json', ...corsHeaders });
-                res.end(JSON.stringify({ success: false, error: '缺少 PREDICT_API_KEY' }));
-                return;
-            }
-            // 如果已经在扫描中，直接返回
-            if (liquidityScanInProgress) {
-                res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
-                res.end(JSON.stringify({ success: true, message: '扫描已在进行中' }));
-                return;
-            }
-
-            // 异步执行，不阻塞响应
-            liquidityScanInProgress = true;
-            runLiquidityScan(apiKeyRefresh, { silent: true })
-                .then(result => {
-                    cachedLiquidityData = result;
-                    lastLiquidityScanTime = Date.now();
-                    liquidityScanInProgress = false;
-                    console.log(`[Dashboard] 流动性扫描刷新完成: ${result.valid} 个市场`);
-                })
-                .catch(err => {
-                    liquidityScanInProgress = false;
-                    console.warn('[Dashboard] 流动性扫描刷新失败:', err.message);
-                });
-
-            res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
-            res.end(JSON.stringify({ success: true, message: '刷新已开始' }));
-        } catch (error: any) {
-            console.error('[Dashboard] 触发流动性扫描失败:', error);
-            res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders });
-            res.end(JSON.stringify({ success: false, error: error.message }));
-        }
-        return;
-    }
-
-    // ========================================================================
     // 日志查询 API
     // ========================================================================
 
@@ -3015,7 +2936,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         res.writeHead(200, {
             'Content-Type': getMimeType(filePath),
             'Access-Control-Allow-Origin': '*',
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
         });
         res.end(content);
     } else {
@@ -4807,20 +4728,6 @@ async function main(): Promise<void> {
         );
     }
 
-    // 4. 流动性扫描 (后台，120秒超时)
-    const apiKeyForLiquidity = process.env.PREDICT_API_KEY;
-    if (apiKeyForLiquidity) {
-        scanTasks.push(
-            withTimeout(runLiquidityScan(apiKeyForLiquidity, { silent: true }), 120000, '流动性扫描')
-                .then(result => {
-                    cachedLiquidityData = result;
-                    lastLiquidityScanTime = Date.now();
-                    console.log(`  ✓ 流动性扫描完成 (${result.valid} 个市场, CSV: ${result.csvPath})`);
-                })
-                .catch(err => console.warn('  ✗ 流动性扫描失败:', err.message))
-        );
-    }
-
     await Promise.all(scanTasks);
     console.log(`✅ 并行扫描完成，耗时 ${((Date.now() - startScanTime) / 1000).toFixed(1)}s\n`);
 
@@ -4834,6 +4741,26 @@ async function main(): Promise<void> {
                 if (unifiedCache) {
                     await unifiedCache.subscribeMarkets(sportsMarketIds);
                     console.log(`✅ 体育市场 Predict 订单簿已补订阅: ${sportsMarketIds.length} 个市场`);
+
+                    // REST 预热：Predict WS 无初始快照，订阅后用 REST 填充缓存
+                    console.log(`🔥 正在预热体育市场订单簿 (${sportsMarketIds.length} 个)...`);
+                    const warmStart = Date.now();
+                    const WARM_BATCH = 10;
+                    const WARM_DELAY = 200;
+                    let warmed = 0;
+                    for (let i = 0; i < sportsMarketIds.length; i += WARM_BATCH) {
+                        const batch = sportsMarketIds.slice(i, i + WARM_BATCH);
+                        await Promise.all(batch.map(async (id) => {
+                            try {
+                                const book = await unifiedCache.getOrderbook(id);
+                                if (book) warmed++;
+                            } catch { /* 静默 */ }
+                        }));
+                        if (i + WARM_BATCH < sportsMarketIds.length) {
+                            await new Promise(r => setTimeout(r, WARM_DELAY));
+                        }
+                    }
+                    console.log(`✅ 体育市场预热完成: ${warmed}/${sportsMarketIds.length}，耗时 ${Date.now() - warmStart}ms`);
                 }
             }
         }
@@ -4872,6 +4799,7 @@ async function main(): Promise<void> {
     setPredictOrderbookCacheProvider(getPredictOrderbookFromCache);  // PredictTrader 用
     setPredictOrderbookRestFallbackEnabled(!usePredictWsMode);
     setClosePredictOrderbookProvider(getPredictOrderbookForCloseService);  // close-service 用
+    setPredictApiKeyProvider(() => scanApiKeys.getNextKey());  // close-service REST fallback 用
     console.log('[Cache] Predict 订单簿缓存提供者已注入 (PredictTrader + close-service)');
 
     // 体育市场订单簿刷新 (仅当启用时)

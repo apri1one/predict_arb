@@ -150,6 +150,9 @@ export interface TakerContext {
     /** 最后一次对冲价格估算 (用于计算名义金额) */
     lastHedgePriceEstimate: number;
 
+    /** 取消控制器 */
+    abortController: AbortController;
+
     /** 取消信号 */
     signal: AbortSignal;
 

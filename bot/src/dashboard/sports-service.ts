@@ -65,7 +65,7 @@ class SportsApiKeyRotator {
         if (loaded.length === 0) {
             const scanKey = process.env['PREDICT_API_KEY_SCAN'];
             if (scanKey) loaded.push(scanKey);
-            for (let i = 2; i <= 3; i++) {
+            for (let i = 2; i <= 10; i++) {
                 const key = process.env[`PREDICT_API_KEY_SCAN_${i}`];
                 if (key) loaded.push(key);
             }
@@ -283,6 +283,22 @@ export class SportsService {
 
             if (newMatches.length > 0) {
                 await this.calculateArbitrage(newMatches);
+
+                // 新市场补订阅 WS + REST 预热
+                if (predictOrderbookProvider) {
+                    const newMarketIds = newMatches.map(m => m.predictId);
+                    const unifiedCache = getPredictOrderbookCache();
+                    if (unifiedCache) {
+                        await unifiedCache.subscribeMarkets(newMarketIds);
+                        // REST 预热新市场（WS 无初始快照）
+                        await Promise.all(newMarketIds.map(async (id) => {
+                            try {
+                                await unifiedCache.getOrderbook(id);
+                            } catch { /* 静默 */ }
+                        }));
+                        console.log(`[SportsService] 新市场 WS 订阅 + 预热: ${newMarketIds.length} 个`);
+                    }
+                }
             }
 
             // Rebuild from cache so new markets are visible
@@ -366,7 +382,12 @@ export class SportsService {
         this.isRefreshingPoly = true;
         try {
             const promises = this.matchedMarketsCache.map(async (match) => {
-                const clobTokenIds = JSON.parse(match.polyMarket.clobTokenIds || '[]') as string[];
+                let clobTokenIds: string[];
+                try {
+                    clobTokenIds = JSON.parse(match.polyMarket.clobTokenIds || '[]') as string[];
+                } catch {
+                    return;
+                }
                 if (clobTokenIds.length < 2) return;
 
                 const awayTokenId = clobTokenIds[0];
@@ -417,21 +438,45 @@ export class SportsService {
         try {
             const markets = this.matchedMarketsCache;
 
-            // WS 模式: 从 provider 或统一缓存读取
+            // WS 模式: 从 provider 或统一缓存读取，未命中则 REST fallback
             if (predictOrderbookProvider) {
+                const wsMissMarkets: InternalMatchedMarket[] = [];
                 for (const match of markets) {
                     const book = predictOrderbookProvider(match.predictId);
-                    if (book) {
+                    if (book && (book.bids.length > 0 || book.asks.length > 0)) {
                         this.predictOrderbookCache.set(match.predictId, book);
+                    } else {
+                        wsMissMarkets.push(match);
                     }
                 }
+
+                // WS 未命中的市场使用 REST fallback
+                if (wsMissMarkets.length > 0) {
+                    const keys = sportsApiKeys.getAllKeys();
+                    if (keys.length > 0) {
+                        const restPromises = wsMissMarkets.map(async (match, index) => {
+                            const apiKey = keys[index % keys.length];
+                            try {
+                                const book = await this.fetchPredictOrderbookWithKey(match.predictId, apiKey);
+                                if (book && (book.bids.length > 0 || book.asks.length > 0)) {
+                                    this.predictOrderbookCache.set(match.predictId, book);
+                                }
+                            } catch {
+                                // REST 也失败，使用已有缓存
+                            }
+                        });
+                        await Promise.all(restPromises);
+                    }
+                }
+
                 this.rebuildMarketsFromCache();
                 this.predictRefreshCount++;
 
                 // 每 10 次输出一次日志（WS 模式更频繁，减少日志量）
                 if (this.predictRefreshCount % 10 === 0) {
                     const withArb = this.cachedMarkets.filter(m => (m.bestOpportunity?.profitPercent ?? 0) > 0);
-                    console.log(`[Sports] Predict(WS) #${this.predictRefreshCount} | ${this.cachedMarkets.length} 市场, ${withArb.length} 有套利`);
+                    const wsHit = markets.length - wsMissMarkets.length;
+                    console.log(`[Sports] Predict(WS) #${this.predictRefreshCount} | ${this.cachedMarkets.length} 市场, ${withArb.length} 有套利 | WS ${wsHit}/${markets.length}, REST fallback ${wsMissMarkets.length}`);
                 }
                 return;
             }
@@ -502,7 +547,13 @@ export class SportsService {
         const results: SportsMatchedMarket[] = [];
 
         for (const match of this.matchedMarketsCache) {
-            const clobTokenIds = JSON.parse(match.polyMarket.clobTokenIds || '[]') as string[];
+            let clobTokenIds: string[];
+            try {
+                clobTokenIds = JSON.parse(match.polyMarket.clobTokenIds || '[]') as string[];
+            } catch {
+                console.warn(`[SportsService] rebuildMarketsFromCache: invalid clobTokenIds for predictId=${match.predictId}, skipping`);
+                continue;
+            }
             if (clobTokenIds.length < 2) continue;
 
             const awayTokenId = clobTokenIds[0];
@@ -595,15 +646,18 @@ export class SportsService {
         const allMarkets: any[] = [];
         let cursor: string | null = null;
         let page = 0;
-        const maxPages = 25;  // 增加最大页数
-        const timeoutMs = 15000;  // 增加超时时间到 15 秒
-        const maxRetries = 2;  // 每页最多重试次数
-        let consecutiveErrors = 0;  // 连续错误计数
+        const maxPages = 25;
+        const timeoutMs = 15000;
+        const maxRetries = 2;
+        let consecutiveErrors = 0;
+
+        // 使用 status=OPEN 过滤，避免遍历大量 RESOLVED 市场
+        const baseParams = 'first=100&status=OPEN';
 
         while (page < maxPages) {
             const url = cursor
-                ? `https://api.predict.fun/v1/markets?first=100&after=${cursor}`
-                : `https://api.predict.fun/v1/markets?first=100`;
+                ? `https://api.predict.fun/v1/markets?${baseParams}&after=${cursor}`
+                : `https://api.predict.fun/v1/markets?${baseParams}`;
 
             let success = false;
             let lastError = '';
@@ -674,8 +728,8 @@ export class SportsService {
         // 1. 使用分页 API 获取所有 Predict 市场 (非分页 API 只返回约 25 个)
         const allMarkets = await this.fetchAllPredictMarkets();
 
-        // 筛选活跃市场
-        const predictMarkets = allMarkets.filter(m => m.status === 'REGISTERED');
+        // 筛选活跃市场 (API 已用 status=OPEN 过滤，兼容 REGISTERED/UNPAUSED 等非 RESOLVED 状态)
+        const predictMarkets = allMarkets.filter(m => m.status !== 'RESOLVED');
 
         // 筛选体育市场 (关键词匹配)
         const predictSportsMarkets = predictMarkets.filter(m => {
@@ -1201,7 +1255,12 @@ export class SportsService {
 
     private async fetchOrderBooks(match: InternalMatchedMarket): Promise<SportsOrderBook> {
         // 解析 Polymarket token IDs
-        const clobTokenIds = JSON.parse(match.polyMarket.clobTokenIds || '[]') as string[];
+        let clobTokenIds: string[];
+        try {
+            clobTokenIds = JSON.parse(match.polyMarket.clobTokenIds || '[]') as string[];
+        } catch {
+            throw new Error(`Invalid clobTokenIds JSON for ${match.polymarketId}`);
+        }
         if (clobTokenIds.length < 2) {
             throw new Error(`Invalid clobTokenIds for ${match.polymarketId}`);
         }
@@ -1328,7 +1387,12 @@ export class SportsService {
         }
 
         // 解析 token IDs
-        const clobTokenIds = JSON.parse(polyMarket.clobTokenIds || '[]') as string[];
+        let clobTokenIds: string[];
+        try {
+            clobTokenIds = JSON.parse(polyMarket.clobTokenIds || '[]') as string[];
+        } catch {
+            clobTokenIds = [];
+        }
         const awayTokenId = clobTokenIds[0] || '';
         const homeTokenId = clobTokenIds[1] || '';
 

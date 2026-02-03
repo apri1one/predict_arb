@@ -526,5 +526,37 @@ const App = () => {
     );
 };
 
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+    componentDidCatch(error, info) {
+        console.error('[ErrorBoundary] Render error:', error, info?.componentStack);
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#09090b', color: '#fff', fontFamily: 'system-ui, sans-serif' }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>:/</div>
+                    <h2 style={{ fontSize: 20, marginBottom: 8 }}>Dashboard Render Error</h2>
+                    <pre style={{ fontSize: 12, color: '#f87171', maxWidth: 600, overflow: 'auto', padding: 16, background: '#18181b', borderRadius: 8, border: '1px solid #27272a', marginBottom: 16 }}>
+                        {this.state.error?.message || 'Unknown error'}
+                    </pre>
+                    <button
+                        onClick={() => { this.setState({ hasError: false, error: null }); }}
+                        style={{ padding: '8px 20px', borderRadius: 8, background: '#f59e0b', color: '#000', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+                        Retry
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+root.render(<ErrorBoundary><App /></ErrorBoundary>);

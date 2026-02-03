@@ -28,7 +28,8 @@ const ClosePositionCard = ({ opportunity, onTaskCreated, activeTask }) => {
     const [mtPriceEdited, setMtPriceEdited] = useState(false);
     const mtTimeoutRef = useRef(null);
 
-    const { tt, mt } = opportunity;
+    const tt = opportunity.tt || { predictBid: 0, predictBidDepth: 0, polyBid: 0, polyBidDepth: 0, predictFee: 0, estProfitPerShare: 0, estProfitTotal: 0, estProfitPct: 0, minPolyBid: 0, isValid: false };
+    const mt = opportunity.mt || { predictAsk: 0.5, polyBid: 0, polyBidDepth: 0, maxCloseShares: 0, estProfitPerShare: 0, estProfitTotal: 0, estProfitPct: 0, minPolyBid: 0, isValid: false };
 
     // 转换为 0-1 格式用于计算
     const mtAskPrice = mtAskPriceCents / 100;
@@ -318,7 +319,7 @@ const ClosePositionCard = ({ opportunity, onTaskCreated, activeTask }) => {
                 <div className="grid grid-cols-3 gap-3 text-xs">
                     <div>
                         <div className="text-zinc-500 mb-1">持仓</div>
-                        <div className="font-mono text-white">{opportunity.matchedShares.toFixed(1)} shares</div>
+                        <div className="font-mono text-white">{(opportunity.matchedShares || 0).toFixed(1)} shares</div>
                     </div>
                     <div>
                         <div className="text-zinc-500 mb-1">成本</div>
@@ -358,7 +359,7 @@ const ClosePositionCard = ({ opportunity, onTaskCreated, activeTask }) => {
                                 <div className="flex justify-between">
                                     <span className="text-zinc-500">可盈利深度</span>
                                     <span className={`font-mono ${opportunity.depthAnalysis.maxProfitableShares > 0 ? 'text-emerald-400' : 'text-zinc-400'}`}>
-                                        {opportunity.depthAnalysis.maxProfitableShares.toFixed(1)} shares
+                                        {(opportunity.depthAnalysis.maxProfitableShares || 0).toFixed(1)} shares
                                     </span>
                                 </div>
                             )}
@@ -388,7 +389,7 @@ const ClosePositionCard = ({ opportunity, onTaskCreated, activeTask }) => {
                             <div className="mt-3 space-y-2">
                                 <div className="flex items-center justify-between text-[10px] text-zinc-500">
                                     <span>Shares</span>
-                                    <span>Max {opportunity.maxCloseShares.toFixed(1)}</span>
+                                    <span>Max {(opportunity.maxCloseShares || 0).toFixed(1)}</span>
                                 </div>
                                 <input
                                     type="number"
@@ -529,7 +530,7 @@ const ClosePositionCard = ({ opportunity, onTaskCreated, activeTask }) => {
                         </div>
                         <div className="flex justify-between">
                             <span className="text-zinc-500">可卖深度</span>
-                            <span className="font-mono text-zinc-300">{opportunity.maxCloseShares.toFixed(1)} shares</span>
+                            <span className="font-mono text-zinc-300">{(opportunity.maxCloseShares || 0).toFixed(1)} shares</span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-zinc-500">T-T Min Poly Bid</span>

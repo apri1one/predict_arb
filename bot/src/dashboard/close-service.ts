@@ -84,6 +84,9 @@ let polyOrderbookProvider: PolyOrderbookProvider | null = null;
 type PredictOrderbookProvider = (marketId: number) => Orderbook | null;
 let predictOrderbookProvider: PredictOrderbookProvider | null = null;
 
+type PredictApiKeyProvider = () => string | null;
+let predictApiKeyProvider: PredictApiKeyProvider | null = null;
+
 /**
  * 设置 Polymarket 订单簿提供者（由 start-dashboard 注入 WS 缓存）
  */
@@ -96,6 +99,13 @@ export function setPolyOrderbookProvider(provider: PolyOrderbookProvider): void 
  */
 export function setPredictOrderbookProvider(provider: PredictOrderbookProvider): void {
     predictOrderbookProvider = provider;
+}
+
+/**
+ * 设置 Predict API Key 提供者（供 REST fallback 使用）
+ */
+export function setPredictApiKeyProvider(provider: PredictApiKeyProvider): void {
+    predictApiKeyProvider = provider;
 }
 
 interface PolymarketMarketDetail {
@@ -394,10 +404,10 @@ async function getCachedPositions(force: boolean = false): Promise<{
 
 /**
  * 获取 Predict 订单簿
- * WS-only 模式: 只使用缓存，禁用 REST fallback
+ * 优先使用 WS 缓存，缓存未命中时使用 REST fallback
  */
 async function fetchPredictOrderbook(marketId: number): Promise<Orderbook | null> {
-    // WS-only 模式: 只使用缓存
+    // 优先使用 WS 缓存
     if (predictOrderbookProvider) {
         const cached = predictOrderbookProvider(marketId);
         if (cached && (cached.bids.length > 0 || cached.asks.length > 0)) {
@@ -405,7 +415,41 @@ async function fetchPredictOrderbook(marketId: number): Promise<Orderbook | null
         }
     }
 
-    // WS-only 模式: 禁用 REST fallback，缓存未命中返回 null
+    // REST fallback: 缓存未命中时从 Predict API 获取
+    const apiKey = predictApiKeyProvider?.();
+    if (!apiKey) return null;
+
+    try {
+        const res = await fetch(`https://api.predict.fun/v1/markets/${marketId}/orderbook`, {
+            headers: { 'x-api-key': apiKey },
+            signal: AbortSignal.timeout(5000),
+        });
+        if (!res.ok) return null;
+
+        const data = await res.json() as any;
+        const rawBids: [number, number][] = data.data?.bids || [];
+        const rawAsks: [number, number][] = data.data?.asks || [];
+
+        const bids: OrderbookLevel[] = rawBids
+            .map(([price, size]) => ({ price, size }))
+            .filter(b => b.size > 0);
+        const asks: OrderbookLevel[] = rawAsks
+            .map(([price, size]) => ({ price, size }))
+            .filter(a => a.size > 0);
+
+        bids.sort((a, b) => b.price - a.price);
+        asks.sort((a, b) => a.price - b.price);
+
+        if (bids.length > 0 || asks.length > 0) {
+            if (CLOSE_SERVICE_DEBUG) {
+                console.log(`[CloseService] REST fallback 获取 Predict 订单簿: marketId=${marketId}, bids=${bids.length}, asks=${asks.length}`);
+            }
+            return { bids, asks };
+        }
+    } catch {
+        // ignore
+    }
+
     return null;
 }
 

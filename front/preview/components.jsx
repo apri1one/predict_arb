@@ -500,7 +500,8 @@ const OpportunityCard = ({ opp, onOpenTaskModal, activeTask }) => {
 
     return (
         <div className="group">
-            <div className={`glass-card rounded-xl border border-zinc-800/50 transition-all duration-300 overflow-hidden h-full relative
+            <div className={`glass-card rounded-xl transition-all duration-300 overflow-hidden h-full relative
+                ${(opp.boostStartTime || opp.boostEndTime) ? 'border-2 border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.15)]' : 'border border-zinc-800/50'}
                 ${expanded ? 'border-amber-500/30 shadow-glow-sm bg-zinc-900/80' : 'hover:border-white/10 hover:scale-[1.005]'}`}>
 
                 {/* 任务标签 (斜角丝带) */}
@@ -2614,7 +2615,8 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, task
 
     return (
         <div className="group">
-            <div className={`glass-card rounded-xl border border-zinc-800/50 transition-all duration-300 overflow-hidden h-full relative
+            <div className={`glass-card rounded-xl transition-all duration-300 overflow-hidden h-full relative
+                ${(market.boostStartTime || market.boostEndTime) ? 'border-2 border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.15)]' : 'border border-zinc-800/50'}
                 ${expanded ? 'border-amber-500/30 shadow-glow-sm bg-zinc-900/80' : 'hover:border-white/10 hover:scale-[1.005]'}
                 ${hasArb ? 'ring-1 ring-emerald-500/20' : ''}
                 ${hasActiveTask ? 'ring-1 ring-blue-500/30' : ''}`}>
@@ -2972,15 +2974,15 @@ const ExposureAlertBanner = ({ alert, onDismiss }) => {
                     <div className="flex-1">
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-base font-bold text-rose-400">
-                                敞口预警: {alert.totalExposure.toFixed(1)} shares
+                                敞口预警: {(alert.totalExposure || 0).toFixed(1)} shares
                             </span>
                             <button onClick={onDismiss} className="text-zinc-500 hover:text-white text-lg leading-none">&times;</button>
                         </div>
                         <div className="space-y-1">
-                            {alert.tasks.map(t => (
+                            {(alert.tasks || []).map(t => (
                                 <div key={t.id} className="text-xs text-zinc-300">
-                                    <span className="text-white font-medium">{t.title.slice(0, 35)}</span>
-                                    <span className="ml-2 text-rose-400">{t.exposure.toFixed(1)} shares 未对冲</span>
+                                    <span className="text-white font-medium">{(t.title || '').slice(0, 35)}</span>
+                                    <span className="ml-2 text-rose-400">{(t.exposure || 0).toFixed(1)} shares 未对冲</span>
                                 </div>
                             ))}
                         </div>
