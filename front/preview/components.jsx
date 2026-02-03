@@ -1096,6 +1096,7 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState(null);
     const [confirmStep, setConfirmStep] = useState(false);  // 二次确认状态
+    const [expiryHours, setExpiryHours] = useState('');  // 定时过期（小时）
 
     // 处理打开动画
     useEffect(() => {
@@ -1135,6 +1136,17 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
                 : data.opp.predictAsk;
             if (!priceEdited) {
                 setPredictPriceCents(Math.round(rawPrice * 1000) / 10); // 精确到0.1美分
+            }
+            // 体育 MAKER 任务: 计算默认倒计时 = 开赛前 3 分钟
+            if (data.opp.isSportsMarket && !isTaker && data.opp.gameStartTime) {
+                const msUntilGame = new Date(data.opp.gameStartTime).getTime() - Date.now() - 3 * 60 * 1000;
+                if (msUntilGame > 0) {
+                    setExpiryHours((msUntilGame / (60 * 60 * 1000)).toFixed(2));
+                } else {
+                    setExpiryHours('');
+                }
+            } else {
+                setExpiryHours('');
             }
         }
     }, [data]);
@@ -1247,6 +1259,8 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
             arbSide: opp.side || 'YES',
             // 体育市场标识 (使用 REST API 而非 WS 获取订单簿)
             isSportsMarket: opp.isSportsMarket || false,
+            // 倒计时过期（仅体育 MAKER）
+            ...(expiryHours && parseFloat(expiryHours) > 0 ? { expiryHours: parseFloat(expiryHours) } : {}),
         };
 
         // TAKER 模式专用字段
@@ -1374,6 +1388,31 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
                         />
                         <div className="text-xs text-zinc-500 mt-1">最大深度: {opp.maxQuantity?.toFixed(0) || '-'} shares</div>
                     </div>
+
+                    {/* 定时过期 (仅体育 MAKER) */}
+                    {opp.isSportsMarket && !isTaker && (
+                        <div>
+                            <label className="block text-xs text-zinc-500 mb-1">定时过期 (小时)</label>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="72"
+                                    step="0.01"
+                                    value={expiryHours}
+                                    onChange={(e) => setExpiryHours(e.target.value)}
+                                    placeholder="留空=不过期"
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-amber-500"
+                                />
+                                <span className="text-xs text-zinc-500 whitespace-nowrap">h</span>
+                            </div>
+                            {expiryHours && parseFloat(expiryHours) > 0 && (
+                                <div className="text-[10px] text-zinc-500 mt-1">
+                                    过期时间: {new Date(Date.now() + parseFloat(expiryHours) * 3600000).toLocaleString()}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* 资金占用提示 */}
                     {needsFunds && (
@@ -2479,6 +2518,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, task
             predictBid: direction === 'away' ? pred.awayBid : pred.homeBid,
             predictAsk: direction === 'away' ? pred.awayAsk : pred.homeAsk,
             isSportsMarket: true,  // 体育市场标识，使用 REST API 获取订单簿
+            gameStartTime: market.gameStartTime,  // 供 TaskModal 计算默认倒计时
         };
 
         onOpenTaskModal(taskData, 'BUY');
