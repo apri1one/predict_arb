@@ -369,6 +369,43 @@ ${emoji} <b>${periodText}统计</b>
         await this.send(text);
     }
 
+    /**
+     * 发送消息并置顶
+     * @returns messageId 用于后续取消置顶
+     */
+    async sendAndPin(text: string): Promise<number | null> {
+        if (!this.enabled || !this.bot) return null;
+        try {
+            const msg = await this.bot.sendMessage(this.chatId, text.trim(), {
+                parse_mode: 'HTML',
+                disable_web_page_preview: true,
+            });
+            try {
+                await this.bot.pinChatMessage(this.chatId, msg.message_id, {
+                    disable_notification: false,
+                });
+            } catch (e: any) {
+                console.warn(`[TG] Pin message failed: ${e.message}`);
+            }
+            return msg.message_id;
+        } catch (e: any) {
+            console.error(`[TG] Send+pin failed: ${e.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * 取消置顶消息
+     */
+    async unpinMessage(messageId: number): Promise<void> {
+        if (!this.enabled || !this.bot) return;
+        try {
+            await this.bot.unpinChatMessage(this.chatId, { message_id: messageId });
+        } catch (e: any) {
+            console.warn(`[TG] Unpin failed: ${e.message}`);
+        }
+    }
+
     // ============================================================================
     // Private Methods
     // ============================================================================

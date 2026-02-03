@@ -35,6 +35,7 @@ const useArbScanner = (addNotification, addOrderToast) => {
     const [tasks, setTasks] = useState([]);
     const [sports, setSports] = useState({ markets: [], stats: { totalMatched: 0, withArbitrage: 0, avgProfit: 0, maxProfit: 0 }, lastUpdate: 0 });
     const [isConnected, setIsConnected] = useState(false);
+    const [exposureAlert, setExposureAlert] = useState(null);
     const eventSourceRef = useRef(null);
     const lastNotifiedRef = useRef(new Set());
     const reconnectTimeoutRef = useRef(null);
@@ -248,6 +249,17 @@ const useArbScanner = (addNotification, addOrderToast) => {
                 console.error('Parse taskEvent error:', err);
             }
         });
+
+        // 处理敞口预警
+        es.addEventListener('exposureAlert', (e) => {
+            try {
+                const alert = JSON.parse(e.data);
+                console.warn('🚨 敞口预警:', alert.totalExposure, 'shares');
+                setExposureAlert(alert);
+            } catch (err) {
+                console.error('Parse exposureAlert error:', err);
+            }
+        });
     }, [addNotification, addOrderToast]);
 
     useEffect(() => {
@@ -264,7 +276,7 @@ const useArbScanner = (addNotification, addOrderToast) => {
         };
     }, [connectSSE]);
 
-    return { opportunities, history, chartData, stats, accounts, tasks, sports, isConnected };
+    return { opportunities, history, chartData, stats, accounts, tasks, sports, isConnected, exposureAlert, setExposureAlert };
 };
 
 Preview.useArbScanner = useArbScanner;

@@ -85,6 +85,8 @@ interface TaskContext {
     restFilledQty: number;
     /** WSS 首次成交时间戳 */
     wssFirstFillTime?: number;
+    /** 幽灵深度检测：对冲 IOC 0 成交但订单簿显示有深度，通知深度保护触发 PAUSE */
+    phantomDepthDetected?: boolean;
 }
 
 // ============================================================================
@@ -1395,6 +1397,57 @@ export class TaskExecutor extends EventEmitter {
                         ctx.priceGuardAbort?.abort();
                     }
                 },
+                onDepthUnstable: async (flipCount) => {
+                    if (signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
+                    if (ctx.phantomDepthDetected) return; // 已触发过，避免重复
+
+                    const terminalStatuses: TaskStatus[] = ['COMPLETED', 'FAILED', 'CANCELLED', 'HEDGE_FAILED', 'UNWIND_COMPLETED'];
+                    const currentTask = this.taskService.getTask(task.id);
+                    if (!currentTask || terminalStatuses.includes(currentTask.status)) return;
+
+                    console.warn(`[TaskExecutor] 🛑 幽灵深度 (WebSocket): 对冲价位深度 30s 内翻转 ${flipCount} 次`);
+                    ctx.phantomDepthDetected = true;
+                    ctx.isPaused = true;
+
+                    // 取消 Predict 订单，防止继续成交
+                    if (ctx.currentOrderHash) {
+                        try {
+                            await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                            await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
+                                platform: 'predict',
+                                orderId: ctx.currentOrderHash,
+                                side: side,
+                                price: task.predictPrice,
+                                quantity: task.quantity,
+                                filledQty: ctx.totalPredictFilled,
+                                remainingQty: task.quantity - ctx.totalPredictFilled,
+                                avgPrice: task.predictPrice,
+                            }, ctx.currentOrderHash);
+                        } catch (e: any) {
+                            console.warn(`[TaskExecutor] ⚠️ 取消 Predict 订单出错: ${e.message}`);
+                        }
+                        ctx.predictWatchAbort?.abort();
+                        ctx.predictWatchAbort = new AbortController();
+                        ctx.currentOrderHash = undefined;
+                    }
+
+                    const phantomReason = `幽灵深度: 对冲价位深度 30s 内翻转 ${flipCount} 次，疑似机器人高频挂撤`;
+
+                    // 记录 TASK_PAUSED 生命周期 (触发 SSE taskEvent → 前端 toast)
+                    await this.taskLogger.logTaskLifecycle(task.id, 'TASK_PAUSED', {
+                        status: 'PAUSED',
+                        previousStatus: task.status,
+                        reason: phantomReason,
+                    });
+
+                    task = this.updateTask(task.id, {
+                        status: 'PAUSED',
+                        pauseCount: task.pauseCount + 1,
+                        currentOrderHash: undefined,
+                        error: phantomReason,
+                    });
+                    ctx.task = task;
+                },
             }
         ).catch(err => {
             console.error('[TaskExecutor] Price guard error:', err);
@@ -2192,6 +2245,9 @@ export class TaskExecutor extends EventEmitter {
                 }
 
                 if (remaining <= 0 || remaining < MIN_HEDGE_QTY) {
+                    // 对冲成功，清除幽灵深度标记
+                    ctx.phantomDepthDetected = false;
+
                     // 记录对冲完成
                     await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_COMPLETED', {
                         hedgeQty: quantity,
@@ -2206,6 +2262,20 @@ export class TaskExecutor extends EventEmitter {
                         filledQty: totalFilled,
                         avgPrice: totalFilled > 0 ? priceSum / totalFilled : 0,
                     };
+                }
+
+                // 幽灵深度检测: 订单簿显示有深度但 IOC 0 成交
+                // 立即取消 Predict 挂单，防止在对冲重试期间继续成交扩大敞口
+                if (refreshed.delta === 0 && ctx.currentOrderHash) {
+                    console.warn(`[TaskExecutor] 🛑 幽灵深度: 订单簿有 ${hedgePrice} asks 但 IOC 0 成交，取消 Predict 订单防止继续成交`);
+                    ctx.phantomDepthDetected = true;
+                    try {
+                        await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                        ctx.currentOrderHash = undefined;
+                        console.log(`[TaskExecutor] ✓ Predict 订单已取消 (幽灵深度保护)`);
+                    } catch (e: any) {
+                        console.warn(`[TaskExecutor] ⚠️ 取消 Predict 订单出错: ${e.message}`);
+                    }
                 }
 
                 // 部分成交，取消剩余订单后再重试
@@ -2448,7 +2518,7 @@ export class TaskExecutor extends EventEmitter {
         maxPrice: number,
         minPrice: number
     ): void {
-        const DEPTH_CHECK_INTERVAL = 5000; // 5秒检查一次
+        const DEPTH_CHECK_INTERVAL = 1000; // 1秒检查一次
 
         const checkDepth = async () => {
             if (ctx.signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
@@ -2462,7 +2532,48 @@ export class TaskExecutor extends EventEmitter {
             }
 
             if (ctx.isPaused) {
-                // 暂停时继续监控，等待深度恢复
+                // 暂停时检查深度是否已恢复，如果恢复则重新提交订单
+                const task = ctx.task;
+                const remainingQty = task.quantity - ctx.totalPredictFilled;
+                if (remainingQty > 0) {
+                    let recoveredDepth = await this.getHedgeDepth(hedgeTokenId, side, maxPrice, minPrice, task.isSportsMarket);
+                    if (recoveredDepth >= remainingQty) {
+                        console.log(`[TaskExecutor] Depth recovered: ${recoveredDepth.toFixed(2)} >= remaining ${remainingQty}, resuming task`);
+                        ctx.isPaused = false;
+
+                        // 重新提交 Predict 订单
+                        const taskWithRemaining = { ...task, quantity: remainingQty };
+                        const result = await this.submitPredictOrder(taskWithRemaining, side);
+                        if (result.success) {
+                            ctx.currentOrderHash = result.hash;
+
+                            await this.taskLogger.logOrderEvent(task.id, 'ORDER_SUBMITTED', {
+                                platform: 'predict',
+                                orderId: result.hash!,
+                                side: side,
+                                price: task.predictPrice,
+                                quantity: remainingQty,
+                                filledQty: 0,
+                                remainingQty: remainingQty,
+                                avgPrice: 0,
+                            }, result.hash);
+
+                            await this.taskLogger.logTaskLifecycle(task.id, 'TASK_RESUMED', {
+                                status: 'PREDICT_SUBMITTED',
+                                previousStatus: 'PAUSED',
+                                reason: `Depth recovered: ${recoveredDepth.toFixed(2)} shares`,
+                            });
+
+                            ctx.task = this.updateTask(task.id, {
+                                status: 'PREDICT_SUBMITTED',
+                                currentOrderHash: result.hash,
+                                error: undefined,
+                            });
+                        } else {
+                            console.warn(`[TaskExecutor] Depth recovered but re-submit failed: ${result.error}`);
+                        }
+                    }
+                }
                 setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
                 return;
             }
@@ -2472,13 +2583,20 @@ export class TaskExecutor extends EventEmitter {
 
             if (remainingQty <= 0) return; // 已完成，无需监控
 
-            const hedgeDepth = await this.getHedgeDepth(hedgeTokenId, side, maxPrice, minPrice, task.isSportsMarket);
+            let hedgeDepth = await this.getHedgeDepth(hedgeTokenId, side, maxPrice, minPrice, task.isSportsMarket);
 
             // API 失败 (返回 -1)，跳过本次检查，继续监控
             if (hedgeDepth < 0) {
                 console.warn('[TaskExecutor] Depth check skipped (API failed), will retry');
                 setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
                 return;
+            }
+
+            // 幽灵深度: 对冲 IOC 已报告 0 成交但订单簿显示有深度
+            // 视实际可用深度为 0，触发 PAUSE 取消 Predict 订单
+            if (ctx.phantomDepthDetected && hedgeDepth > 0) {
+                console.warn(`[TaskExecutor] 🛑 Depth monitor: phantom depth override (orderbook=${hedgeDepth.toFixed(2)} → 0)`);
+                hedgeDepth = 0;
             }
 
             // 如果深度充足（>= 剩余挂单量），继续

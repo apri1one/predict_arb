@@ -17,13 +17,14 @@ var {
     AccountCard,
     ClosePositionTab,
     SportsCard,
+    ExposureAlertBanner,
 } = Preview.Components;
 
 // --- Main App ---
 const App = () => {
     const { notifications, settings, setSettings, addNotification, dismissNotification } = useNotifications();
     const { toasts: orderToasts, addOrderToast } = useOrderToasts();
-    const { opportunities, history, chartData, stats, accounts, tasks, sports, isConnected } = useArbScanner(addNotification, addOrderToast);
+    const { opportunities, history, chartData, stats, accounts, tasks, sports, isConnected, exposureAlert, setExposureAlert } = useArbScanner(addNotification, addOrderToast);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
     const [taskModalData, setTaskModalData] = useState(null); // { opp, type: 'BUY' | 'SELL' }
     const [logModalOpen, setLogModalOpen] = useState(false);
@@ -233,6 +234,9 @@ const App = () => {
 
             {/* Order Toast Container (左上角订单状态浮窗) */}
             <OrderToastContainer toasts={orderToasts} />
+
+            {/* 敞口预警 Banner (顶部居中，常驻) */}
+            <ExposureAlertBanner alert={exposureAlert} onDismiss={() => setExposureAlert(null)} />
 
             {/* Settings Panel */}
             <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} settings={settings} setSettings={setSettings} />

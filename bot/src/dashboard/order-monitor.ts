@@ -248,6 +248,8 @@ export class OrderMonitor extends EventEmitter {
         callbacks: {
             onPriceInvalid: (currentPolyPrice: number) => void;
             onPriceValid: (currentPolyPrice: number) => void;
+            /** 幽灵深度检测: 对冲价位深度在短时间内频繁出现/消失 */
+            onDepthUnstable?: (flipCount: number) => void;
         }
     ): Promise<void> {
         const guardId = config.polymarketTokenId;
@@ -270,6 +272,14 @@ export class OrderMonitor extends EventEmitter {
         this.priceGuards.set(guardId, guard);
 
         let lastValidState = true; // 假设初始有效
+
+        // ====== 幽灵深度检测: 追踪对冲价位深度翻转 ======
+        let lastHadHedgeableDepth: boolean | null = null;
+        let depthFlipCount = 0;
+        let depthFlipWindowStart = Date.now();
+        let depthUnstableNotified = false;
+        const DEPTH_FLIP_WINDOW_MS = 30_000;  // 30 秒窗口
+        const DEPTH_FLIP_THRESHOLD = 6;       // 6 次翻转 = 3 轮出现/消失
 
         wsClient.setHandlers({
             onOrderBookUpdate: (book) => {
@@ -327,6 +337,46 @@ export class OrderMonitor extends EventEmitter {
                         callbacks.onPriceInvalid(checkPrice);
                     }
                     lastValidState = isValid;
+                }
+
+                // ====== 幽灵深度检测 ======
+                if (callbacks.onDepthUnstable) {
+                    // 计算对冲可用深度 (price 在可接受范围内的总量)
+                    let hedgeableDepth = 0;
+                    if (config.side === 'BUY') {
+                        for (const [price, size] of book.asks) {
+                            if (price <= config.maxPolymarketPrice) hedgeableDepth += size;
+                            else break; // asks 升序，后续 price 更高
+                        }
+                    } else {
+                        for (const [price, size] of book.bids) {
+                            if (price >= (config.minPolymarketPrice ?? 0)) hedgeableDepth += size;
+                            else break; // bids 降序，后续 price 更低
+                        }
+                    }
+
+                    const hasDepth = hedgeableDepth >= 1; // >= 1 share 视为有深度
+
+                    // 检测翻转 (有深度 ↔ 无深度)
+                    if (lastHadHedgeableDepth !== null && hasDepth !== lastHadHedgeableDepth) {
+                        depthFlipCount++;
+                    }
+                    lastHadHedgeableDepth = hasDepth;
+
+                    // 窗口过期则重置
+                    const now = Date.now();
+                    if (now - depthFlipWindowStart > DEPTH_FLIP_WINDOW_MS) {
+                        depthFlipCount = hasDepth !== lastHadHedgeableDepth ? 1 : 0;
+                        depthFlipWindowStart = now;
+                        depthUnstableNotified = false;
+                    }
+
+                    // 翻转次数超过阈值，触发回调
+                    if (depthFlipCount >= DEPTH_FLIP_THRESHOLD && !depthUnstableNotified) {
+                        console.warn(`[OrderMonitor] 🛑 幽灵深度: 对冲价位深度在 ${((now - depthFlipWindowStart) / 1000).toFixed(0)}s 内翻转 ${depthFlipCount} 次`);
+                        callbacks.onDepthUnstable(depthFlipCount);
+                        depthUnstableNotified = true;
+                    }
                 }
 
                 this.emit('priceGuard:update', {

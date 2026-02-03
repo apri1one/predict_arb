@@ -983,9 +983,16 @@ const TasksTab = ({ tasks, onStart, onCancel, onViewLogs, onUpdateTask, apiBaseU
                                             </div>
                                         </div>
                                         {task.error && (
-                                            <div className="mt-2 text-xs text-rose-400 bg-rose-500/10 rounded px-2 py-1">
-                                                {task.error}
-                                            </div>
+                                            task.error.startsWith('幽灵深度') ? (
+                                                <div className="mt-2 text-xs rounded px-2 py-1.5 border border-amber-500/30 bg-amber-500/10 text-amber-400 flex items-center gap-1.5">
+                                                    <span className="text-base leading-none">👻</span>
+                                                    <span>{task.error}</span>
+                                                </div>
+                                            ) : (
+                                                <div className="mt-2 text-xs text-rose-400 bg-rose-500/10 rounded px-2 py-1">
+                                                    {task.error}
+                                                </div>
+                                            )
                                         )}
                                     </div>
                                     <div className="flex flex-col gap-2">
@@ -2954,6 +2961,39 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, task
     );
 };
 
+// 敞口预警 Banner (常驻，需手动关闭)
+const ExposureAlertBanner = ({ alert, onDismiss }) => {
+    if (!alert) return null;
+    return (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[60] w-[480px] animate-slideDown">
+            <div className="glass-card rounded-xl p-4 border-2 border-rose-500/60 bg-rose-500/10 shadow-2xl backdrop-blur-md">
+                <div className="flex items-start gap-3">
+                    <span className="text-3xl">🚨</span>
+                    <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-base font-bold text-rose-400">
+                                敞口预警: {alert.totalExposure.toFixed(1)} shares
+                            </span>
+                            <button onClick={onDismiss} className="text-zinc-500 hover:text-white text-lg leading-none">&times;</button>
+                        </div>
+                        <div className="space-y-1">
+                            {alert.tasks.map(t => (
+                                <div key={t.id} className="text-xs text-zinc-300">
+                                    <span className="text-white font-medium">{t.title.slice(0, 35)}</span>
+                                    <span className="ml-2 text-rose-400">{t.exposure.toFixed(1)} shares 未对冲</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="text-xs text-zinc-500 mt-2">
+                            {new Date(alert.timestamp).toLocaleTimeString('zh-CN', { hour12: false })}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 Preview.Components = {
     Badge,
     Card,
@@ -2975,4 +3015,5 @@ Preview.Components = {
     LatencyBar,
     AccountCard,
     SportsCard,
+    ExposureAlertBanner,
 };

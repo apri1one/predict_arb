@@ -878,6 +878,79 @@ function getTelegramNotifier(): TelegramNotifier | null {
 }
 
 // ============================================================================
+// 全局敞口检测 (Exposure Alert)
+// ============================================================================
+let lastPinnedMessageId: number | null = null;
+const EXPOSURE_CHECK_INTERVAL_MS = 30_000; // 每 30s 轮询一次
+const EXPOSURE_THRESHOLD = 10; // shares 阈值
+
+/**
+ * 定时轮询全局敞口（每 30s 一次）
+ * 避免在成交事件瞬间检测导致对冲尚未完成时误报
+ */
+function startExposureMonitor(): void {
+    setInterval(() => {
+        const activeTasks = taskService.getTasks(); // 默认过滤终态
+        let totalExposure = 0;
+        const exposedTasks: { id: string; title: string; exposure: number; predictFilled: number; hedged: number }[] = [];
+
+        for (const t of activeTasks) {
+            const exposure = (t.predictFilledQty || 0) - (t.hedgedQty || 0);
+            if (exposure > 0) {
+                totalExposure += exposure;
+                exposedTasks.push({
+                    id: t.id,
+                    title: t.title,
+                    exposure,
+                    predictFilled: t.predictFilledQty || 0,
+                    hedged: t.hedgedQty || 0,
+                });
+            }
+        }
+
+        if (totalExposure <= EXPOSURE_THRESHOLD) return;
+
+        const now = Date.now();
+
+        // 1. SSE 广播到前端
+        broadcastSSEGlobal('exposureAlert', JSON.stringify({
+            totalExposure,
+            tasks: exposedTasks,
+            timestamp: now,
+        }));
+
+        // 2. Telegram 置顶消息
+        sendExposureTelegramAlert(totalExposure, exposedTasks);
+    }, EXPOSURE_CHECK_INTERVAL_MS);
+
+    console.log(`✅ 敞口监控已启动 (每 ${EXPOSURE_CHECK_INTERVAL_MS / 1000}s 轮询, 阈值 ${EXPOSURE_THRESHOLD} shares)\n`);
+}
+
+async function sendExposureTelegramAlert(
+    totalExposure: number,
+    exposedTasks: { id: string; title: string; exposure: number; predictFilled?: number; hedged?: number }[],
+): Promise<void> {
+    const tg = getTelegramNotifier();
+    if (!tg) return;
+
+    const lines = [
+        `🚨 <b>敞口预警: ${totalExposure.toFixed(1)} shares 未对冲</b>`,
+        ``,
+        `时间: ${new Date().toLocaleString('zh-CN')}`,
+        ``,
+    ];
+    for (const t of exposedTasks) {
+        lines.push(`• <b>${t.title.slice(0, 30)}</b>: ${t.exposure.toFixed(1)} shares (成交${(t.predictFilled ?? 0).toFixed(0)}/对冲${(t.hedged ?? 0).toFixed(0)})`);
+    }
+
+    // 取消上一条置顶
+    if (lastPinnedMessageId) {
+        await tg.unpinMessage(lastPinnedMessageId);
+    }
+    lastPinnedMessageId = await tg.sendAndPin(lines.join('\n'));
+}
+
+// ============================================================================
 // JSON Body 解析辅助函数
 // ============================================================================
 
@@ -4313,6 +4386,9 @@ async function main(): Promise<void> {
     } else {
         console.log('⚠️  Telegram 未配置 (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)\n');
     }
+
+    // 启动全局敞口定时检测
+    startExposureMonitor();
 
     // 构建 conditionId → 事件 endDate 映射 (用于显示与 Polymarket 前端一致的结算时间)
     // 非阻塞启动，映射完成后市场列表会自动获取到 endDate
