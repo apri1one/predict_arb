@@ -1662,6 +1662,13 @@ export class SportsService {
 
         return 'nba';  // 默认
     }
+
+    /**
+     * 获取 Polymarket 订单簿缓存 (供价格守护同步 0.1s 轮询数据)
+     */
+    getPolyOrderbookFromCache(tokenId: string): { bids: [number, number][]; asks: [number, number][] } | null {
+        return this.polyOrderbookCache.get(tokenId) ?? null;
+    }
 }
 
 // ============================================================================

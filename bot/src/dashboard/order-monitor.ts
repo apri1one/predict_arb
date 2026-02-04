@@ -11,6 +11,7 @@ import { EventEmitter } from 'events';
 import { PolymarketWebSocketClient } from '../polymarket/ws-client.js';
 import { getPredictTrader } from './predict-trader.js';
 import { getPolymarketTrader } from './polymarket-trader.js';
+import { getSportsService } from './sports-service.js';
 
 // ============================================================================
 // 类型定义
@@ -23,6 +24,7 @@ export interface PriceGuardConfig {
     maxPolymarketPrice: number;     // 最大可接受 Polymarket 价格 (BUY 用)
     minPolymarketPrice?: number;    // 最小可接受 Polymarket 价格 (SELL 用)
     side: 'BUY' | 'SELL';           // 任务方向
+    isSportsMarket?: boolean;       // 体育市场: Polymarket WS 不支持，纯 REST 轮询
 }
 
 export interface OrderWatchResult {
@@ -39,7 +41,7 @@ export interface OrderWatchResult {
 export class OrderMonitor extends EventEmitter {
     private predictWatches: Map<string, { active: boolean; intervalId?: NodeJS.Timeout }> = new Map();
     private polymarketWatches: Map<string, { active: boolean }> = new Map();
-    private priceGuards: Map<string, { active: boolean; wsClient?: PolymarketWebSocketClient }> = new Map();
+    private priceGuards: Map<string, { active: boolean; wsClient?: PolymarketWebSocketClient; restTimer?: NodeJS.Timeout }> = new Map();
 
     constructor() {
         super();
@@ -268,10 +270,15 @@ export class OrderMonitor extends EventEmitter {
 
         // 创建 WebSocket 客户端监控订单簿
         const wsClient = new PolymarketWebSocketClient();
-        const guard = { active: true, wsClient };
+        const guard: { active: boolean; wsClient?: PolymarketWebSocketClient; restTimer?: NodeJS.Timeout } = { active: true, wsClient };
         this.priceGuards.set(guardId, guard);
 
         let lastValidState = true; // 假设初始有效
+        let lastWsUpdateTime = Date.now();
+
+        // ====== REST 轮询配置 (仅体育市场) ======
+        const isSports = config.isSportsMarket ?? false;
+        const REST_SPORTS_INTERVAL_MS = 200;  // 体育市场: 从 SportsService 0.1s 缓存读取
 
         // ====== 幽灵深度检测: 追踪对冲价位深度翻转 ======
         let lastHadHedgeableDepth: boolean | null = null;
@@ -281,129 +288,161 @@ export class OrderMonitor extends EventEmitter {
         const DEPTH_FLIP_WINDOW_MS = 30_000;  // 30 秒窗口
         const DEPTH_FLIP_THRESHOLD = 6;       // 6 次翻转 = 3 轮出现/消失
 
+        // ====== 核心检查逻辑 (WS 和 REST 共用) ======
+        const checkOrderBook = (
+            bids: [number, number][],
+            asks: [number, number][],
+            source: 'WS' | 'REST'
+        ) => {
+            if (!guard.active) return;
+
+            let checkPrice: number | null = null;
+            let isValid: boolean;
+
+            if (config.side === 'BUY') {
+                const bestAsk = asks.length > 0
+                    ? Math.min(...asks.map(([price]) => price))
+                    : null;
+
+                if (bestAsk === null) return;
+
+                checkPrice = bestAsk;
+                isValid = this.isArbValidBuy(
+                    config.predictPrice,
+                    bestAsk,
+                    config.feeRateBps,
+                    config.maxPolymarketPrice
+                );
+            } else {
+                const bestBid = bids.length > 0
+                    ? Math.max(...bids.map(([price]) => price))
+                    : null;
+
+                if (bestBid === null) return;
+
+                checkPrice = bestBid;
+                isValid = this.isArbValidSell(
+                    config.predictPrice,
+                    bestBid,
+                    config.minPolymarketPrice ?? 0
+                );
+            }
+
+            // 状态变化时触发回调
+            if (isValid !== lastValidState) {
+                const priceType = config.side === 'BUY' ? 'ask' : 'bid';
+                if (isValid) {
+                    console.log(`[OrderMonitor] Price guard: ARB VALID (poly ${priceType}: ${checkPrice.toFixed(4)}, src: ${source})`);
+                    callbacks.onPriceValid(checkPrice);
+                } else {
+                    console.log(`[OrderMonitor] Price guard: ARB INVALID (poly ${priceType}: ${checkPrice.toFixed(4)}, src: ${source})`);
+                    callbacks.onPriceInvalid(checkPrice);
+                }
+                lastValidState = isValid;
+            }
+
+            // ====== 幽灵深度检测 (仅 WS 数据触发) ======
+            if (source === 'WS' && callbacks.onDepthUnstable) {
+                let hedgeableDepth = 0;
+                if (config.side === 'BUY') {
+                    for (const [price, size] of asks) {
+                        if (price <= config.maxPolymarketPrice) hedgeableDepth += size;
+                        else break;
+                    }
+                } else {
+                    for (const [price, size] of bids) {
+                        if (price >= (config.minPolymarketPrice ?? 0)) hedgeableDepth += size;
+                        else break;
+                    }
+                }
+
+                const hasDepth = hedgeableDepth >= 1;
+
+                if (lastHadHedgeableDepth !== null && hasDepth !== lastHadHedgeableDepth) {
+                    depthFlipCount++;
+                }
+                lastHadHedgeableDepth = hasDepth;
+
+                const now = Date.now();
+                if (now - depthFlipWindowStart > DEPTH_FLIP_WINDOW_MS) {
+                    depthFlipCount = hasDepth !== lastHadHedgeableDepth ? 1 : 0;
+                    depthFlipWindowStart = now;
+                    depthUnstableNotified = false;
+                }
+
+                if (depthFlipCount >= DEPTH_FLIP_THRESHOLD && !depthUnstableNotified) {
+                    console.warn(`[OrderMonitor] 🛑 幽灵深度: 对冲价位深度在 ${((now - depthFlipWindowStart) / 1000).toFixed(0)}s 内翻转 ${depthFlipCount} 次`);
+                    callbacks.onDepthUnstable(depthFlipCount);
+                    depthUnstableNotified = true;
+                }
+            }
+
+            this.emit('priceGuard:update', {
+                tokenId: guardId,
+                polyPrice: checkPrice,
+                isValid,
+                side: config.side,
+            });
+        };
+
+        // ====== WebSocket 事件处理 ======
         wsClient.setHandlers({
             onOrderBookUpdate: (book) => {
                 if (!guard.active) return;
                 if (book.assetId !== guardId) return;
 
-                let checkPrice: number | null = null;
-                let isValid: boolean;
-
-                if (config.side === 'BUY') {
-                    // BUY 任务: 监控 ask 价格上涨
-                    const bestAsk = book.asks.length > 0
-                        ? Math.min(...book.asks.map(([price]) => price))
-                        : null;
-
-                    if (bestAsk === null) {
-                        console.warn(`[OrderMonitor] No asks available for ${guardId.slice(0, 10)}`);
-                        return;
-                    }
-
-                    checkPrice = bestAsk;
-                    isValid = this.isArbValidBuy(
-                        config.predictPrice,
-                        bestAsk,
-                        config.feeRateBps,
-                        config.maxPolymarketPrice
-                    );
-                } else {
-                    // SELL 任务: 监控 bid 价格下跌
-                    const bestBid = book.bids.length > 0
-                        ? Math.max(...book.bids.map(([price]) => price))
-                        : null;
-
-                    if (bestBid === null) {
-                        console.warn(`[OrderMonitor] No bids available for ${guardId.slice(0, 10)}`);
-                        return;
-                    }
-
-                    checkPrice = bestBid;
-                    isValid = this.isArbValidSell(
-                        config.predictPrice,
-                        bestBid,
-                        config.minPolymarketPrice ?? 0
-                    );
-                }
-
-                // 状态变化时触发回调
-                if (isValid !== lastValidState) {
-                    const priceType = config.side === 'BUY' ? 'ask' : 'bid';
-                    if (isValid) {
-                        console.log(`[OrderMonitor] Price guard: ARB VALID (poly ${priceType}: ${checkPrice.toFixed(4)})`);
-                        callbacks.onPriceValid(checkPrice);
-                    } else {
-                        console.log(`[OrderMonitor] Price guard: ARB INVALID (poly ${priceType}: ${checkPrice.toFixed(4)})`);
-                        callbacks.onPriceInvalid(checkPrice);
-                    }
-                    lastValidState = isValid;
-                }
-
-                // ====== 幽灵深度检测 ======
-                if (callbacks.onDepthUnstable) {
-                    // 计算对冲可用深度 (price 在可接受范围内的总量)
-                    let hedgeableDepth = 0;
-                    if (config.side === 'BUY') {
-                        for (const [price, size] of book.asks) {
-                            if (price <= config.maxPolymarketPrice) hedgeableDepth += size;
-                            else break; // asks 升序，后续 price 更高
-                        }
-                    } else {
-                        for (const [price, size] of book.bids) {
-                            if (price >= (config.minPolymarketPrice ?? 0)) hedgeableDepth += size;
-                            else break; // bids 降序，后续 price 更低
-                        }
-                    }
-
-                    const hasDepth = hedgeableDepth >= 1; // >= 1 share 视为有深度
-
-                    // 检测翻转 (有深度 ↔ 无深度)
-                    if (lastHadHedgeableDepth !== null && hasDepth !== lastHadHedgeableDepth) {
-                        depthFlipCount++;
-                    }
-                    lastHadHedgeableDepth = hasDepth;
-
-                    // 窗口过期则重置
-                    const now = Date.now();
-                    if (now - depthFlipWindowStart > DEPTH_FLIP_WINDOW_MS) {
-                        depthFlipCount = hasDepth !== lastHadHedgeableDepth ? 1 : 0;
-                        depthFlipWindowStart = now;
-                        depthUnstableNotified = false;
-                    }
-
-                    // 翻转次数超过阈值，触发回调
-                    if (depthFlipCount >= DEPTH_FLIP_THRESHOLD && !depthUnstableNotified) {
-                        console.warn(`[OrderMonitor] 🛑 幽灵深度: 对冲价位深度在 ${((now - depthFlipWindowStart) / 1000).toFixed(0)}s 内翻转 ${depthFlipCount} 次`);
-                        callbacks.onDepthUnstable(depthFlipCount);
-                        depthUnstableNotified = true;
-                    }
-                }
-
-                this.emit('priceGuard:update', {
-                    tokenId: guardId,
-                    polyPrice: checkPrice,
-                    isValid,
-                    side: config.side,
-                });
+                lastWsUpdateTime = Date.now();
+                checkOrderBook(book.bids, book.asks, 'WS');
             },
             onConnect: () => {
                 console.log(`[OrderMonitor] Price guard WS connected`);
+                lastWsUpdateTime = Date.now();
             },
             onDisconnect: (code, reason) => {
-                console.log(`[OrderMonitor] Price guard WS disconnected: ${code} ${reason}`);
+                if (!guard.active) return; // stopPriceGuard 主动断开，忽略
+                if (!isSports) {
+                    // 非体育 WS 断连 → 触发全局任务暂停
+                    console.warn(`[OrderMonitor] 非体育 WS 断连: code=${code} reason=${reason} → 触发全局任务暂停`);
+                    lastValidState = false;
+                    this.emit('priceGuard:wsDisconnect', { tokenId: guardId });
+                } else {
+                    console.log(`[OrderMonitor] Price guard WS disconnected: ${code} ${reason}`);
+                }
             },
             onError: (error) => {
                 console.error(`[OrderMonitor] Price guard WS error:`, error.message);
             },
         });
 
-        try {
-            await wsClient.connect();
-            wsClient.subscribe([guardId]);
-        } catch (error: any) {
-            console.error(`[OrderMonitor] Price guard WS connect failed:`, error.message);
-            this.priceGuards.delete(guardId);
-            throw error;
+        if (isSports) {
+            // ====== 体育市场: 跳过 WS，从 SportsService 缓存轮询 ======
+            console.log(`[OrderMonitor] Sports market: skipping WS, REST-only mode (${REST_SPORTS_INTERVAL_MS}ms interval)`);
+            const sportsRestPoll = async () => {
+                if (!guard.active) return;
+                try {
+                    const cached = getSportsService().getPolyOrderbookFromCache(guardId);
+                    if (cached && guard.active) {
+                        checkOrderBook(cached.bids, cached.asks, 'REST');
+                    }
+                } catch (err: any) {
+                    console.warn(`[OrderMonitor] Price guard REST poll failed:`, err?.message || err);
+                }
+                if (guard.active) {
+                    guard.restTimer = setTimeout(sportsRestPoll, REST_SPORTS_INTERVAL_MS);
+                }
+            };
+            guard.restTimer = setTimeout(sportsRestPoll, 1_000);
+        } else {
+            // ====== 非体育: WS only，断连时由 onDisconnect 触发全局暂停 ======
+            try {
+                await wsClient.connect();
+                wsClient.subscribe([guardId]);
+            } catch (error: any) {
+                console.error(`[OrderMonitor] Price guard WS connect failed:`, error.message);
+                // 连接失败也触发全局暂停
+                lastValidState = false;
+                this.emit('priceGuard:wsDisconnect', { tokenId: guardId });
+            }
         }
     }
 
@@ -415,6 +454,7 @@ export class OrderMonitor extends EventEmitter {
         if (guard) {
             guard.active = false;
             guard.wsClient?.disconnect();
+            if (guard.restTimer) clearTimeout(guard.restTimer);
             this.priceGuards.delete(tokenId);
             console.log(`[OrderMonitor] Stopped price guard for: ${tokenId.slice(0, 10)}...`);
         }

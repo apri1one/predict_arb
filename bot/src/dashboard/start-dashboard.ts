@@ -1937,6 +1937,170 @@ async function fetchMarketVolumes(): Promise<void> {
     }
 }
 
+// ============================================================================
+// 流动性扫描 (Predict API)
+// ============================================================================
+
+interface LiquidityScanItem {
+    marketId: number;
+    title: string;
+    categorySlug: string;
+    predictSlug: string;
+    outcomeCount: number;
+    volume24h: number;
+    liquidity: number;
+    volumeLiquidityRatio: number;
+}
+
+interface LiquidityScanResult {
+    data: { valid: number; top20: LiquidityScanItem[] };
+    lastScanTime: number;
+}
+
+let liquidityScanCache: LiquidityScanResult | null = null;
+let liquidityScanRunning = false;
+
+async function runLiquidityScan(): Promise<void> {
+    if (liquidityScanRunning) return;
+    liquidityScanRunning = true;
+
+    const apiKeys = [
+        process.env.PREDICT_API_KEY_SCAN,
+        process.env.PREDICT_API_KEY_SCAN_2,
+        process.env.PREDICT_API_KEY_SCAN_3,
+        process.env.PREDICT_API_KEY,
+    ].filter(Boolean) as string[];
+
+    if (apiKeys.length === 0) {
+        console.warn('[LiquidityScan] 无可用 API Key');
+        liquidityScanRunning = false;
+        return;
+    }
+
+    console.log('[LiquidityScan] 开始扫描 Predict 市场...');
+    const startTime = Date.now();
+
+    try {
+        // 1. 分页获取活跃市场 (按 24h volume 降序，取前 200 个)
+        const allMarkets: Array<{
+            id: number;
+            title: string;
+            categorySlug: string;
+            outcomes: Array<{ name: string; indexSet: number }>;
+        }> = [];
+
+        let cursor = '';
+        for (let page = 0; page < 2; page++) {
+            const url = `https://api.predict.fun/v1/markets?status=OPEN&sort=VOLUME_24H_DESC&first=100${cursor ? '&after=' + cursor : ''}`;
+            const apiKey = apiKeys[page % apiKeys.length];
+            const res = await fetch(url, { headers: { 'x-api-key': apiKey } });
+            if (!res.ok) {
+                if (res.status === 429) {
+                    await new Promise(r => setTimeout(r, 3000));
+                    page--;
+                    continue;
+                }
+                console.warn(`[LiquidityScan] 获取市场列表失败: ${res.status}`);
+                break;
+            }
+            const data = await res.json() as { data?: any[]; cursor?: string };
+            const markets = Array.isArray(data.data) ? data.data : [];
+            if (markets.length === 0) break;
+
+            for (const m of markets) {
+                allMarkets.push({
+                    id: Number(m.id),
+                    title: m.title || m.question || '',
+                    categorySlug: m.categorySlug || '',
+                    outcomes: Array.isArray(m.outcomes) ? m.outcomes : [],
+                });
+            }
+
+            cursor = data.cursor || '';
+            if (!cursor) break;
+            await new Promise(r => setTimeout(r, 100));
+        }
+
+        if (allMarkets.length === 0) {
+            console.warn('[LiquidityScan] 未获取到任何市场');
+            liquidityScanRunning = false;
+            return;
+        }
+
+        console.log(`[LiquidityScan] 获取到 ${allMarkets.length} 个市场，开始批量获取 stats...`);
+
+        // 2. 批量获取 stats (volume24hUsd, totalLiquidityUsd)
+        const statsMap = new Map<number, { volume24h: number; liquidity: number }>();
+        const batchSize = Math.min(apiKeys.length * 3, 10);
+
+        for (let i = 0; i < allMarkets.length; i += batchSize) {
+            const batch = allMarkets.slice(i, i + batchSize);
+            const results = await Promise.all(batch.map(async (market, idx) => {
+                const apiKey = apiKeys[(i + idx) % apiKeys.length];
+                try {
+                    const res = await fetch(`https://api.predict.fun/v1/markets/${market.id}/stats`, {
+                        headers: { 'x-api-key': apiKey },
+                    });
+                    if (!res.ok) return null;
+                    const data = await res.json() as any;
+                    return {
+                        marketId: market.id,
+                        volume24h: data.data?.volume24hUsd ?? 0,
+                        liquidity: data.data?.totalLiquidityUsd ?? 0,
+                    };
+                } catch {
+                    return null;
+                }
+            }));
+
+            for (const r of results) {
+                if (r && (r.volume24h > 0 || r.liquidity > 0)) {
+                    statsMap.set(r.marketId, { volume24h: r.volume24h, liquidity: r.liquidity });
+                }
+            }
+
+            // 避免触发限流
+            if (i + batchSize < allMarkets.length) {
+                await new Promise(r => setTimeout(r, 200));
+            }
+        }
+
+        // 3. 计算比值并排序
+        const ranked: LiquidityScanItem[] = [];
+        for (const market of allMarkets) {
+            const stats = statsMap.get(market.id);
+            if (!stats || stats.liquidity <= 0 || stats.volume24h <= 0) continue;
+            ranked.push({
+                marketId: market.id,
+                title: market.title,
+                categorySlug: market.categorySlug,
+                predictSlug: market.categorySlug,
+                outcomeCount: market.outcomes?.length ?? 2,
+                volume24h: stats.volume24h,
+                liquidity: stats.liquidity,
+                volumeLiquidityRatio: stats.volume24h / stats.liquidity,
+            });
+        }
+
+        ranked.sort((a, b) => b.volumeLiquidityRatio - a.volumeLiquidityRatio);
+
+        liquidityScanCache = {
+            data: {
+                valid: ranked.length,
+                top20: ranked.slice(0, 20),
+            },
+            lastScanTime: Date.now(),
+        };
+
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`[LiquidityScan] 完成: ${ranked.length} 个有效市场, Top1 ratio=${ranked[0]?.volumeLiquidityRatio.toFixed(2) ?? 'N/A'}, 耗时 ${duration}s`);
+    } catch (err: any) {
+        console.error('[LiquidityScan] 扫描异常:', err?.message || err);
+    } finally {
+        liquidityScanRunning = false;
+    }
+}
+
 async function initPolymarketWs(): Promise<void> {
     try {
         const opportunities: ArbOpportunity[] = [];
@@ -2908,6 +3072,30 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
             });
             res.end(JSON.stringify({ success: false, error: error.message }));
         }
+        return;
+    }
+
+    // GET /api/liquidity - 获取流动性扫描数据
+    if (url === '/api/liquidity' && req.method === 'GET') {
+        const corsHeaders = requireAuth(req, res);
+        if (!corsHeaders) return;
+        res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+        if (liquidityScanCache) {
+            res.end(JSON.stringify({ success: true, data: liquidityScanCache.data, lastScanTime: liquidityScanCache.lastScanTime }));
+        } else {
+            res.end(JSON.stringify({ success: false, data: null }));
+        }
+        return;
+    }
+
+    // POST /api/liquidity/refresh - 触发流动性扫描
+    if (url === '/api/liquidity/refresh' && req.method === 'POST') {
+        const corsHeaders = requireAuth(req, res);
+        if (!corsHeaders) return;
+        // 异步执行扫描，立即返回
+        runLiquidityScan().catch(err => console.warn('[LiquidityScan] 扫描失败:', err?.message || err));
+        res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+        res.end(JSON.stringify({ success: true, message: 'scan started' }));
         return;
     }
 

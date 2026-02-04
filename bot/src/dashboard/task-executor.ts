@@ -116,6 +116,13 @@ export class TaskExecutor extends EventEmitter {
         this.polyRestClient = new PolymarketRestClient();
         this.orderMonitor = getOrderMonitor();
         this.taskLogger = getTaskLogger();
+
+        // 非体育市场 Polymarket WS 断连 → 暂停所有非体育任务
+        this.orderMonitor.on('priceGuard:wsDisconnect', ({ tokenId }: { tokenId: string }) => {
+            this.pauseAllNonSportsTasks(tokenId).catch(err => {
+                console.error(`[TaskExecutor] pauseAllNonSportsTasks error:`, err);
+            });
+        });
     }
 
     /**
@@ -318,6 +325,12 @@ export class TaskExecutor extends EventEmitter {
      * 仅用于 MAKER 模式（TAKER 任务由 takerExecutor 自己处理）
      */
     private async resubmitRemainingPredictOrderFromPaused(task: Task): Promise<void> {
+        // 互斥: 如果任务已有运行中的上下文（price guard/depth monitor 已启动），跳过
+        if (this.runningTasks.has(task.id)) {
+            console.log(`[TaskExecutor] Task ${task.id}: 已有运行上下文，跳过启动恢复重挂`);
+            return;
+        }
+
         const remainingQty = (task.quantity || 0) - (task.predictFilledQty || 0);
         if (remainingQty <= 0) {
             console.log(`[TaskExecutor] Task ${task.id}: PAUSED 但无剩余量，跳过重挂`);
@@ -325,6 +338,14 @@ export class TaskExecutor extends EventEmitter {
         }
 
         const side: 'BUY' | 'SELL' = task.type === 'SELL' ? 'SELL' : 'BUY';
+
+        // 挂单价格安全检查：确保不会作为 Taker 立即成交
+        const priceCheck = await this.isPredictPriceSafeForMaker(task, side);
+        if (!priceCheck.safe) {
+            console.log(`[TaskExecutor] Task ${task.id}: PAUSED 但挂单价格不安全 (${priceCheck.reason})，保持暂停`);
+            return;
+        }
+
         console.log(`[TaskExecutor] Task ${task.id}: PAUSED 自动恢复，重挂剩余量 ${remainingQty} (${side})`);
 
         // 使用剩余量提交订单（注意：不改变任务的总 quantity，仅在提交时使用 remainingQty）
@@ -952,6 +973,71 @@ export class TaskExecutor extends EventEmitter {
         }
     }
 
+    /**
+     * Polymarket WS 断连时暂停所有非体育任务
+     *
+     * 非体育市场完全依赖 WS 监控 Polymarket 订单簿，
+     * WS 断连意味着价格保护失效，必须立即撤单暂停以避免单边风险。
+     * WS 自动重连后，价格守护 onPriceValid 会触发恢复。
+     */
+    private async pauseAllNonSportsTasks(disconnectedTokenId: string): Promise<void> {
+        const tasksToPause: string[] = [];
+        for (const [taskId, ctx] of this.runningTasks) {
+            if (!ctx.task.isSportsMarket && !ctx.isPaused) {
+                tasksToPause.push(taskId);
+            }
+        }
+
+        if (tasksToPause.length === 0) return;
+
+        console.warn(`[TaskExecutor] Polymarket WS 断连 (token: ${disconnectedTokenId.slice(0, 10)}...) → 暂停 ${tasksToPause.length} 个非体育任务`);
+
+        for (const taskId of tasksToPause) {
+            const ctx = this.runningTasks.get(taskId);
+            if (!ctx || ctx.isPaused) continue;
+
+            ctx.isPaused = true;
+
+            // 取消 Predict 挂单
+            if (ctx.currentOrderHash) {
+                try {
+                    await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                    await this.taskLogger.logOrderEvent(taskId, 'ORDER_CANCELLED', {
+                        platform: 'predict',
+                        orderId: ctx.currentOrderHash,
+                        side: ctx.task.type,
+                        price: ctx.task.predictPrice,
+                        quantity: ctx.task.quantity,
+                        filledQty: ctx.totalPredictFilled,
+                        remainingQty: ctx.task.quantity - ctx.totalPredictFilled,
+                        avgPrice: ctx.task.predictPrice,
+                    }, ctx.currentOrderHash);
+                } catch (e: any) {
+                    console.warn(`[TaskExecutor] 取消订单失败 (WS断连暂停): ${e.message}`);
+                }
+                ctx.predictWatchAbort?.abort();
+                ctx.predictWatchAbort = new AbortController();
+                ctx.currentOrderHash = undefined;
+            }
+
+            const reason = `Polymarket WS 断连 (token: ${disconnectedTokenId.slice(0, 10)}...)`;
+            await this.taskLogger.logTaskLifecycle(taskId, 'TASK_PAUSED', {
+                status: 'PAUSED',
+                previousStatus: ctx.task.status,
+                reason,
+            });
+
+            const task = this.updateTask(taskId, {
+                status: 'PAUSED',
+                pauseCount: ctx.task.pauseCount + 1,
+                currentOrderHash: undefined,
+            });
+            ctx.task = task;
+
+            console.log(`[TaskExecutor] 任务 ${taskId} 已暂停 (WS断连)`);
+        }
+    }
+
     private collectTaskIdsToPause(): string[] {
         const runningTaskIds = Array.from(this.runningTasks.keys());
 
@@ -1068,6 +1154,19 @@ export class TaskExecutor extends EventEmitter {
         // ===== MAKER 模式 (原有逻辑) =====
         // 1. 提交 Predict Maker 买单 (如果还没有)
         if (!ctx.currentOrderHash && task.status === 'PENDING') {
+            // Maker 价格安全检查: 等待挂单价 < 卖一价，防止被吃单成交
+            let waited = false;
+            while (!signal.aborted) {
+                const priceCheck = await this.isPredictPriceSafeForMaker(task, 'BUY');
+                if (priceCheck.safe) break;
+                if (!waited) {
+                    console.warn(`[TaskExecutor] Task ${task.id}: Maker BUY 价格不安全 (${priceCheck.reason})，等待卖一价上移后下单`);
+                    waited = true;
+                }
+                await this.delay(1000);
+            }
+            if (signal.aborted) return;
+
             const predictResult = await this.submitPredictOrder(task, 'BUY');
             if (!predictResult.success) {
                 // 记录订单失败
@@ -1158,6 +1257,19 @@ export class TaskExecutor extends EventEmitter {
 
         // 1. 提交 Predict Maker 卖单
         if (!ctx.currentOrderHash && task.status === 'PENDING') {
+            // Maker 价格安全检查: 等待挂单价 > 买一价，防止被吃单成交
+            let waited = false;
+            while (!signal.aborted) {
+                const priceCheck = await this.isPredictPriceSafeForMaker(task, 'SELL');
+                if (priceCheck.safe) break;
+                if (!waited) {
+                    console.warn(`[TaskExecutor] Task ${task.id}: Maker SELL 价格不安全 (${priceCheck.reason})，等待买一价下移后下单`);
+                    waited = true;
+                }
+                await this.delay(1000);
+            }
+            if (signal.aborted) return;
+
             const predictResult = await this.submitPredictOrder(task, 'SELL');
             if (!predictResult.success) {
                 // 记录订单失败
@@ -1227,6 +1339,10 @@ export class TaskExecutor extends EventEmitter {
         const maxPrice = side === 'BUY' ? task.polymarketMaxAsk : 1.0;
         const minPrice = side === 'SELL' ? task.polymarketMinBid : 0.0;
 
+        // Predict 价格复查: 当 onPriceValid 因 Predict 价格不安全而阻塞时，
+        // 使用 generation 计数器确保 onPriceInvalid 能中断旧的复查循环
+        let priceGuardGeneration = 0;
+
         this.orderMonitor.startPriceGuard(
             {
                 predictPrice: task.predictPrice,
@@ -1235,10 +1351,13 @@ export class TaskExecutor extends EventEmitter {
                 maxPolymarketPrice: maxPrice,
                 minPolymarketPrice: minPrice,
                 side: side,
+                isSportsMarket: task.isSportsMarket,
             },
             {
                 onPriceInvalid: async (currentPrice) => {
                     if (signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
+
+                    priceGuardGeneration++; // 中断旧的 onPriceValid 复查循环
 
                     const priceType = side === 'BUY' ? 'ask' : 'bid';
                     const threshold = side === 'BUY' ? maxPrice : minPrice;
@@ -1325,6 +1444,27 @@ export class TaskExecutor extends EventEmitter {
                     if (!currentTask || terminalStatuses.includes(currentTask.status)) {
                         console.log(`[TaskExecutor] Task ${task.id} is in terminal state ${currentTask?.status}, skipping order re-submit`);
                         ctx.priceGuardAbort?.abort();
+                        return;
+                    }
+
+                    // 挂单价格安全检查：确保不会作为 Taker 立即成交
+                    // 如果 Predict 价格暂不安全，每秒重试，直到安全或被 onPriceInvalid 中断
+                    const gen = priceGuardGeneration;
+                    let priceCheck = await this.isPredictPriceSafeForMaker(task, side);
+                    while (!priceCheck.safe) {
+                        console.log(`[TaskExecutor] Price guard: recovery blocked (${priceCheck.reason}), 1s 后重试`);
+                        await this.delay(1000);
+                        // 被 onPriceInvalid 中断 (generation 变化) 或信号中止
+                        if (gen !== priceGuardGeneration || signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
+                        if (ctx.currentOrderHash) return; // 已有订单 (其他路径提交)
+                        priceCheck = await this.isPredictPriceSafeForMaker(task, side);
+                    }
+                    // 再次检查: 循环退出后可能被中断
+                    if (gen !== priceGuardGeneration || signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
+
+                    // 防重: 深度监控可能在 async 间隙已恢复并提交了订单
+                    if (!ctx.isPaused || ctx.currentOrderHash) {
+                        console.log(`[TaskExecutor] Price guard resume skipped: already resumed by another path (isPaused=${ctx.isPaused}, hash=${!!ctx.currentOrderHash})`);
                         return;
                     }
 
@@ -2422,6 +2562,49 @@ export class TaskExecutor extends EventEmitter {
     }
 
     /**
+     * 检查挂单价格是否安全（不会立即被吃单）
+     *
+     * BUY: 挂单价 < 卖一价 (确保以 Maker 身份挂在买盘)
+     * SELL: 挂单价 > 买一价 (确保以 Maker 身份挂在卖盘)
+     *
+     * 如果挂单价 >= 卖一价 (BUY) 或 <= 买一价 (SELL)，说明会被立即成交为 Taker
+     */
+    private async isPredictPriceSafeForMaker(task: Task, side: 'BUY' | 'SELL'): Promise<{ safe: boolean; reason?: string }> {
+        try {
+            const book = await this.predictTrader.getOrderbook(task.marketId);
+            if (!book) {
+                // 获取不到订单簿时放行（避免因 API 临时故障永久卡住）
+                return { safe: true, reason: 'orderbook unavailable' };
+            }
+
+            if (side === 'BUY') {
+                // BUY: 挂单价必须 < 卖一价
+                const bestAsk = book.asks.length > 0 ? book.asks[0][0] : null;
+                if (bestAsk !== null && task.predictPrice >= bestAsk) {
+                    return {
+                        safe: false,
+                        reason: `BUY price ${task.predictPrice} >= bestAsk ${bestAsk}`,
+                    };
+                }
+            } else {
+                // SELL: 挂单价必须 > 买一价
+                const bestBid = book.bids.length > 0 ? book.bids[0][0] : null;
+                if (bestBid !== null && task.predictPrice <= bestBid) {
+                    return {
+                        safe: false,
+                        reason: `SELL price ${task.predictPrice} <= bestBid ${bestBid}`,
+                    };
+                }
+            }
+
+            return { safe: true };
+        } catch {
+            // 异常时放行
+            return { safe: true, reason: 'check failed' };
+        }
+    }
+
+    /**
      * 获取对冲用的 Polymarket token ID
      *
      * 套利逻辑:
@@ -2538,6 +2721,21 @@ export class TaskExecutor extends EventEmitter {
                 if (remainingQty > 0) {
                     let recoveredDepth = await this.getHedgeDepth(hedgeTokenId, side, maxPrice, minPrice, task.isSportsMarket);
                     if (recoveredDepth >= remainingQty) {
+                        // 挂单价格安全检查：确保不会作为 Taker 立即成交
+                        const priceCheck = await this.isPredictPriceSafeForMaker(task, side);
+                        if (!priceCheck.safe) {
+                            console.log(`[TaskExecutor] Depth recovered but price unsafe (${priceCheck.reason}), staying PAUSED`);
+                            setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                            return;
+                        }
+
+                        // 防重: onPriceValid 可能在 async 间隙已恢复并提交了订单
+                        if (!ctx.isPaused || ctx.currentOrderHash) {
+                            console.log(`[TaskExecutor] Depth resume skipped: already resumed by another path (isPaused=${ctx.isPaused}, hash=${!!ctx.currentOrderHash})`);
+                            setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                            return;
+                        }
+
                         console.log(`[TaskExecutor] Depth recovered: ${recoveredDepth.toFixed(2)} >= remaining ${remainingQty}, resuming task`);
                         ctx.isPaused = false;
 
@@ -2570,7 +2768,8 @@ export class TaskExecutor extends EventEmitter {
                                 error: undefined,
                             });
                         } else {
-                            console.warn(`[TaskExecutor] Depth recovered but re-submit failed: ${result.error}`);
+                            console.warn(`[TaskExecutor] Depth recovered but re-submit failed: ${result.error}, rollback to PAUSED`);
+                            ctx.isPaused = true; // 回滚: 下一轮 checkDepth 会重新尝试
                         }
                     }
                 }
