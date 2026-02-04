@@ -87,6 +87,8 @@ interface TaskContext {
     wssFirstFillTime?: number;
     /** 幽灵深度检测：对冲 IOC 0 成交但订单簿显示有深度，通知深度保护触发 PAUSE */
     phantomDepthDetected?: boolean;
+    /** 防止 onPriceValid 与 checkDepth 并发提交订单 */
+    isSubmitting?: boolean;
 }
 
 // ============================================================================
@@ -329,6 +331,36 @@ export class TaskExecutor extends EventEmitter {
         if (this.runningTasks.has(task.id)) {
             console.log(`[TaskExecutor] Task ${task.id}: 已有运行上下文，跳过启动恢复重挂`);
             return;
+        }
+
+        // 如果有残留的 hash（上次取消失败），先尝试取消
+        if (task.currentOrderHash) {
+            console.log(`[TaskExecutor] Task ${task.id}: 发现残留订单 ${task.currentOrderHash.slice(0, 20)}...，尝试清理`);
+            try {
+                await this.predictTrader.cancelOrder(task.currentOrderHash);
+                console.log(`[TaskExecutor] Task ${task.id}: 残留订单已清理`);
+            } catch (e: any) {
+                console.warn(`[TaskExecutor] Task ${task.id}: 清理残留订单失败: ${e.message}`);
+            }
+            this.updateTask(task.id, { currentOrderHash: undefined });
+        }
+
+        // 额外安全检查：查询 Predict 该市场是否有本钱包的活跃订单
+        try {
+            const activeOrders = await this.predictTrader.getOpenOrdersForMarket(task.marketId);
+            if (activeOrders.length > 0) {
+                console.warn(`[TaskExecutor] Task ${task.id}: 发现 ${activeOrders.length} 个活跃订单，逐一取消`);
+                for (const order of activeOrders) {
+                    try {
+                        await this.predictTrader.cancelOrder(order.id);
+                        console.log(`[TaskExecutor] Task ${task.id}: 取消活跃订单 ${order.id}`);
+                    } catch (e: any) {
+                        console.warn(`[TaskExecutor] Task ${task.id}: 取消活跃订单 ${order.id} 失败: ${e.message}`);
+                    }
+                }
+            }
+        } catch (e: any) {
+            console.warn(`[TaskExecutor] Task ${task.id}: 查询活跃订单失败: ${e.message}`);
         }
 
         const remainingQty = (task.quantity || 0) - (task.predictFilledQty || 0);
@@ -999,25 +1031,31 @@ export class TaskExecutor extends EventEmitter {
             ctx.isPaused = true;
 
             // 取消 Predict 挂单
+            let cancelSuccess = false;
             if (ctx.currentOrderHash) {
                 try {
-                    await this.predictTrader.cancelOrder(ctx.currentOrderHash);
-                    await this.taskLogger.logOrderEvent(taskId, 'ORDER_CANCELLED', {
-                        platform: 'predict',
-                        orderId: ctx.currentOrderHash,
-                        side: ctx.task.type,
-                        price: ctx.task.predictPrice,
-                        quantity: ctx.task.quantity,
-                        filledQty: ctx.totalPredictFilled,
-                        remainingQty: ctx.task.quantity - ctx.totalPredictFilled,
-                        avgPrice: ctx.task.predictPrice,
-                    }, ctx.currentOrderHash);
+                    cancelSuccess = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                    if (cancelSuccess) {
+                        await this.taskLogger.logOrderEvent(taskId, 'ORDER_CANCELLED', {
+                            platform: 'predict',
+                            orderId: ctx.currentOrderHash,
+                            side: ctx.task.type,
+                            price: ctx.task.predictPrice,
+                            quantity: ctx.task.quantity,
+                            filledQty: ctx.totalPredictFilled,
+                            remainingQty: ctx.task.quantity - ctx.totalPredictFilled,
+                            avgPrice: ctx.task.predictPrice,
+                        }, ctx.currentOrderHash);
+                    }
                 } catch (e: any) {
                     console.warn(`[TaskExecutor] 取消订单失败 (WS断连暂停): ${e.message}`);
                 }
                 ctx.predictWatchAbort?.abort();
                 ctx.predictWatchAbort = new AbortController();
-                ctx.currentOrderHash = undefined;
+                if (cancelSuccess) {
+                    ctx.currentOrderHash = undefined;
+                }
+                // 取消失败时保留 hash，让恢复路径可以重试取消
             }
 
             const reason = `Polymarket WS 断连 (token: ${disconnectedTokenId.slice(0, 10)}...)`;
@@ -1030,7 +1068,7 @@ export class TaskExecutor extends EventEmitter {
             const task = this.updateTask(taskId, {
                 status: 'PAUSED',
                 pauseCount: ctx.task.pauseCount + 1,
-                currentOrderHash: undefined,
+                ...(cancelSuccess ? { currentOrderHash: undefined } : {}),
             });
             ctx.task = task;
 
@@ -1379,26 +1417,33 @@ export class TaskExecutor extends EventEmitter {
                     await this.captureSnapshot(task.id, 'price_guard', task);
 
                     // 取消 Predict 订单
+                    let cancelSuccess = false;
                     if (ctx.currentOrderHash) {
                         try {
-                            await this.predictTrader.cancelOrder(ctx.currentOrderHash);
-                            // 记录订单取消
-                            await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
-                                platform: 'predict',
-                                orderId: ctx.currentOrderHash,
-                                side: side,
-                                price: task.predictPrice,
-                                quantity: task.quantity,
-                                filledQty: ctx.totalPredictFilled,
-                                remainingQty: task.quantity - ctx.totalPredictFilled,
-                                avgPrice: task.predictPrice,
-                            }, ctx.currentOrderHash);
+                            cancelSuccess = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                            if (cancelSuccess) {
+                                // 记录订单取消
+                                await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
+                                    platform: 'predict',
+                                    orderId: ctx.currentOrderHash,
+                                    side: side,
+                                    price: task.predictPrice,
+                                    quantity: task.quantity,
+                                    filledQty: ctx.totalPredictFilled,
+                                    remainingQty: task.quantity - ctx.totalPredictFilled,
+                                    avgPrice: task.predictPrice,
+                                }, ctx.currentOrderHash);
+                            }
                         } catch (e) {
                             console.warn('[TaskExecutor] Failed to cancel order on pause:', e);
                         }
                         // 中断当前的订单监控
                         ctx.predictWatchAbort?.abort();
                         ctx.predictWatchAbort = new AbortController();
+                        if (cancelSuccess) {
+                            ctx.currentOrderHash = undefined;
+                        }
+                        // 取消失败时保留 hash，让恢复路径可以重试取消
                     }
 
                     // 记录任务暂停
@@ -1414,10 +1459,9 @@ export class TaskExecutor extends EventEmitter {
                     task = this.updateTask(task.id, {
                         status: 'PAUSED',
                         pauseCount: task.pauseCount + 1,
-                        currentOrderHash: undefined,
+                        ...(cancelSuccess ? { currentOrderHash: undefined } : {}),
                     });
                     ctx.task = task;
-                    ctx.currentOrderHash = undefined;
 
                     // 检查是否超过最大暂停次数
                     if (task.pauseCount >= MAX_PAUSE_COUNT) {
@@ -1468,10 +1512,19 @@ export class TaskExecutor extends EventEmitter {
                         return;
                     }
 
+                    // 互斥: 防止 onPriceValid 与 checkDepth 并发提交
+                    if (ctx.isSubmitting) {
+                        console.log(`[TaskExecutor] Price guard resume skipped: another path is submitting`);
+                        return;
+                    }
+                    ctx.isSubmitting = true;
+
                     const priceType = side === 'BUY' ? 'ask' : 'bid';
                     console.log(`[TaskExecutor] Price valid again: poly ${priceType}=${currentPrice.toFixed(4)}`);
 
                     ctx.isPaused = false;
+
+                    try {
 
                     // 计算剩余量 (原始数量 - 已成交量)
                     const remainingQty = task.quantity - ctx.totalPredictFilled;
@@ -1536,6 +1589,10 @@ export class TaskExecutor extends EventEmitter {
                         ctx.task = task;
                         ctx.priceGuardAbort?.abort();
                     }
+
+                    } finally {
+                        ctx.isSubmitting = false;
+                    }
                 },
                 onDepthUnstable: async (flipCount) => {
                     if (signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
@@ -1550,25 +1607,31 @@ export class TaskExecutor extends EventEmitter {
                     ctx.isPaused = true;
 
                     // 取消 Predict 订单，防止继续成交
+                    let cancelSuccess = false;
                     if (ctx.currentOrderHash) {
                         try {
-                            await this.predictTrader.cancelOrder(ctx.currentOrderHash);
-                            await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
-                                platform: 'predict',
-                                orderId: ctx.currentOrderHash,
-                                side: side,
-                                price: task.predictPrice,
-                                quantity: task.quantity,
-                                filledQty: ctx.totalPredictFilled,
-                                remainingQty: task.quantity - ctx.totalPredictFilled,
-                                avgPrice: task.predictPrice,
-                            }, ctx.currentOrderHash);
+                            cancelSuccess = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                            if (cancelSuccess) {
+                                await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
+                                    platform: 'predict',
+                                    orderId: ctx.currentOrderHash,
+                                    side: side,
+                                    price: task.predictPrice,
+                                    quantity: task.quantity,
+                                    filledQty: ctx.totalPredictFilled,
+                                    remainingQty: task.quantity - ctx.totalPredictFilled,
+                                    avgPrice: task.predictPrice,
+                                }, ctx.currentOrderHash);
+                            }
                         } catch (e: any) {
                             console.warn(`[TaskExecutor] ⚠️ 取消 Predict 订单出错: ${e.message}`);
                         }
                         ctx.predictWatchAbort?.abort();
                         ctx.predictWatchAbort = new AbortController();
-                        ctx.currentOrderHash = undefined;
+                        if (cancelSuccess) {
+                            ctx.currentOrderHash = undefined;
+                        }
+                        // 取消失败时保留 hash，让恢复路径可以重试取消
                     }
 
                     const phantomReason = `幽灵深度: 对冲价位深度 30s 内翻转 ${flipCount} 次，疑似机器人高频挂撤`;
@@ -1583,7 +1646,7 @@ export class TaskExecutor extends EventEmitter {
                     task = this.updateTask(task.id, {
                         status: 'PAUSED',
                         pauseCount: task.pauseCount + 1,
-                        currentOrderHash: undefined,
+                        ...(cancelSuccess ? { currentOrderHash: undefined } : {}),
                         error: phantomReason,
                     });
                     ctx.task = task;
@@ -2410,9 +2473,13 @@ export class TaskExecutor extends EventEmitter {
                     console.warn(`[TaskExecutor] 🛑 幽灵深度: 订单簿有 ${hedgePrice} asks 但 IOC 0 成交，取消 Predict 订单防止继续成交`);
                     ctx.phantomDepthDetected = true;
                     try {
-                        await this.predictTrader.cancelOrder(ctx.currentOrderHash);
-                        ctx.currentOrderHash = undefined;
-                        console.log(`[TaskExecutor] ✓ Predict 订单已取消 (幽灵深度保护)`);
+                        const phantomCancelOk = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                        if (phantomCancelOk) {
+                            ctx.currentOrderHash = undefined;
+                            console.log(`[TaskExecutor] ✓ Predict 订单已取消 (幽灵深度保护)`);
+                        } else {
+                            console.warn(`[TaskExecutor] ⚠️ 幽灵深度取消返回 false，保留 hash 待恢复重试`);
+                        }
                     } catch (e: any) {
                         console.warn(`[TaskExecutor] ⚠️ 取消 Predict 订单出错: ${e.message}`);
                     }
@@ -2736,9 +2803,18 @@ export class TaskExecutor extends EventEmitter {
                             return;
                         }
 
+                        // 互斥: 防止 onPriceValid 与 checkDepth 并发提交
+                        if (ctx.isSubmitting) {
+                            console.log(`[TaskExecutor] Depth resume skipped: another path is submitting`);
+                            setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                            return;
+                        }
+                        ctx.isSubmitting = true;
+
                         console.log(`[TaskExecutor] Depth recovered: ${recoveredDepth.toFixed(2)} >= remaining ${remainingQty}, resuming task`);
                         ctx.isPaused = false;
 
+                        try {
                         // 重新提交 Predict 订单
                         const taskWithRemaining = { ...task, quantity: remainingQty };
                         const result = await this.submitPredictOrder(taskWithRemaining, side);
@@ -2770,6 +2846,9 @@ export class TaskExecutor extends EventEmitter {
                         } else {
                             console.warn(`[TaskExecutor] Depth recovered but re-submit failed: ${result.error}, rollback to PAUSED`);
                             ctx.isPaused = true; // 回滚: 下一轮 checkDepth 会重新尝试
+                        }
+                        } finally {
+                            ctx.isSubmitting = false;
                         }
                     }
                 }
@@ -2816,29 +2895,36 @@ export class TaskExecutor extends EventEmitter {
                 ctx.isPaused = true;
 
                 // 取消当前订单
+                let cancelSuccess = false;
                 if (ctx.currentOrderHash) {
                     try {
-                        await this.predictTrader.cancelOrder(ctx.currentOrderHash);
-                        await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
-                            platform: 'predict',
-                            orderId: ctx.currentOrderHash,
-                            side: side,
-                            price: task.predictPrice,
-                            quantity: remainingQty,
-                            filledQty: ctx.totalPredictFilled,
-                            remainingQty: 0,
-                            avgPrice: task.predictPrice,
-                        }, ctx.currentOrderHash);
+                        cancelSuccess = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                        if (cancelSuccess) {
+                            await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
+                                platform: 'predict',
+                                orderId: ctx.currentOrderHash,
+                                side: side,
+                                price: task.predictPrice,
+                                quantity: remainingQty,
+                                filledQty: ctx.totalPredictFilled,
+                                remainingQty: 0,
+                                avgPrice: task.predictPrice,
+                            }, ctx.currentOrderHash);
+                        }
                     } catch (e) {
                         console.warn('[TaskExecutor] Failed to cancel order on depth guard:', e);
                     }
                     ctx.predictWatchAbort?.abort();
                     ctx.predictWatchAbort = new AbortController();
-                    ctx.currentOrderHash = undefined;
+                    if (cancelSuccess) {
+                        ctx.currentOrderHash = undefined;
+                    }
+                    // 取消失败时保留 hash，让恢复路径可以重试取消
                 }
 
                 this.updateTask(task.id, {
                     status: 'PAUSED',
+                    ...(cancelSuccess ? { currentOrderHash: undefined } : {}),
                     error: `Hedge depth insufficient: ${hedgeDepth.toFixed(2)}`,
                 });
 
@@ -2851,25 +2937,35 @@ export class TaskExecutor extends EventEmitter {
             console.log(`[TaskExecutor] Adjusting task quantity: ${task.quantity} → ${newQuantity}`);
 
             // 取消当前订单
+            let depthAdjustCancelSuccess = false;
             if (ctx.currentOrderHash) {
                 try {
-                    await this.predictTrader.cancelOrder(ctx.currentOrderHash);
-                    await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
-                        platform: 'predict',
-                        orderId: ctx.currentOrderHash,
-                        side: side,
-                        price: task.predictPrice,
-                        quantity: remainingQty,
-                        filledQty: ctx.totalPredictFilled,
-                        remainingQty: 0,
-                        avgPrice: task.predictPrice,
-                    }, ctx.currentOrderHash);
+                    depthAdjustCancelSuccess = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                    if (depthAdjustCancelSuccess) {
+                        await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
+                            platform: 'predict',
+                            orderId: ctx.currentOrderHash,
+                            side: side,
+                            price: task.predictPrice,
+                            quantity: remainingQty,
+                            filledQty: ctx.totalPredictFilled,
+                            remainingQty: 0,
+                            avgPrice: task.predictPrice,
+                        }, ctx.currentOrderHash);
+                    }
                 } catch (e) {
                     console.warn('[TaskExecutor] Failed to cancel order on depth adjustment:', e);
                 }
                 ctx.predictWatchAbort?.abort();
                 ctx.predictWatchAbort = new AbortController();
-                ctx.currentOrderHash = undefined;
+                if (depthAdjustCancelSuccess) {
+                    ctx.currentOrderHash = undefined;
+                } else {
+                    // 取消失败，不能安全地重新下单，跳过本次调整
+                    console.warn('[TaskExecutor] Depth adjustment skipped: cancel failed, retaining current order');
+                    setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                    return;
+                }
             }
 
             // 更新任务数量
@@ -2885,6 +2981,15 @@ export class TaskExecutor extends EventEmitter {
                 return;
             }
 
+            // 互斥: 防止并发提交
+            if (ctx.isSubmitting) {
+                console.log(`[TaskExecutor] Depth adjustment skipped: another path is submitting`);
+                setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                return;
+            }
+            ctx.isSubmitting = true;
+
+            try {
             // 重新下单（新的剩余量）
             const newRemainingQty = newQuantity - ctx.totalPredictFilled;
             if (newRemainingQty > 0) {
@@ -2910,6 +3015,9 @@ export class TaskExecutor extends EventEmitter {
                         currentOrderHash: result.hash,
                     });
                 }
+            }
+            } finally {
+                ctx.isSubmitting = false;
             }
 
             // 继续监控

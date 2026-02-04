@@ -1126,6 +1126,44 @@ export class PredictTrader extends EventEmitter {
         const info = await this.getMarketInfo(marketId);
         return info?.priceDecimals ?? 2;
     }
+
+    /**
+     * 获取指定市场的活跃（OPEN）订单
+     * 用于恢复时检测残留订单，避免重复下单
+     */
+    async getOpenOrdersForMarket(marketId: number): Promise<Array<{ id: string; hash: string; status: string }>> {
+        try {
+            const headers = await this.getAuthHeaders();
+            const res = await fetch(`${API_BASE_URL}/v1/orders?marketId=${marketId}&status=OPEN`, {
+                headers,
+            });
+
+            if (!res.ok) {
+                console.warn(`[PredictTrader] getOpenOrdersForMarket(${marketId}) failed: HTTP ${res.status}`);
+                return [];
+            }
+
+            const data = await res.json() as {
+                success?: boolean;
+                data?: Array<{
+                    id?: string;
+                    hash?: string;
+                    orderHash?: string;
+                    status?: string;
+                }>;
+            };
+
+            const orders = data?.data ?? [];
+            return orders.map(o => ({
+                id: o.id ?? '',
+                hash: o.hash ?? o.orderHash ?? '',
+                status: o.status ?? 'OPEN',
+            })).filter(o => o.id); // 过滤掉无 id 的无效条目
+        } catch (err: any) {
+            console.warn(`[PredictTrader] getOpenOrdersForMarket(${marketId}) error: ${err.message}`);
+            return [];
+        }
+    }
 }
 
 // ============================================================================

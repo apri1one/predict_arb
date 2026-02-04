@@ -441,7 +441,7 @@ export class TaskService extends EventEmitter {
         // 否则基于参数 + 10秒时间窗口生成
         const timeWindow = Math.floor(Date.now() / 10000);
         const hash = crypto.createHash('sha256');
-        hash.update(`${input.marketId}-${input.type}-${input.predictPrice}-${input.quantity}-${timeWindow}`);
+        hash.update(`${input.marketId}-${input.type}-${input.arbSide || ''}-${input.predictPrice}-${input.quantity}-${timeWindow}`);
         return hash.digest('hex').substring(0, 16);
     }
 
