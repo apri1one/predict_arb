@@ -1045,6 +1045,7 @@ export class TaskExecutor extends EventEmitter {
                             filledQty: ctx.totalPredictFilled,
                             remainingQty: ctx.task.quantity - ctx.totalPredictFilled,
                             avgPrice: ctx.task.predictPrice,
+                            cancelReason: `WS 断连 (token: ${disconnectedTokenId.slice(0, 10)}...)`,
                         }, ctx.currentOrderHash);
                     }
                 } catch (e: any) {
@@ -1416,6 +1417,11 @@ export class TaskExecutor extends EventEmitter {
                     // 捕获订单簿快照
                     await this.captureSnapshot(task.id, 'price_guard', task);
 
+                    // 构造取消原因
+                    const priceReasonMsg = side === 'BUY'
+                        ? `价格保护: poly ask=${currentPrice.toFixed(4)} > max=${threshold.toFixed(4)}`
+                        : `价格保护: poly bid=${currentPrice.toFixed(4)} < min=${threshold.toFixed(4)}`;
+
                     // 取消 Predict 订单
                     let cancelSuccess = false;
                     if (ctx.currentOrderHash) {
@@ -1432,6 +1438,7 @@ export class TaskExecutor extends EventEmitter {
                                     filledQty: ctx.totalPredictFilled,
                                     remainingQty: task.quantity - ctx.totalPredictFilled,
                                     avgPrice: task.predictPrice,
+                                    cancelReason: priceReasonMsg,
                                 }, ctx.currentOrderHash);
                             }
                         } catch (e) {
@@ -2895,6 +2902,9 @@ export class TaskExecutor extends EventEmitter {
                 ctx.isPaused = true;
 
                 // 取消当前订单
+                const depthReason = ctx.phantomDepthDetected
+                    ? `幽灵深度: IOC 0 成交 (订单簿显示 ${hedgeDepth.toFixed(2)})`
+                    : `深度保护: depth=${hedgeDepth.toFixed(2)} < remaining=${remainingQty}`;
                 let cancelSuccess = false;
                 if (ctx.currentOrderHash) {
                     try {
@@ -2909,6 +2919,7 @@ export class TaskExecutor extends EventEmitter {
                                 filledQty: ctx.totalPredictFilled,
                                 remainingQty: 0,
                                 avgPrice: task.predictPrice,
+                                cancelReason: depthReason,
                             }, ctx.currentOrderHash);
                         }
                     } catch (e) {
@@ -2951,6 +2962,7 @@ export class TaskExecutor extends EventEmitter {
                             filledQty: ctx.totalPredictFilled,
                             remainingQty: 0,
                             avgPrice: task.predictPrice,
+                            cancelReason: `深度调整: ${task.quantity} → ${newQuantity} (depth=${hedgeDepth.toFixed(2)})`,
                         }, ctx.currentOrderHash);
                     }
                 } catch (e) {

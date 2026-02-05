@@ -226,6 +226,8 @@ export class TaskService extends EventEmitter {
             expiresAt: input.expiryHours && input.expiryHours > 0
                 ? now + input.expiryHours * 60 * 60 * 1000
                 : undefined,
+            // 体育市场标识 (使用 REST API 获取订单簿)
+            isSportsMarket: input.isSportsMarket,
         };
 
         // 5. 保存

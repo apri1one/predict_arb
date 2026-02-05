@@ -278,6 +278,14 @@ export class LogQueryService {
                 case 'ORDER_PARTIAL_FILL':
                     detail = `${p.platform} filled ${p.filledQty} @ ${p.avgPrice}`;
                     break;
+                case 'ORDER_CANCELLED':
+                    // 尝试显示取消原因
+                    if (p.cancelReason) {
+                        detail = p.cancelReason;
+                    } else {
+                        detail = `${p.platform || ''} ${p.side || ''} ${p.quantity || ''} @ ${p.price || ''}`.trim();
+                    }
+                    break;
                 case 'PRICE_GUARD_TRIGGERED':
                     detail = `poly=${p.triggerPrice?.toFixed(4)} > max=${p.thresholdPrice}`;
                     break;

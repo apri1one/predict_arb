@@ -888,6 +888,7 @@ export class TakerExecutor extends EventEmitter {
             remainingQty: orderQty - finalFilledQty,
             avgPrice,
             title: task.title,
+            cancelReason: 'SELL 超时',
         });
 
         // 4. 如果有成交，等待风控条件满足后对冲
@@ -1434,6 +1435,7 @@ export class TakerExecutor extends EventEmitter {
         }
 
         // 记录撤单
+        const cancelReasonText = reason === 'ORDER_TIMEOUT' ? '订单超时' : reason === 'COST_INVALID' ? '成本失效' : reason;
         await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
             platform: 'predict',
             orderId: ctx.currentOrderHash!,
@@ -1445,6 +1447,7 @@ export class TakerExecutor extends EventEmitter {
             remainingQty: Math.max(0, orderQty - finalFilledQty),
             avgPrice: orderPrice,
             title: task.title,
+            cancelReason: cancelReasonText,
         });
 
         // 分支处理
