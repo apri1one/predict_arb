@@ -1246,8 +1246,8 @@ const TaskModal = ({ isOpen, onClose, data, onSubmit, accounts, apiBaseUrl }) =>
             tickSize: opp.tickSize ?? 0.01,
             negRisk: opp.negRisk ?? false,
             predictPrice,
-            polymarketMaxAsk: type === 'BUY' ? (1.0 - predictPrice) : 0,
-            polymarketMinBid: type === 'SELL' ? predictPrice : 0,
+            polymarketMaxAsk: type === 'BUY' ? Number((1.0 - predictPrice).toFixed(4)) : 0,
+            polymarketMinBid: type === 'SELL' ? Number(predictPrice.toFixed(4)) : 0,
             quantity: safeQuantity,
             minProfitBuffer: 0.005,
             orderTimeout: isTaker ? 10000 : 60000,  // TAKER 默认 10 秒超时

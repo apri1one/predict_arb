@@ -2725,11 +2725,14 @@ export class TaskExecutor extends EventEmitter {
 
             let totalDepth = 0;
 
+            // 浮点容差: 1e-9 防止 0.68 <= 0.6799999999999999 判断失败
+            const PRICE_EPSILON = 1e-9;
+
             if (side === 'BUY') {
                 // 买入时看 asks，累计价格 <= maxPrice 的深度
                 const bestAsk = orderbook.asks[0]?.price;
                 for (const ask of orderbook.asks) {
-                    if (ask.price <= maxPrice) {
+                    if (ask.price <= maxPrice + PRICE_EPSILON) {
                         totalDepth += ask.size;
                     } else {
                         break; // asks 已排序，后面的价格更高
@@ -2742,7 +2745,7 @@ export class TaskExecutor extends EventEmitter {
                 // 卖出时看 bids，累计价格 >= minPrice 的深度
                 const bestBid = orderbook.bids[0]?.price;
                 for (const bid of orderbook.bids) {
-                    if (bid.price >= minPrice) {
+                    if (bid.price >= minPrice - PRICE_EPSILON) {
                         totalDepth += bid.size;
                     } else {
                         break; // bids 已排序，后面的价格更低
