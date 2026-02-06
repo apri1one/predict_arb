@@ -105,7 +105,8 @@ export type TaskLifecycleEventType =
     | 'TASK_RESUMED'
     | 'TASK_COMPLETED'
     | 'TASK_FAILED'
-    | 'TASK_CANCELLED';
+    | 'TASK_CANCELLED'
+    | 'DEPTH_RESTORED';
 
 export interface TaskLifecyclePayload {
     status: TaskStatus;
@@ -400,6 +401,7 @@ export const EVENT_PRIORITY_MAP: Record<TaskLogEventType, EventPriority> = {
     TASK_COMPLETED: 'CRITICAL',
     TASK_FAILED: 'CRITICAL',
     TASK_CANCELLED: 'CRITICAL',
+    DEPTH_RESTORED: 'CRITICAL',
     // 订单 - CRITICAL
     ORDER_SUBMITTED: 'CRITICAL',
     ORDER_PARTIAL_FILL: 'INFO',

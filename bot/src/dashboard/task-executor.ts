@@ -91,6 +91,8 @@ interface TaskContext {
     phantomDepthDetected?: boolean;
     /** 防止 onPriceValid 与 checkDepth 并发提交订单 */
     isSubmitting?: boolean;
+    /** 上次深度调整时间戳，防止扩缩振荡 */
+    lastDepthAdjustTime?: number;
 }
 
 // ============================================================================
@@ -2874,6 +2876,7 @@ export class TaskExecutor extends EventEmitter {
         minPrice: number
     ): void {
         const DEPTH_CHECK_INTERVAL = 1000; // 1秒检查一次
+        const DEPTH_EXPAND_COOLDOWN_MS = 10_000; // 扩增冷却期，防止扩缩振荡
 
         const checkDepth = async () => {
             if (ctx.signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
@@ -2888,11 +2891,18 @@ export class TaskExecutor extends EventEmitter {
 
             if (ctx.isPaused) {
                 // 暂停时检查深度是否已恢复，如果恢复则重新提交订单
+                // 以 totalQuantity 为上限，恢复到深度支持的最大数量
                 const task = ctx.task;
-                const remainingQty = task.quantity - ctx.totalPredictFilled;
-                if (remainingQty > 0) {
+                const originalRemaining = task.totalQuantity - ctx.totalPredictFilled;
+                if (originalRemaining > 0) {
                     let recoveredDepth = await this.getHedgeDepth(hedgeTokenId, side, maxPrice, minPrice, task.isSportsMarket);
-                    if (recoveredDepth >= remainingQty) {
+                    // API 失败 (返回 -1)，跳过本次检查
+                    if (recoveredDepth < 0) {
+                        setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                        return;
+                    }
+                    const recoverableQty = Math.min(originalRemaining, Math.floor(recoveredDepth));
+                    if (recoverableQty > 0) {
                         // 挂单价格安全检查：确保不会作为 Taker 立即成交
                         const priceCheck = await this.isPredictPriceSafeForMaker(task, side);
                         if (!priceCheck.safe) {
@@ -2916,14 +2926,17 @@ export class TaskExecutor extends EventEmitter {
                         }
                         ctx.isSubmitting = true;
 
-                        console.log(`[TaskExecutor] Depth recovered: ${recoveredDepth.toFixed(2)} >= remaining ${remainingQty}, resuming task`);
-                        ctx.isPaused = false;
+                        // 深度恢复：更新 task.quantity 到深度支持的量（不超过 totalQuantity）
+                        const oldQuantity = task.quantity;
+                        const newQuantity = ctx.totalPredictFilled + recoverableQty;
+                        console.log(`[TaskExecutor] Depth recovered: ${recoveredDepth.toFixed(2)}, resumable=${recoverableQty}, resuming task`);
 
                         try {
                         // 重新提交 Predict 订单
-                        const taskWithRemaining = { ...task, quantity: remainingQty };
+                        const taskWithRemaining = { ...task, quantity: recoverableQty };
                         const result = await this.submitPredictOrder(taskWithRemaining, side);
                         if (result.success) {
+                            ctx.isPaused = false;
                             ctx.currentOrderHash = result.hash;
 
                             await this.taskLogger.logOrderEvent(task.id, 'ORDER_SUBMITTED', {
@@ -2931,26 +2944,35 @@ export class TaskExecutor extends EventEmitter {
                                 orderId: result.hash!,
                                 side: side,
                                 price: task.predictPrice,
-                                quantity: remainingQty,
+                                quantity: recoverableQty,
                                 filledQty: 0,
-                                remainingQty: remainingQty,
+                                remainingQty: recoverableQty,
                                 avgPrice: 0,
                             }, result.hash);
+
+                            // 如果 quantity 有扩增，记录 DEPTH_RESTORED
+                            if (newQuantity > oldQuantity) {
+                                await this.taskLogger.logTaskLifecycle(task.id, 'DEPTH_RESTORED', {
+                                    status: 'PREDICT_SUBMITTED',
+                                    reason: `Depth recovered: ${oldQuantity} → ${newQuantity} (depth=${recoveredDepth.toFixed(2)})`,
+                                });
+                            }
 
                             await this.taskLogger.logTaskLifecycle(task.id, 'TASK_RESUMED', {
                                 status: 'PREDICT_SUBMITTED',
                                 previousStatus: 'PAUSED',
-                                reason: `Depth recovered: ${recoveredDepth.toFixed(2)} shares`,
+                                reason: `Depth recovered: ${recoveredDepth.toFixed(2)} shares, qty=${newQuantity}`,
                             });
 
                             ctx.task = this.updateTask(task.id, {
                                 status: 'PREDICT_SUBMITTED',
+                                quantity: newQuantity,
                                 currentOrderHash: result.hash,
                                 error: undefined,
                             });
                         } else {
-                            console.warn(`[TaskExecutor] Depth recovered but re-submit failed: ${result.error}, rollback to PAUSED`);
-                            ctx.isPaused = true; // 回滚: 下一轮 checkDepth 会重新尝试
+                            console.warn(`[TaskExecutor] Depth recovered but re-submit failed: ${result.error}, staying PAUSED`);
+                            // isPaused 未变，保持 PAUSED，下一轮 checkDepth 重试
                         }
                         } finally {
                             ctx.isSubmitting = false;
@@ -2982,14 +3004,125 @@ export class TaskExecutor extends EventEmitter {
                 hedgeDepth = 0;
             }
 
-            // 如果深度充足（>= 剩余挂单量），继续
+            // 如果深度充足（>= 剩余挂单量）
             if (hedgeDepth >= remainingQty) {
+                // 检查是否可以向上扩增：quantity 被缩减过且深度能支持更多
+                if (task.quantity < task.totalQuantity) {
+                    const cooldownElapsed = !ctx.lastDepthAdjustTime || (Date.now() - ctx.lastDepthAdjustTime >= DEPTH_EXPAND_COOLDOWN_MS);
+                    if (cooldownElapsed) {
+                        const originalRemaining = task.totalQuantity - ctx.totalPredictFilled;
+                        const expandableQty = Math.min(originalRemaining, Math.floor(hedgeDepth));
+                        if (expandableQty > remainingQty) {
+                            // 深度支持更多量，取消当前订单并扩增重下
+                            console.log(`[TaskExecutor] Depth expand: depth=${hedgeDepth.toFixed(2)} supports ${expandableQty} > current remaining ${remainingQty}`);
+
+                            let cancelSuccess = false;
+                            if (ctx.currentOrderHash) {
+                                try {
+                                    // 取消前先检查订单是否已 FILLED，避免对已成交订单的误操作
+                                    const preStatus = await this.predictTrader.getOrderStatus(ctx.currentOrderHash);
+                                    if (preStatus && preStatus.filledQty > ctx.restFilledQty) {
+                                        ctx.restFilledQty = preStatus.filledQty;
+                                    }
+                                    if (preStatus && preStatus.status === 'FILLED') {
+                                        console.log(`[TaskExecutor] Depth expand: order already FILLED, skip expand → main loop will hedge`);
+                                        setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                                        return;
+                                    }
+                                    cancelSuccess = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                                    if (cancelSuccess) {
+                                        // 取消后确认最终成交量
+                                        const postStatus = await this.predictTrader.getOrderStatus(ctx.currentOrderHash);
+                                        if (postStatus && postStatus.filledQty > ctx.restFilledQty) {
+                                            ctx.restFilledQty = postStatus.filledQty;
+                                        }
+                                        if (postStatus && postStatus.status === 'FILLED') {
+                                            console.log(`[TaskExecutor] Depth expand: cancel noop but order FILLED → main loop will hedge`);
+                                            setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                                            return;
+                                        }
+                                        await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
+                                            platform: 'predict',
+                                            orderId: ctx.currentOrderHash,
+                                            side: side,
+                                            price: task.predictPrice,
+                                            quantity: remainingQty,
+                                            filledQty: ctx.totalPredictFilled,
+                                            remainingQty: 0,
+                                            avgPrice: task.predictPrice,
+                                            cancelReason: `深度扩增: ${task.quantity} → ${ctx.totalPredictFilled + expandableQty} (depth=${hedgeDepth.toFixed(2)})`,
+                                        }, ctx.currentOrderHash);
+                                    }
+                                } catch (e) {
+                                    console.warn('[TaskExecutor] Failed to cancel order on depth expand:', e);
+                                }
+                                ctx.predictWatchAbort?.abort();
+                                ctx.predictWatchAbort = new AbortController();
+                                if (cancelSuccess) {
+                                    ctx.currentOrderHash = undefined;
+                                } else {
+                                    // 取消失败，跳过本次扩增
+                                    setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                                    return;
+                                }
+                            }
+
+                            // 互斥
+                            if (ctx.isSubmitting) {
+                                setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                                return;
+                            }
+                            ctx.isSubmitting = true;
+
+                            try {
+                                const oldQuantity = task.quantity;
+                                const newQuantity = ctx.totalPredictFilled + expandableQty;
+                                ctx.lastDepthAdjustTime = Date.now();
+
+                                const taskWithExpandedQty = { ...task, quantity: expandableQty };
+                                const result = await this.submitPredictOrder(taskWithExpandedQty, side);
+                                if (result.success) {
+                                    ctx.currentOrderHash = result.hash;
+                                    const updatedTask = this.updateTask(task.id, {
+                                        quantity: newQuantity,
+                                        status: 'PREDICT_SUBMITTED',
+                                        currentOrderHash: result.hash,
+                                    });
+                                    ctx.task = updatedTask;
+
+                                    await this.taskLogger.logOrderEvent(task.id, 'ORDER_SUBMITTED', {
+                                        platform: 'predict',
+                                        orderId: result.hash!,
+                                        side: side,
+                                        price: task.predictPrice,
+                                        quantity: expandableQty,
+                                        filledQty: 0,
+                                        remainingQty: expandableQty,
+                                        avgPrice: 0,
+                                    }, result.hash);
+
+                                    await this.taskLogger.logTaskLifecycle(task.id, 'DEPTH_RESTORED', {
+                                        status: 'PREDICT_SUBMITTED',
+                                        reason: `Depth expanded: ${oldQuantity} → ${newQuantity} (depth=${hedgeDepth.toFixed(2)})`,
+                                    });
+                                } else {
+                                    console.warn(`[TaskExecutor] Depth expand submit failed: ${result.error}, keeping current state`);
+                                    // 提交失败: quantity 未修改, currentOrderHash 已清除(cancel 已成功)
+                                    // 下一轮 checkDepth: 深度充足→再次进入扩增分支→冷却期(10s)后重试
+                                }
+                            } finally {
+                                ctx.isSubmitting = false;
+                            }
+                        }
+                    }
+                }
                 setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
                 return;
             }
 
             // 深度不足，需要调整
             console.log(`[TaskExecutor] Depth guard triggered: depth=${hedgeDepth.toFixed(2)}, remaining=${remainingQty}`);
+            ctx.lastDepthAdjustTime = Date.now();
 
             // 计算新的目标数量 = 已成交量 + 可用深度
             const newQuantity = ctx.totalPredictFilled + Math.floor(hedgeDepth);
