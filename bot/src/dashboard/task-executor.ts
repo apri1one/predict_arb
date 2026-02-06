@@ -32,6 +32,7 @@ const MAX_PAUSE_COUNT = 5;          // 最大价格守护暂停次数
 const HEDGE_TIMEOUT_MS = 30000;     // 对冲超时
 const PREDICT_POLL_INTERVAL = 500;  // Predict 轮询间隔
 const UNWIND_MAX_RETRIES = 3;       // 反向平仓最大重试
+const BSC_WATCHER_TIMEOUT = 4 * 60 * 60 * 1000; // BSC watcher 超时 (4小时，Maker 订单可存活数小时)
 const MIN_HEDGE_QTY = 1;            // 最小对冲数量阈值 (shares)，低于此值跳过对冲
 const POLY_WS_STALE_MS = 15000;
 
@@ -51,6 +52,7 @@ interface PolyOrderFillTracker {
     filledQty: number;
     avgPrice: number;
     lastCheckedAt: number;
+    isTerminal?: boolean;  // MATCHED/CANCELLED 已确认，refreshTrackedPolyFills 可跳过
 }
 
 interface TaskContext {
@@ -1422,13 +1424,34 @@ export class TaskExecutor extends EventEmitter {
                         ? `价格保护: poly ask=${currentPrice.toFixed(4)} > max=${threshold.toFixed(4)}`
                         : `价格保护: poly bid=${currentPrice.toFixed(4)} < min=${threshold.toFixed(4)}`;
 
-                    // 取消 Predict 订单
+                    // 取消 Predict 订单 (取消前先查订单状态，避免取消已成交订单)
                     let cancelSuccess = false;
                     if (ctx.currentOrderHash) {
                         try {
+                            const preStatus = await this.predictTrader.getOrderStatus(ctx.currentOrderHash);
+                            if (preStatus && preStatus.filledQty > ctx.restFilledQty) {
+                                ctx.restFilledQty = preStatus.filledQty;
+                            }
+                            // 订单已完全成交，跳过取消，让主循环处理对冲
+                            if (preStatus && preStatus.status === 'FILLED') {
+                                console.log(`[TaskExecutor] Price guard: order already FILLED, skip cancel → main loop will hedge`);
+                                ctx.isPaused = false;
+                                return;
+                            }
                             cancelSuccess = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
                             if (cancelSuccess) {
-                                // 记录订单取消
+                                // 取消后再查一次确认最终成交量 (处理竞态: cancel noop 但订单实际已成交)
+                                const postStatus = await this.predictTrader.getOrderStatus(ctx.currentOrderHash);
+                                if (postStatus && postStatus.filledQty > ctx.restFilledQty) {
+                                    ctx.restFilledQty = postStatus.filledQty;
+                                }
+                                if (postStatus && postStatus.status === 'FILLED') {
+                                    // cancel 返回 noop 但订单实际已成交，跳过取消逻辑，让主循环处理对冲
+                                    console.log(`[TaskExecutor] Price guard: cancel noop but order FILLED → main loop will hedge`);
+                                    ctx.isPaused = false;
+                                    return;
+                                }
+                                // 正常取消成功
                                 await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
                                     platform: 'predict',
                                     orderId: ctx.currentOrderHash,
@@ -1450,7 +1473,7 @@ export class TaskExecutor extends EventEmitter {
                         if (cancelSuccess) {
                             ctx.currentOrderHash = undefined;
                         }
-                        // 取消失败时保留 hash，让恢复路径可以重试取消
+                        // 取消失败时保留 hash，主循环 Fix1 会 REST 轮询检测成交
                     }
 
                     // 记录任务暂停
@@ -1529,8 +1552,6 @@ export class TaskExecutor extends EventEmitter {
                     const priceType = side === 'BUY' ? 'ask' : 'bid';
                     console.log(`[TaskExecutor] Price valid again: poly ${priceType}=${currentPrice.toFixed(4)}`);
 
-                    ctx.isPaused = false;
-
                     try {
 
                     // 计算剩余量 (原始数量 - 已成交量)
@@ -1539,6 +1560,16 @@ export class TaskExecutor extends EventEmitter {
                         console.log(`[TaskExecutor] No remaining quantity, skipping re-submit`);
                         return;
                     }
+
+                    // 检查对冲深度是否足够，避免下单后被深度监控立即暂停
+                    const hedgeDepthForResume = await this.getHedgeDepth(hedgeTokenId, side, maxPrice, minPrice, task.isSportsMarket);
+                    if (hedgeDepthForResume >= 0 && hedgeDepthForResume < remainingQty) {
+                        console.log(`[TaskExecutor] Price guard resume: hedge depth insufficient (${hedgeDepthForResume.toFixed(2)} < ${remainingQty}), staying paused`);
+                        return; // ctx.isPaused 保持 true，等待深度恢复
+                    }
+
+                    // 深度充足，正式恢复
+                    ctx.isPaused = false;
 
                     const threshold = side === 'BUY' ? maxPrice : minPrice;
 
@@ -1579,6 +1610,7 @@ export class TaskExecutor extends EventEmitter {
                         task = this.updateTask(task.id, {
                             status: 'PREDICT_SUBMITTED',
                             currentOrderHash: result.hash,
+                            error: undefined, // 清除旧 error (如 "Hedge depth insufficient")
                         });
                         ctx.task = task;
 
@@ -1705,6 +1737,9 @@ export class TaskExecutor extends EventEmitter {
         let watchedOrderHash: string | null = null;
         // 基准偏移：重挂订单前已累计的成交量，确保 total 单调增长
         let baseFilledBeforeOrder = ctx.totalPredictFilled;
+        // REST 连续失败计数（防止无限静默重试）
+        let restConsecutiveFailures = 0;
+        const REST_MAX_CONSECUTIVE_FAILURES = 20; // 连续 20 次 (~10s) 后告警
 
         /**
          * 合并 WSS 和 REST 成交量，更新 totalPredictFilled
@@ -1787,7 +1822,7 @@ export class TaskExecutor extends EventEmitter {
                                 resetWssSignal();
                             }
                         },
-                        300000 // 5分钟超时
+                        BSC_WATCHER_TIMEOUT
                     );
                     console.log(`[TaskExecutor] Task ${task.id}: WSS watcher registered for ${orderHash.slice(0, 10)}... (base=${baseFilledBeforeOrder.toFixed(2)})`);
                 }
@@ -1826,7 +1861,7 @@ export class TaskExecutor extends EventEmitter {
                                 resetWssSignal();
                             }
                         },
-                        300000
+                        BSC_WATCHER_TIMEOUT
                     );
                     console.log(`[TaskExecutor] Task ${task.id}: WSS watcher initialized (base=${baseFilledBeforeOrder.toFixed(2)})`);
                 }
@@ -1841,9 +1876,15 @@ export class TaskExecutor extends EventEmitter {
                 if (ctx.isPaused) {
                     await Promise.race([this.delay(500), wssEventPromise]);
                     if (!wssEventPending) {
-                        continue;
+                        // 取消失败时订单仍然活跃，继续 REST 轮询以检测成交
+                        // 否则 BSC watcher 超时后成交将永远不会被检测到
+                        if (!ctx.currentOrderHash) {
+                            continue;
+                        }
+                        // fall through: 对活跃订单执行 REST 轮询
+                    } else {
+                        wssEventPending = false;
                     }
-                    wssEventPending = false;
                 }
 
                 // 如果没有订单，取消 watcher 并等待重新提交
@@ -1932,10 +1973,18 @@ export class TaskExecutor extends EventEmitter {
                 // 查询订单状态 (REST)
                 const status = await this.predictTrader.getOrderStatus(ctx.currentOrderHash);
                 if (!status) {
+                    restConsecutiveFailures++;
+                    if (restConsecutiveFailures === REST_MAX_CONSECUTIVE_FAILURES) {
+                        console.error(`[TaskExecutor] ⚠️ Task ${task.id}: REST getOrderStatus 连续 ${restConsecutiveFailures} 次失败，API 可能异常`);
+                    } else if (restConsecutiveFailures > 0 && restConsecutiveFailures % 60 === 0) {
+                        // 每 60 次 (~30s) 持续告警
+                        console.error(`[TaskExecutor] ⚠️ Task ${task.id}: REST getOrderStatus 持续失败 (${restConsecutiveFailures} 次)`);
+                    }
                     // REST 失败时也允许 WSS 事件打断等待
                     await Promise.race([this.delay(PREDICT_POLL_INTERVAL), wssEventPromise]);
                     continue;
                 }
+                restConsecutiveFailures = 0; // 成功后重置
 
                 // 更新 REST 成交量 (单调不减)
                 if (status.filledQty > ctx.restFilledQty) {
@@ -2300,8 +2349,8 @@ export class TaskExecutor extends EventEmitter {
             retryCount: 0,
         }, attemptId);
 
-        // 捕获订单簿快照
-        await this.captureSnapshot(task.id, 'hedge_start', task);
+        // 捕获订单簿快照 (fire-and-forget，不阻塞对冲下单)
+        this.captureSnapshot(task.id, 'hedge_start', task).catch(() => {});
 
         while (retryCount < task.maxHedgeRetries && remaining >= MIN_HEDGE_QTY) {
             if (signal.aborted) {
@@ -2317,6 +2366,19 @@ export class TaskExecutor extends EventEmitter {
             }
 
             try {
+                // 防超额对冲: 用全局 totalHedged 重新校准局部 remaining
+                // 场景: 上一轮 watchResult 低报/漏报，异步 refresh 或 refreshTrackedPolyFills
+                //        已发现"迟到成交"并更新了 ctx.totalHedged，此时 remaining 已过时
+                const currentUnhedged = ctx.totalPredictFilled - ctx.totalHedged;
+                if (currentUnhedged < MIN_HEDGE_QTY) {
+                    console.log(`[TaskExecutor] Hedge calibration: totalHedged=${ctx.totalHedged.toFixed(4)} covers totalPredictFilled=${ctx.totalPredictFilled.toFixed(4)}, done`);
+                    break;
+                }
+                if (currentUnhedged < remaining) {
+                    console.log(`[TaskExecutor] Hedge calibration: remaining ${remaining.toFixed(4)} → ${currentUnhedged.toFixed(4)} (async refresh discovered late fills)`);
+                    remaining = currentUnhedged;
+                }
+
                 // 记录对冲尝试
                 await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_ATTEMPT', {
                     hedgeQty: remaining,
@@ -2402,30 +2464,37 @@ export class TaskExecutor extends EventEmitter {
                     });
                 }
 
-                // 等待成交（增加等待时间：500ms × 20 = 10秒）
+                // 等待成交（WS+REST 双轨，intervalMs=250 加速 IOC 确认）
                 const hedgeResult = await new Promise<OrderWatchResult>((resolve) => {
                     this.orderMonitor.watchPolymarketOrder(
                         polyResult.orderId!,
                         (result) => resolve(result),
-                        { intervalMs: 500, maxRetries: 20 }
+                        { intervalMs: 250, maxRetries: 8 }
                     );
                 });
 
-                // 再确认一次 Poly 成交（应对状态/filledQty 延迟上报），并以“新增确认成交量”更新累计
-                const refreshed = await this.refreshSinglePolyFill(
-                    ctx,
-                    polyResult.orderId!,
-                    {
-                        fallbackFilledQty: hedgeResult.filledQty,
-                        fallbackAvgPrice: hedgePrice,
-                        force: true,
-                    }
-                );
+                // 信任 watchResult (WS+REST 双轨已确认)，直接用于更新累计
+                // 异步启动 refreshSinglePolyFill 做延迟校验（不阻塞下一步决策）
+                const watchFilledQty = hedgeResult.filledQty;
+                const watchAvgPrice = hedgePrice;
 
-                if (refreshed.delta > 0) {
-                    totalFilled += refreshed.delta;
-                    priceSum += refreshed.delta * refreshed.avgPrice;
-                    remaining -= refreshed.delta;
+                // 先用 watchResult 立即更新
+                const watchDelta = this.applyPolyFillDelta(ctx, polyResult.orderId!, watchFilledQty, watchAvgPrice);
+
+                // 异步校验：不阻塞主流程，发现差异会通过 ctx.totalHedged 传递给下轮校准
+                // 注意: watchFilledQty=0 时也必须启动，否则"迟到成交"无法被及时发现
+                this.refreshSinglePolyFill(ctx, polyResult.orderId!, {
+                    fallbackFilledQty: watchFilledQty,
+                    fallbackAvgPrice: watchAvgPrice,
+                    force: true,
+                }).catch(err => {
+                    console.warn(`[TaskExecutor] Async refresh failed for ${polyResult.orderId!.slice(0, 10)}...: ${err.message}`);
+                });
+
+                if (watchDelta > 0) {
+                    totalFilled += watchDelta;
+                    priceSum += watchDelta * watchAvgPrice;
+                    remaining -= watchDelta;
 
                     // 记录 Polymarket 订单成交
                     const orderEventType = remaining <= 0 ? 'ORDER_FILLED' : 'ORDER_PARTIAL_FILL';
@@ -2435,15 +2504,15 @@ export class TaskExecutor extends EventEmitter {
                         side: hedgeSide,
                         price: hedgePrice,
                         quantity: quantity,
-                        filledQty: refreshed.filledQty,
+                        filledQty: watchFilledQty,
                         remainingQty: remaining,
-                        avgPrice: refreshed.avgPrice,
+                        avgPrice: watchAvgPrice,
                     });
 
                     // 记录部分对冲
                     if (remaining > 0) {
                         await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_PARTIAL', {
-                            hedgeQty: refreshed.delta,
+                            hedgeQty: watchDelta,
                             totalHedged: ctx.totalHedged,
                             totalPredictFilled: ctx.totalPredictFilled,
                             avgHedgePrice: totalFilled > 0 ? priceSum / totalFilled : 0,
@@ -2451,7 +2520,7 @@ export class TaskExecutor extends EventEmitter {
                         }, attemptId);
                     }
 
-                    console.log(`[TaskExecutor] Hedge filled (confirmed): ${refreshed.delta} @ ${refreshed.avgPrice.toFixed(4)}`);
+                    console.log(`[TaskExecutor] Hedge filled (watch): ${watchDelta} @ ${watchAvgPrice.toFixed(4)}`);
                 }
 
                 if (remaining <= 0 || remaining < MIN_HEDGE_QTY) {
@@ -2476,7 +2545,7 @@ export class TaskExecutor extends EventEmitter {
 
                 // 幽灵深度检测: 订单簿显示有深度但 IOC 0 成交
                 // 立即取消 Predict 挂单，防止在对冲重试期间继续成交扩大敞口
-                if (refreshed.delta === 0 && ctx.currentOrderHash) {
+                if (watchDelta === 0 && ctx.currentOrderHash) {
                     console.warn(`[TaskExecutor] 🛑 幽灵深度: 订单簿有 ${hedgePrice} asks 但 IOC 0 成交，取消 Predict 订单防止继续成交`);
                     ctx.phantomDepthDetected = true;
                     try {
@@ -2505,7 +2574,8 @@ export class TaskExecutor extends EventEmitter {
                 }
 
                 retryCount++;
-                await this.delay(500);
+                // watchDelta>0: 已确认成交，快速重试; watchDelta=0: 等异步 refresh 有时间发现迟到成交
+                await this.delay(watchDelta > 0 ? 100 : 500);
 
             } catch (error: any) {
                 retryCount++;
@@ -2528,7 +2598,7 @@ export class TaskExecutor extends EventEmitter {
                 });
 
                 if (retryCount < task.maxHedgeRetries) {
-                    await this.delay(1000 * retryCount);
+                    await this.delay(Math.min(500 * retryCount, 2000));  // 500ms, 1s, 2s (capped)
                 }
             }
         }
@@ -2911,8 +2981,32 @@ export class TaskExecutor extends EventEmitter {
                 let cancelSuccess = false;
                 if (ctx.currentOrderHash) {
                     try {
+                        // 取消前先查订单状态，避免取消已成交订单
+                        const preStatus = await this.predictTrader.getOrderStatus(ctx.currentOrderHash);
+                        if (preStatus && preStatus.filledQty > ctx.restFilledQty) {
+                            ctx.restFilledQty = preStatus.filledQty;
+                        }
+                        // 订单已完全成交，跳过取消，让主循环处理对冲
+                        if (preStatus && preStatus.status === 'FILLED') {
+                            console.log(`[TaskExecutor] Depth guard: order already FILLED, skip cancel → main loop will hedge`);
+                            ctx.isPaused = false;
+                            setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                            return;
+                        }
                         cancelSuccess = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
                         if (cancelSuccess) {
+                            // 取消后再查一次确认最终成交量 (处理竞态: cancel noop 但订单实际已成交)
+                            const postStatus = await this.predictTrader.getOrderStatus(ctx.currentOrderHash);
+                            if (postStatus && postStatus.filledQty > ctx.restFilledQty) {
+                                ctx.restFilledQty = postStatus.filledQty;
+                            }
+                            if (postStatus && postStatus.status === 'FILLED') {
+                                // cancel 返回 noop 但订单实际已成交，让主循环处理对冲
+                                console.log(`[TaskExecutor] Depth guard: cancel noop but order FILLED → main loop will hedge`);
+                                ctx.isPaused = false;
+                                setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                                return;
+                            }
                             await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
                                 platform: 'predict',
                                 orderId: ctx.currentOrderHash,
@@ -2935,6 +3029,13 @@ export class TaskExecutor extends EventEmitter {
                     }
                     // 取消失败时保留 hash，让恢复路径可以重试取消
                 }
+
+                // 记录深度暂停生命周期事件 (之前缺失，导致排障链路不完整)
+                await this.taskLogger.logTaskLifecycle(task.id, 'TASK_PAUSED', {
+                    status: 'PAUSED',
+                    previousStatus: task.status,
+                    reason: depthReason,
+                });
 
                 this.updateTask(task.id, {
                     status: 'PAUSED',
@@ -3172,6 +3273,29 @@ export class TaskExecutor extends EventEmitter {
         }
 
         try {
+            // WS 缓存短路: 先查 WS 缓存（同步，0ms），终态直接返回，避免 REST poll 的 2.4s
+            const wsCached = this.polyTrader.getWsCachedFillStatus(orderId);
+            if (wsCached && wsCached.isTerminal) {
+                const filledQty = wsCached.filledQty > 0 ? wsCached.filledQty
+                    : (options?.fallbackFilledQty ?? current.filledQty);
+                const avgPrice = options?.fallbackAvgPrice ?? current.avgPrice;
+                const delta = this.applyPolyFillDelta(ctx, orderId, filledQty, avgPrice);
+                const updated = ctx.polyOrderFills.get(orderId)!;
+                updated.isTerminal = true;  // 标记终态，后续 refreshTrackedPolyFills 跳过
+
+                if (delta > 0) {
+                    const avgHedgePrice = ctx.totalHedged > 0 ? ctx.hedgePriceSum / ctx.totalHedged : 0;
+                    ctx.task = this.updateTask(ctx.task.id, {
+                        hedgedQty: ctx.totalHedged,
+                        avgPolymarketPrice: avgHedgePrice,
+                        remainingQty: ctx.totalPredictFilled - ctx.totalHedged,
+                    });
+                }
+
+                return { filledQty: updated.filledQty, avgPrice: updated.avgPrice, delta };
+            }
+
+            // WS 缓存未命中或非终态，降级到 REST poll
             const status = await this.polyTrader.pollOrderStatus(
                 orderId,
                 POLY_FILL_RECHECK_MAX_RETRIES,
@@ -3182,6 +3306,11 @@ export class TaskExecutor extends EventEmitter {
             const avgPrice = options?.fallbackAvgPrice ?? current.avgPrice;
             const delta = this.applyPolyFillDelta(ctx, orderId, filledQty, avgPrice);
             const updated = ctx.polyOrderFills.get(orderId)!;
+
+            // REST poll 也标记终态
+            if (status?.status === 'MATCHED' || status?.status === 'CANCELLED') {
+                updated.isTerminal = true;
+            }
 
             if (delta > 0) {
                 const avgHedgePrice = ctx.totalHedged > 0 ? ctx.hedgePriceSum / ctx.totalHedged : 0;
@@ -3202,8 +3331,9 @@ export class TaskExecutor extends EventEmitter {
     private async refreshTrackedPolyFills(ctx: TaskContext): Promise<void> {
         if (ctx.polyOrderFills.size === 0) return;
 
-        // 顺序刷新，避免并发打爆 API（数量通常很小：maxHedgeRetries × 增量次数）
-        for (const orderId of ctx.polyOrderFills.keys()) {
+        // 顺序刷新，跳过已确认终态的订单
+        for (const [orderId, tracker] of ctx.polyOrderFills) {
+            if (tracker.isTerminal) continue;
             await this.refreshSinglePolyFill(ctx, orderId);
         }
     }
