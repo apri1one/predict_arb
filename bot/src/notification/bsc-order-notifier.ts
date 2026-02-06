@@ -7,7 +7,7 @@
 
 import { EventEmitter } from 'events';
 import { getBscOrderWatcher, getSharesFromFillEvent, getFillDirection, type OrderFilledEvent } from '../services/bsc-order-watcher.js';
-import { getTokenMarketCache } from '../services/token-market-cache.js';
+import { getTokenMarketCache, type TokenLookupResult } from '../services/token-market-cache.js';
 import { TelegramNotifier, createTelegramNotifier } from './telegram.js';
 
 export interface BscOrderNotifierConfig {
@@ -139,9 +139,8 @@ export class BscOrderNotifier extends EventEmitter {
             events: [event],
             timer: setTimeout(() => {
                 this.pendingTxEvents.delete(event.txHash);
-                const best = this.pickBestEvent(entry.events, myAddress);
-                void this.notifyOrderFilled(best, myAddress).catch(e => {
-                    console.warn('[BscOrderNotifier] notifyOrderFilled failed:', e?.message || e);
+                void this.notifyFromTxEvents(entry.events, myAddress).catch(e => {
+                    console.warn('[BscOrderNotifier] notifyFromTxEvents failed:', e?.message || e);
                 });
             }, 150),
         };
@@ -149,45 +148,56 @@ export class BscOrderNotifier extends EventEmitter {
     }
 
     /**
-     * 从同一 txHash 的多个 OrderFilled 事件中选出最佳的发通知
+     * 从同一 tx 的所有事件中提取最佳信息并发送通知
      *
-     * CTF 交易所 YES/NO 配对结算会产生两个事件:
-     * - 我方实际订单 (通常 fee=0 即 Maker，或 fee>0 即 Taker)
-     * - 互补面 (对手方订单的另一侧，我方钱包作为 settlement 参与方)
-     *
-     * 选择策略: 优先选我方是 maker 的事件 (fee=0)，其次选 fee 更低的
+     * CTF 交易所同一笔 tx 可能产生多个 OrderFilled 事件 (YES/NO 配对结算)。
+     * 策略:
+     * 1. 遍历所有事件的所有 tokenId 查找市场（解决互补面 tokenId 不在缓存的问题）
+     * 2. 优先使用能解析到市场的事件计算价格/方向
+     * 3. 链上 maker/taker 不一定对应 API 层的角色（NegRisk 结算会交换），
+     *    方向仅反映链上资产流向
      */
-    private pickBestEvent(events: OrderFilledEvent[], myAddress: string): OrderFilledEvent {
-        if (events.length === 1) return events[0];
-
-        // 优先选我方是 maker 的事件 (我方实际挂单)
-        const makerEvent = events.find(e => e.maker.toLowerCase() === myAddress);
-        const takerEvent = events.find(e => e.taker.toLowerCase() === myAddress);
-
-        if (makerEvent && takerEvent) {
-            // 两个都有我方参与 → 选 fee 更低的 (maker fee 通常为 0)
-            return makerEvent.fee <= takerEvent.fee ? makerEvent : takerEvent;
-        }
-
-        return makerEvent || takerEvent || events[0];
-    }
-
-    private async notifyOrderFilled(event: OrderFilledEvent, myAddress: string): Promise<void> {
-        const key = `bsc:${event.txHash}`;
+    private async notifyFromTxEvents(events: OrderFilledEvent[], myAddress: string): Promise<void> {
+        const key = `bsc:${events[0].txHash}`;
         if (this.isDuplicateNotification(key)) return;
 
-        // 提取 token ID: 非零的 assetId 是 token
-        const tokenId = event.takerAssetId !== '0' ? event.takerAssetId : event.makerAssetId;
         const tokenCache = getTokenMarketCache();
-        let lookup = tokenCache.isReady() ? tokenCache.getMarketByTokenId(tokenId) : null;
+        const cacheReady = tokenCache.isReady();
 
-        // 如果首个 tokenId 查不到，尝试另一个 assetId (CTF 配对事件可能携带对侧 tokenId)
-        if (!lookup) {
-            const altTokenId = event.takerAssetId !== '0' ? event.makerAssetId : event.takerAssetId;
-            if (altTokenId !== '0') {
-                lookup = tokenCache.isReady() ? tokenCache.getMarketByTokenId(altTokenId) : null;
+        // 从所有事件的所有非零 assetId 中查找市场
+        let lookup: TokenLookupResult | null = null;
+        let resolvedEvent: OrderFilledEvent | null = null;
+
+        if (cacheReady) {
+            for (const evt of events) {
+                for (const assetId of [evt.makerAssetId, evt.takerAssetId]) {
+                    if (assetId === '0') continue;
+                    const result = tokenCache.getMarketByTokenId(assetId);
+                    if (result) {
+                        lookup = result;
+                        resolvedEvent = evt;
+                        break;
+                    }
+                }
+                if (lookup) break;
             }
         }
+
+        // 未解析到市场时记录调试信息
+        if (!lookup) {
+            const allTokenIds = events.flatMap(e =>
+                [e.makerAssetId, e.takerAssetId].filter(id => id !== '0')
+            );
+            console.warn(
+                `[BscOrderNotifier] 市场查找失败 tx=${events[0].txHash.slice(0, 16)}`,
+                `events=${events.length}`,
+                `tokenIds=[${allTokenIds.map(id => id.slice(0, 12) + '...').join(', ')}]`,
+                `cacheReady=${cacheReady}`,
+            );
+        }
+
+        // 使用解析到市场的事件，否则回退到第一个事件
+        const event = resolvedEvent || events[0];
 
         const marketTitle = lookup?.market.title || '未知市场';
         const tokenSide = lookup?.side || '?';  // YES/NO
@@ -209,12 +219,12 @@ export class BscOrderNotifier extends EventEmitter {
         // 计算成交价格
         const price = shares > 0 ? usdcAmount / shares : 0;
 
-        // 角色：挂单方还是吃单方
+        // 角色：挂单方还是吃单方（链上角色，NegRisk 结算可能与 API 层不同）
         const role = event.maker.toLowerCase() === myAddress ? 'Maker' : 'Taker';
 
-        // 交易类型：买入开仓 / 卖出平仓
-        const actionEmoji = direction === 'BUY' ? '📈' : '📉';
-        const actionText = direction === 'BUY' ? '买入开仓' : '卖出平仓';
+        // 交易类型
+        const actionEmoji = direction === 'BUY' ? '📈' : direction === 'SELL' ? '📉' : '❓';
+        const actionText = direction === 'BUY' ? '买入' : direction === 'SELL' ? '卖出' : '成交';
 
         const feeAmount = role === 'Maker' ? 0 : event.fee;
         const message = `🟠 ✅ <b>Predict 订单成交</b> (链上确认)
