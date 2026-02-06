@@ -1435,6 +1435,10 @@ export class TaskExecutor extends EventEmitter {
                             // 订单已完全成交，跳过取消，让主循环处理对冲
                             if (preStatus && preStatus.status === 'FILLED') {
                                 console.log(`[TaskExecutor] Price guard: order already FILLED, skip cancel → main loop will hedge`);
+                                await this.taskLogger.logTaskLifecycle(task.id, 'TASK_RESUMED', {
+                                    status: task.status as any,
+                                    reason: 'Price guard: order already FILLED before cancel, resuming for hedge',
+                                });
                                 ctx.isPaused = false;
                                 return;
                             }
@@ -1448,6 +1452,10 @@ export class TaskExecutor extends EventEmitter {
                                 if (postStatus && postStatus.status === 'FILLED') {
                                     // cancel 返回 noop 但订单实际已成交，跳过取消逻辑，让主循环处理对冲
                                     console.log(`[TaskExecutor] Price guard: cancel noop but order FILLED → main loop will hedge`);
+                                    await this.taskLogger.logTaskLifecycle(task.id, 'TASK_RESUMED', {
+                                        status: task.status as any,
+                                        reason: 'Price guard: order FILLED after cancel (noop), resuming for hedge',
+                                    });
                                     ctx.isPaused = false;
                                     return;
                                 }
@@ -1563,7 +1571,11 @@ export class TaskExecutor extends EventEmitter {
 
                     // 检查对冲深度是否足够，避免下单后被深度监控立即暂停
                     const hedgeDepthForResume = await this.getHedgeDepth(hedgeTokenId, side, maxPrice, minPrice, task.isSportsMarket);
-                    if (hedgeDepthForResume >= 0 && hedgeDepthForResume < remainingQty) {
+                    if (hedgeDepthForResume < 0) {
+                        console.log(`[TaskExecutor] Price guard resume: hedge depth API failed, staying paused`);
+                        return; // API 失败时保持暂停，等待下一次检查
+                    }
+                    if (hedgeDepthForResume < remainingQty) {
                         console.log(`[TaskExecutor] Price guard resume: hedge depth insufficient (${hedgeDepthForResume.toFixed(2)} < ${remainingQty}), staying paused`);
                         return; // ctx.isPaused 保持 true，等待深度恢复
                     }
@@ -1829,6 +1841,9 @@ export class TaskExecutor extends EventEmitter {
             } catch {
                 console.log(`[TaskExecutor] Task ${task.id}: BSC WSS not available for ${orderHash.slice(0, 10)}...`);
             }
+
+            // 重置 REST 连续失败计数，避免旧订单的失败计数影响新订单告警
+            restConsecutiveFailures = 0;
         };
 
         // 初始注册（如果有订单）
@@ -2128,78 +2143,87 @@ export class TaskExecutor extends EventEmitter {
                         // 有未对冲的部分
                         const unhedgedQty = ctx.totalPredictFilled - ctx.totalHedged;
 
-                        // 检查是否是深度/价格保护导致的取消
-                        if (ctx.currentOrderHash !== watchedOrderHash) {
-                            console.log(`[TaskExecutor] Task ${task.id}: Order cancelled by guard with fills (${ctx.totalPredictFilled} filled, ${unhedgedQty} unhedged), hedging and continuing...`);
+                        // 检查是否是深度/价格保护导致的取消 (hash 变化 = guard 已处理, isPaused = guard 正在处理)
+                        const isGuardCancel = ctx.currentOrderHash !== watchedOrderHash || ctx.isPaused;
+                        const cancelSource = isGuardCancel ? 'guard' : 'external';
+                        console.log(`[TaskExecutor] Task ${task.id}: Order ${status.status} with fills (${ctx.totalPredictFilled.toFixed(2)} filled, ${unhedgedQty.toFixed(2)} unhedged), source=${cancelSource}`);
 
-                            // 记录订单取消事件
-                            await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
-                                platform: 'predict',
-                                orderId: watchedOrderHash!,
-                                side: side,
-                                price: task.predictPrice,
-                                quantity: task.quantity,
-                                filledQty: ctx.totalPredictFilled,
-                                remainingQty: task.quantity - ctx.totalPredictFilled,
-                                avgPrice: task.predictPrice,
-                                cancelReason: status.cancelReason,
-                                rawResponse: status.rawResponse,
-                            }, watchedOrderHash ?? undefined);
-
-                            // 对冲已成交部分
-                            const hedgeCheck = await this.checkShouldHedge(ctx, unhedgedQty, false);
-                            if (hedgeCheck.shouldHedge) {
-                                const hedgeResult = await this.executeIncrementalHedge(ctx, hedgeCheck.hedgeQty, side);
-                                if (hedgeResult.filledQty > 0) {
-                                    console.log(`[TaskExecutor] Hedge delta after guard cancel: ${hedgeResult.filledQty}, total hedged: ${ctx.totalHedged}`);
-                                    const avgHedgePrice = ctx.totalHedged > 0 ? ctx.hedgePriceSum / ctx.totalHedged : 0;
-                                    task = this.updateTask(task.id, {
-                                        hedgedQty: ctx.totalHedged,
-                                        avgPolymarketPrice: avgHedgePrice,
-                                        remainingQty: ctx.totalPredictFilled - ctx.totalHedged,
-                                    });
-                                    ctx.task = task;
-                                }
-                                if (!hedgeResult.success) {
-                                    console.error(`[TaskExecutor] Hedge failed after guard cancel, initiating UNWIND`);
-                                    await this.executeUnwind(ctx);
-                                    return;
-                                }
-                            }
-
-                            // 继续监控新订单
-                            if (ctx.currentOrderHash) {
-                                resetForNewOrder(ctx.currentOrderHash);
-                            } else {
-                                cancelWatcherIfAny();
-                                watchedOrderHash = null;
-                            }
-                            continue;
-                        }
-
-                        // 订单确实被外部取消（非保护机制），执行 UNWIND
-                        console.error(`[TaskExecutor] Order ${status.status} with unhedged position (external cancel)`);
-
-                        // 记录订单过期/取消
-                        await this.taskLogger.logOrderEvent(task.id, status.status === 'CANCELLED' ? 'ORDER_CANCELLED' : 'ORDER_EXPIRED', {
+                        // 记录订单取消事件
+                        await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
                             platform: 'predict',
-                            orderId: ctx.currentOrderHash!,
+                            orderId: watchedOrderHash!,
                             side: side,
                             price: task.predictPrice,
                             quantity: task.quantity,
                             filledQty: ctx.totalPredictFilled,
                             remainingQty: task.quantity - ctx.totalPredictFilled,
                             avgPrice: task.predictPrice,
-                            cancelReason: status.cancelReason,
+                            cancelReason: `${cancelSource}: ${status.cancelReason || status.status}`,
                             rawResponse: status.rawResponse,
-                        }, ctx.currentOrderHash);
+                        }, watchedOrderHash ?? undefined);
 
-                        await this.executeUnwind(ctx);
+                        // 对冲已成交部分 (无论 guard 还是 external，都尝试对冲，绝不触发反向平仓)
+                        const hedgeCheck = await this.checkShouldHedge(ctx, unhedgedQty, false);
+                        if (hedgeCheck.shouldHedge) {
+                            const hedgeResult = await this.executeIncrementalHedge(ctx, hedgeCheck.hedgeQty, side);
+                            if (hedgeResult.filledQty > 0) {
+                                console.log(`[TaskExecutor] Hedge delta after ${cancelSource} cancel: ${hedgeResult.filledQty}, total hedged: ${ctx.totalHedged}`);
+                                const avgHedgePrice = ctx.totalHedged > 0 ? ctx.hedgePriceSum / ctx.totalHedged : 0;
+                                task = this.updateTask(task.id, {
+                                    hedgedQty: ctx.totalHedged,
+                                    avgPolymarketPrice: avgHedgePrice,
+                                    remainingQty: ctx.totalPredictFilled - ctx.totalHedged,
+                                });
+                                ctx.task = task;
+                            }
+                            if (!hedgeResult.success) {
+                                // 对冲失败 — 绝不触发反向平仓，标记错误等待人工处理
+                                const hedgeErrorMsg = `Hedge incomplete after ${cancelSource} cancel: ${ctx.totalHedged.toFixed(2)}/${ctx.totalPredictFilled.toFixed(2)} hedged`;
+                                console.error(`[TaskExecutor] ${hedgeErrorMsg}`);
+                                await this.taskLogger.logTaskLifecycle(task.id, 'TASK_FAILED', {
+                                    status: 'HEDGE_FAILED',
+                                    previousStatus: task.status,
+                                    error: new Error(hedgeErrorMsg),
+                                });
+                                task = this.updateTask(task.id, {
+                                    status: 'HEDGE_FAILED',
+                                    error: hedgeErrorMsg,
+                                });
+                                ctx.task = task;
+                                return;
+                            }
+                        }
+
+                        if (isGuardCancel) {
+                            // Guard cancel: 继续监控新订单
+                            if (ctx.currentOrderHash && ctx.currentOrderHash !== watchedOrderHash) {
+                                resetForNewOrder(ctx.currentOrderHash);
+                            } else {
+                                // isPaused 场景: hash 未变化 (cancel 失败但订单已取消)，清除旧 hash
+                                ctx.currentOrderHash = undefined;
+                                cancelWatcherIfAny();
+                                watchedOrderHash = null;
+                            }
+                            continue;
+                        }
+
+                        // 外部取消 — 仍不触发反向平仓，标记 HEDGE_FAILED 等待人工处理
+                        console.error(`[TaskExecutor] External cancel with unhedged position, marking HEDGE_FAILED (no UNWIND)`);
+                        await this.taskLogger.logTaskLifecycle(task.id, 'TASK_FAILED', {
+                            status: 'HEDGE_FAILED',
+                            previousStatus: task.status,
+                            reason: `External ${status.status} with ${unhedgedQty.toFixed(2)} unhedged`,
+                        });
+                        task = this.updateTask(task.id, {
+                            status: 'HEDGE_FAILED',
+                            error: `External ${status.status}: ${unhedgedQty.toFixed(2)} unhedged (hedged: ${ctx.totalHedged.toFixed(2)}/${ctx.totalPredictFilled.toFixed(2)})`,
+                        });
+                        ctx.task = task;
                         return;
                     } else if (ctx.totalPredictFilled === 0) {
                         // 没有成交，检查是否是深度/价格保护导致的取消
-                        // 如果 ctx.currentOrderHash 已变化（被清空或更新为新订单），说明保护机制正在处理
-                        if (ctx.currentOrderHash !== watchedOrderHash) {
+                        // hash 变化 = guard 已处理, isPaused = guard 正在处理 (cancel 失败但订单已取消)
+                        if (ctx.currentOrderHash !== watchedOrderHash || ctx.isPaused) {
                             console.log(`[TaskExecutor] Task ${task.id}: Order cancelled by guard (hash changed: ${watchedOrderHash?.slice(0, 10)} → ${ctx.currentOrderHash?.slice(0, 10) || 'null'}), continuing...`);
                             // 记录订单取消事件
                             await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
@@ -2215,11 +2239,12 @@ export class TaskExecutor extends EventEmitter {
                                 rawResponse: status.rawResponse,
                             }, watchedOrderHash ?? undefined);
                             // 不取消任务，继续监控循环
-                            if (ctx.currentOrderHash) {
+                            if (ctx.currentOrderHash && ctx.currentOrderHash !== watchedOrderHash) {
                                 // 已有新订单，重置监控状态
                                 resetForNewOrder(ctx.currentOrderHash);
                             } else {
-                                // 等待新订单提交
+                                // isPaused 场景或等待新订单提交
+                                ctx.currentOrderHash = undefined;
                                 cancelWatcherIfAny();
                                 watchedOrderHash = null;
                             }
@@ -2989,6 +3014,10 @@ export class TaskExecutor extends EventEmitter {
                         // 订单已完全成交，跳过取消，让主循环处理对冲
                         if (preStatus && preStatus.status === 'FILLED') {
                             console.log(`[TaskExecutor] Depth guard: order already FILLED, skip cancel → main loop will hedge`);
+                            this.taskLogger.logTaskLifecycle(task.id, 'TASK_RESUMED', {
+                                status: task.status as any,
+                                reason: 'Depth guard: order already FILLED before cancel, resuming for hedge',
+                            }).catch(() => {});
                             ctx.isPaused = false;
                             setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
                             return;
@@ -3003,6 +3032,10 @@ export class TaskExecutor extends EventEmitter {
                             if (postStatus && postStatus.status === 'FILLED') {
                                 // cancel 返回 noop 但订单实际已成交，让主循环处理对冲
                                 console.log(`[TaskExecutor] Depth guard: cancel noop but order FILLED → main loop will hedge`);
+                                this.taskLogger.logTaskLifecycle(task.id, 'TASK_RESUMED', {
+                                    status: task.status as any,
+                                    reason: 'Depth guard: order FILLED after cancel (noop), resuming for hedge',
+                                }).catch(() => {});
                                 ctx.isPaused = false;
                                 setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
                                 return;
