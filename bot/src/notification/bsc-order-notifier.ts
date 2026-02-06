@@ -30,6 +30,10 @@ export class BscOrderNotifier extends EventEmitter {
     private recentNotifications: Map<string, number> = new Map();
     private cleanupTimer: NodeJS.Timeout | null = null;
 
+    // CTF 交易所同一笔 tx 产生两个 OrderFilled 事件 (YES/NO 配对结算)
+    // 缓冲同一 txHash 的事件，选最佳的发送，避免重复通知
+    private pendingTxEvents: Map<string, { events: OrderFilledEvent[]; timer: NodeJS.Timeout }> = new Map();
+
     constructor(config: BscOrderNotifierConfig) {
         super();
         this.config = {
@@ -91,6 +95,12 @@ export class BscOrderNotifier extends EventEmitter {
             this.cleanupTimer = null;
         }
 
+        // 清理 pending tx buffers
+        for (const [, entry] of this.pendingTxEvents) {
+            clearTimeout(entry.timer);
+        }
+        this.pendingTxEvents.clear();
+
         if (this.eventHandler) {
             try {
                 getBscOrderWatcher().off('orderFilled', this.eventHandler);
@@ -117,12 +127,67 @@ export class BscOrderNotifier extends EventEmitter {
             if (!isMine) return;
         }
 
-        const key = `bsc:${event.orderHash}:${event.txHash}`;
+        // CTF 交易所同一笔 tx 产生 YES/NO 配对的两个 OrderFilled 事件
+        // 缓冲 150ms，收集同一 txHash 的所有事件后选最佳的发送
+        const pending = this.pendingTxEvents.get(event.txHash);
+        if (pending) {
+            pending.events.push(event);
+            return; // timer 已启动，等待收集完毕
+        }
+
+        const entry = {
+            events: [event],
+            timer: setTimeout(() => {
+                this.pendingTxEvents.delete(event.txHash);
+                const best = this.pickBestEvent(entry.events, myAddress);
+                void this.notifyOrderFilled(best, myAddress).catch(e => {
+                    console.warn('[BscOrderNotifier] notifyOrderFilled failed:', e?.message || e);
+                });
+            }, 150),
+        };
+        this.pendingTxEvents.set(event.txHash, entry);
+    }
+
+    /**
+     * 从同一 txHash 的多个 OrderFilled 事件中选出最佳的发通知
+     *
+     * CTF 交易所 YES/NO 配对结算会产生两个事件:
+     * - 我方实际订单 (通常 fee=0 即 Maker，或 fee>0 即 Taker)
+     * - 互补面 (对手方订单的另一侧，我方钱包作为 settlement 参与方)
+     *
+     * 选择策略: 优先选我方是 maker 的事件 (fee=0)，其次选 fee 更低的
+     */
+    private pickBestEvent(events: OrderFilledEvent[], myAddress: string): OrderFilledEvent {
+        if (events.length === 1) return events[0];
+
+        // 优先选我方是 maker 的事件 (我方实际挂单)
+        const makerEvent = events.find(e => e.maker.toLowerCase() === myAddress);
+        const takerEvent = events.find(e => e.taker.toLowerCase() === myAddress);
+
+        if (makerEvent && takerEvent) {
+            // 两个都有我方参与 → 选 fee 更低的 (maker fee 通常为 0)
+            return makerEvent.fee <= takerEvent.fee ? makerEvent : takerEvent;
+        }
+
+        return makerEvent || takerEvent || events[0];
+    }
+
+    private async notifyOrderFilled(event: OrderFilledEvent, myAddress: string): Promise<void> {
+        const key = `bsc:${event.txHash}`;
         if (this.isDuplicateNotification(key)) return;
 
+        // 提取 token ID: 非零的 assetId 是 token
         const tokenId = event.takerAssetId !== '0' ? event.takerAssetId : event.makerAssetId;
         const tokenCache = getTokenMarketCache();
-        const lookup = tokenCache.isReady() ? tokenCache.getMarketByTokenId(tokenId) : null;
+        let lookup = tokenCache.isReady() ? tokenCache.getMarketByTokenId(tokenId) : null;
+
+        // 如果首个 tokenId 查不到，尝试另一个 assetId (CTF 配对事件可能携带对侧 tokenId)
+        if (!lookup) {
+            const altTokenId = event.takerAssetId !== '0' ? event.makerAssetId : event.takerAssetId;
+            if (altTokenId !== '0') {
+                lookup = tokenCache.isReady() ? tokenCache.getMarketByTokenId(altTokenId) : null;
+            }
+        }
 
         const marketTitle = lookup?.market.title || '未知市场';
         const tokenSide = lookup?.side || '?';  // YES/NO

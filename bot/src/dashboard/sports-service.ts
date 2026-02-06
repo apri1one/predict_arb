@@ -40,6 +40,7 @@ import type {
     SportsSSEData,
     PolyMarket,
     SportType,
+    MatchMethod,
     MatchedMarket,
 } from './sports-types.js';
 import { POLY_SPORTS_TAGS, SPORTS_KEYWORDS, CONSISTENCY_EPSILON, NBA_CITY_TO_ABBR, NBA_ABBR_TO_TEAM } from './sports-types.js';
@@ -923,6 +924,78 @@ export class SportsService {
             }
         }
 
+        // 方法 D: conditionId 直接匹配 (通过 CLOB API 获取 Polymarket 数据)
+        // 用于 Gamma API tag 无法覆盖的体育类型 (如 Dota 2, CS2)
+        const unmatchedSportsWithLinks = predictSportsMarkets.filter(m =>
+            !matches.some(x => x.predictId === m.id) &&
+            m.polymarketConditionIds && m.polymarketConditionIds.length > 0
+        );
+
+        if (unmatchedSportsWithLinks.length > 0) {
+            console.log(`[SportsService] Method D: ${unmatchedSportsWithLinks.length} unmatched sports markets with conditionIds`);
+
+            const clobResults = await Promise.all(
+                unmatchedSportsWithLinks.map(async (m) => {
+                    const conditionId = m.polymarketConditionIds![0];
+                    try {
+                        const res = await fetch(`https://clob.polymarket.com/markets/${conditionId}`, {
+                            signal: AbortSignal.timeout(5000)
+                        });
+                        if (!res.ok) return null;
+
+                        const data = await res.json() as any;
+                        if (data.closed === true || data.accepting_orders === false) return null;
+
+                        // 将 CLOB 响应转换为 PolyMarket 兼容对象
+                        const tokens = data.tokens || [];
+                        const polyMarket: PolyMarket = {
+                            id: data.condition_id || conditionId,
+                            question: data.question || '',
+                            conditionId: data.condition_id || conditionId,
+                            slug: data.market_slug || '',
+                            outcomes: JSON.stringify(tokens.map((t: any) => t.outcome)),
+                            outcomePrices: JSON.stringify(tokens.map((t: any) => String(t.price || '0'))),
+                            clobTokenIds: JSON.stringify(tokens.map((t: any) => t.token_id)),
+                            endDate: data.end_date_iso || '',
+                            liquidity: String(data.liquidity || '0'),
+                            volume: String(data.volume || '0'),
+                            active: data.active !== false,
+                            closed: data.closed === true,
+                            gameStartTime: data.game_start_time,
+                            neg_risk: data.neg_risk,
+                        };
+
+                        let betterTitle = m.title;
+                        if (m.title.toLowerCase() === 'match winner') {
+                            betterTitle = polyMarket.question || this.formatCategorySlugAsTitle(m.categorySlug) || m.title;
+                        }
+
+                        return {
+                            predictId: m.id,
+                            predictTitle: betterTitle,
+                            predictCategorySlug: m.categorySlug,
+                            polymarketId: polyMarket.id,
+                            polymarketQuestion: polyMarket.question,
+                            polymarketConditionId: conditionId,
+                            polymarketSlug: polyMarket.slug,
+                            polymarketLiquidity: parseFloat(polyMarket.liquidity),
+                            polymarketVolume: parseFloat(polyMarket.volume) || 0,
+                            predictVolume: m.volume || 0,
+                            matchMethod: 'conditionId' as MatchMethod,
+                            predictMarket: m,
+                            polyMarket,
+                        } as InternalMatchedMarket;
+                    } catch {
+                        return null;
+                    }
+                })
+            );
+
+            const directMatches = clobResults.filter(Boolean) as InternalMatchedMarket[];
+            matches.push(...directMatches);
+            console.log(`[SportsService] Method D: ${directMatches.length} matched via CLOB API`);
+        }
+
         // 输出匹配详情
         const conditionIdMatches = matches.filter(m => m.matchMethod === 'conditionId').length;
         const nbaSlugMatches = matches.filter(m => m.matchMethod === 'nba-slug').length;
@@ -1659,6 +1732,8 @@ export class SportsService {
         if (slug.includes('epl') || slug.includes('soccer') || slug.includes('premier')) return 'epl';
         if (slug.includes('mma') || slug.includes('ufc')) return 'mma';
         if (slug.includes('lol') || slug.includes('league')) return 'lol';
+        if (slug.includes('dota')) return 'dota';
+        if (slug.includes('cs2') || slug.includes('csgo') || slug.includes('counter-strike')) return 'cs';
 
         return 'nba';  // 默认
     }

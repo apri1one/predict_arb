@@ -25,7 +25,8 @@ const useArbScanner = (addNotification, addOrderToast) => {
         makerCount: 0, takerCount: 0,
         avgProfit: 0, maxProfit: 0,
         totalDepthUsd: 0,
-        latency: { predict: 150, polymarket: 25, compute: 0 }
+        latency: { predict: 150, polymarket: 25, compute: 0 },
+        connectionStatus: {}
     });
     const [accounts, setAccounts] = useState({
         predict: { total: 0, available: 0, portfolio: 0, positions: [], openOrders: [] },
@@ -146,7 +147,8 @@ const useArbScanner = (addNotification, addOrderToast) => {
                         predict: Math.round(data.latency?.predict || 0),
                         polymarket: Math.round(data.latency?.polymarket || 0),
                         compute: Math.round(data.refreshInterval || 0)
-                    }
+                    },
+                    connectionStatus: data.connectionStatus || {}
                 });
 
                 // 更新策略分布

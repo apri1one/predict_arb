@@ -65,7 +65,7 @@ export interface PredictOrderBook {
 // Sports Matching Types
 // ============================================================================
 
-export type SportType = 'nba' | 'nfl' | 'nhl' | 'mlb' | 'epl' | 'mma' | 'lol';
+export type SportType = 'nba' | 'nfl' | 'nhl' | 'mlb' | 'epl' | 'mma' | 'lol' | 'dota' | 'cs';
 
 export type MatchMethod = 'conditionId' | 'slug' | 'nba-slug' | 'title';
 
@@ -282,6 +282,8 @@ export const POLY_SPORTS_TAGS: Record<SportType, number> = {
     epl: 82,
     mma: 1,      // placeholder
     lol: 65,
+    dota: 1,     // placeholder - 通过 conditionId 直接匹配 (Method D)
+    cs: 1,       // placeholder - 通过 conditionId 直接匹配 (Method D)
 };
 
 export const SPORTS_KEYWORDS: string[] = [

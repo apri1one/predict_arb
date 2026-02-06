@@ -119,7 +119,7 @@ export class TokenMarketCache extends EventEmitter {
             let retryCount = 0;
 
             for (let page = 0; page < MAX_PAGES; page++) {
-                const url = `${PREDICT_API_BASE}/v1/markets?first=${MAX_MARKETS_PER_PAGE}${cursor ? '&after=' + cursor : ''}`;
+                const url = `${PREDICT_API_BASE}/v1/markets?first=${MAX_MARKETS_PER_PAGE}&status=OPEN${cursor ? '&after=' + cursor : ''}`;
                 const resp = await fetch(url, { headers: { 'x-api-key': this.apiKey } });
 
                 if (!resp.ok) {

@@ -263,7 +263,14 @@ const App = () => {
                             {/* Polymarket Status */}
                             <div className="flex flex-col gap-1.5 min-w-[100px]">
                                 <div className="flex items-center justify-between text-[11px] font-medium leading-none">
-                                    <span className="text-zinc-400">Polymarket</span>
+                                    <span className="flex items-center gap-1.5 text-zinc-400">
+                                        <span className={`w-1.5 h-1.5 rounded-full ${
+                                            stats.connectionStatus?.polymarketWs === 'connected' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
+                                            : stats.connectionStatus?.polymarketWs === 'reconnecting' ? 'bg-amber-400 animate-pulse'
+                                            : 'bg-rose-500'
+                                        }`}></span>
+                                        Polymarket
+                                    </span>
                                     <span className={`font-mono ${stats.latency.polymarket < 50 ? 'text-emerald-400' : 'text-amber-400'}`}>
                                         {stats.latency.polymarket}ms
                                     </span>
@@ -279,7 +286,13 @@ const App = () => {
                             {/* Predict Status */}
                             <div className="flex flex-col gap-1.5 min-w-[100px]">
                                 <div className="flex items-center justify-between text-[11px] font-medium leading-none">
-                                    <span className="text-zinc-400">Predict</span>
+                                    <span className="flex items-center gap-1.5 text-zinc-400">
+                                        <span className={`w-1.5 h-1.5 rounded-full ${
+                                            stats.connectionStatus?.predictWs === 'connected' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
+                                            : 'bg-rose-500'
+                                        }`}></span>
+                                        Predict
+                                    </span>
                                     <span className={`font-mono ${stats.latency.predict < 100 ? 'text-emerald-400' : 'text-amber-400'}`}>
                                         {stats.latency.predict}ms
                                     </span>
@@ -290,6 +303,15 @@ const App = () => {
                                         style={{ width: `${Math.min(100, stats.latency.predict / 5)}%` }}
                                     />
                                 </div>
+                            </div>
+
+                            {/* BSC WSS Status */}
+                            <div className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-400">
+                                <span className={`w-1.5 h-1.5 rounded-full ${
+                                    stats.connectionStatus?.bscWss === 'connected' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
+                                    : 'bg-rose-500'
+                                }`}></span>
+                                BSC
                             </div>
                         </div>
                     </div>

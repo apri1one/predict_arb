@@ -488,6 +488,28 @@ export class PolymarketUserWsClient {
         }
     }
 
+    /**
+     * 公开查询 WS 缓存中的订单成交状态 (用于 refreshSinglePolyFill 短路)
+     * 返回 null 表示缓存未命中，调用方应降级到 REST poll
+     */
+    getCachedFillStatus(orderId: string): { filledQty: number; isTerminal: boolean } | null {
+        const cached = this.recentOrderEventById.get(orderId);
+        if (!cached || Date.now() - cached.receivedAt > this.recentEventTtlMs) return null;
+
+        const event = cached.event;
+        const matched = parseFloat(event.size_matched || '0');
+        const filledQty = Number.isFinite(matched) ? matched : 0;
+        const original = parseFloat(event.original_size || '0');
+
+        if (event.type === 'CANCELLATION') {
+            return { filledQty, isTerminal: true };
+        }
+        if (event.type === 'UPDATE' && original > 0 && filledQty >= original) {
+            return { filledQty, isTerminal: true };
+        }
+        return { filledQty, isTerminal: false };
+    }
+
     private getRecentOrderEvent(orderId: string): OrderEvent | null {
         const cached = this.recentOrderEventById.get(orderId);
         if (!cached) return null;

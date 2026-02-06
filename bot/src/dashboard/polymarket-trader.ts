@@ -446,6 +446,15 @@ export class PolymarketTrader extends EventEmitter {
     }
 
     /**
+     * 从 WS 缓存查询订单成交状态 (同步，无网络调用)
+     * 返回 null 表示缓存未命中
+     */
+    getWsCachedFillStatus(orderId: string): { filledQty: number; isTerminal: boolean } | null {
+        if (!this.userWs?.connected()) return null;
+        return this.userWs.getCachedFillStatus(orderId);
+    }
+
+    /**
      * 获取订单状态
      */
     async getOrderStatus(orderId: string): Promise<PolyOrderStatus | null> {

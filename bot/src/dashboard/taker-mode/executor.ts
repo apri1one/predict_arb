@@ -41,7 +41,7 @@ import { getBscOrderWatcher, getSharesFromFillEvent, type BscOrderWatcher, type 
 const DEFAULT_ORDER_TIMEOUT = Number(process.env.TAKER_ORDER_TIMEOUT_MS) || 20000;      // 默认订单超时 20s (测试显示 5-11s)
 const DEFAULT_POLL_INTERVAL = Number(process.env.TAKER_POLL_INTERVAL_MS) || 500;        // 成交状态轮询间隔 500ms
 const DEFAULT_MAX_HEDGE_RETRIES = Number(process.env.TAKER_MAX_HEDGE_RETRIES) || 3;     // 默认对冲重试次数
-const ORDERBOOK_RETRY_DELAY = Number(process.env.ORDERBOOK_RETRY_DELAY_MS) || 1000;     // 订单簿获取重试延迟 1s (无限流风险)
+const ORDERBOOK_RETRY_DELAY = Number(process.env.ORDERBOOK_RETRY_DELAY_MS) || 300;      // 订单簿获取重试延迟 300ms
 const HEDGE_WAIT_DELAY = Number(process.env.TAKER_HEDGE_WAIT_MS) || 300;                // 对冲后等待 300ms
 const WS_CACHE_MAX_AGE = 2000;            // WS 缓存最大有效期 2s
 const DEFAULT_TICK_SIZE = 0.01;           // Predict 价格精度 (最多2位小数)

@@ -69,7 +69,9 @@ let orderBuilder: OrderBuilder | null = null;
 let orderBuilderInitFailed = false; // 防止反复尝试
 let orderBuilderErrorLogged = false;
 let orderBuilderLastAttempt = 0; // 上次尝试时间
+let orderBuilderCreatedAt = 0; // OrderBuilder 创建时间
 const ORDER_BUILDER_RETRY_INTERVAL = 60000; // 失败后 60 秒才重试
+const ORDER_BUILDER_MAX_AGE_MS = 5 * 60 * 1000; // OrderBuilder 最大存活 5 分钟，防止 provider 连接退化
 
 // 市场标题查找器 (由 start-dashboard 注入)
 type MarketTitleResolver = (predictId: number) => string | undefined;
@@ -84,8 +86,10 @@ export function setMarketTitleResolver(resolver: MarketTitleResolver): void {
 let predictBalanceErrorLogged = false;
 let predictRpcFailed = false;
 let predictRpcLastAttempt = 0;
+let predictRpcConsecutiveFailures = 0; // 连续 RPC 失败计数
 let lastPredictBalance = 0;
 const PREDICT_RPC_RETRY_INTERVAL = 60000; // 失败后 60 秒才重试
+const PREDICT_RPC_MAX_FAILURES = 3; // 连续失败 N 次后重建 OrderBuilder
 const ACCOUNT_CACHE_MS = Number(process.env.ACCOUNT_CACHE_MS || 5000); // 默认 5 秒
 let cachedAccountData: AccountData | null = null;
 let accountCacheAt = 0;
@@ -112,6 +116,11 @@ function getScanApiKey(): string | null {
  * 初始化 OrderBuilder (用于查询链上余额)
  */
 async function getOrderBuilder(): Promise<OrderBuilder | null> {
+    // 定期重建 OrderBuilder，防止 RPC provider 连接退化导致余额查询永远超时
+    if (orderBuilder && Date.now() - orderBuilderCreatedAt > ORDER_BUILDER_MAX_AGE_MS) {
+        orderBuilder = null;
+    }
+
     if (orderBuilder) return orderBuilder;
 
     // 失败后需要等待重试间隔
@@ -157,6 +166,7 @@ async function getOrderBuilder(): Promise<OrderBuilder | null> {
                 new Promise<never>((_, reject) => setTimeout(() => reject(new Error('OrderBuilder timeout')), 5000))
             ]);
 
+            orderBuilderCreatedAt = Date.now();
             orderBuilderErrorLogged = false; // 成功，重置错误标志
             return orderBuilder;
         } catch {
@@ -281,9 +291,17 @@ async function fetchPredictAccount(): Promise<AccountData['predict']> {
                 console.log(`[AccountService] Chain balance query: raw=${balanceWei}, parsed=${balance.toFixed(4)} (1e18 precision)`);
                 lastPredictBalance = balance;
                 predictRpcFailed = false;
+                predictRpcConsecutiveFailures = 0;
                 predictBalanceErrorLogged = false;
             } catch (error) {
                 predictRpcFailed = true;
+                predictRpcConsecutiveFailures++;
+                // 连续失败多次 → 销毁 OrderBuilder，下次用新 provider 重建
+                if (predictRpcConsecutiveFailures >= PREDICT_RPC_MAX_FAILURES) {
+                    orderBuilder = null;
+                    predictRpcConsecutiveFailures = 0;
+                    console.warn(`[AccountService] 连续 ${PREDICT_RPC_MAX_FAILURES} 次 RPC 失败，已重置 OrderBuilder`);
+                }
                 if (!predictBalanceErrorLogged) {
                     console.warn('[AccountService] 查询链上余额失败 (60秒后重试):', (error as Error).message || error);
                     predictBalanceErrorLogged = true;
@@ -784,6 +802,11 @@ export async function refreshAccountData(): Promise<AccountData> {
     // 清除缓存
     cachedAccountData = null;
     accountCacheAt = 0;
+
+    // 重置 OrderBuilder，强制使用新 provider 连接
+    orderBuilder = null;
+    predictRpcFailed = false;
+    predictRpcConsecutiveFailures = 0;
 
     // 重新获取
     const data = await getAccountData();

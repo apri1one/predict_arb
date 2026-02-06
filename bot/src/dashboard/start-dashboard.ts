@@ -474,6 +474,8 @@ interface SystemStats {
     };
     connectionStatus: {
         polymarketWs: 'connected' | 'disconnected' | 'reconnecting';
+        predictWs: 'connected' | 'disconnected';
+        bscWss: 'connected' | 'disconnected';
         predictApi: 'ok' | 'rate_limited' | 'error';
     };
     lastFullUpdate: string;   // ISO string
@@ -526,6 +528,8 @@ let dashboardData: DashboardData = {
         },
         connectionStatus: {
             polymarketWs: 'disconnected',
+            predictWs: 'disconnected',
+            bscWss: 'disconnected',
             predictApi: 'ok',
         },
         lastFullUpdate: new Date().toISOString(),
@@ -3585,6 +3589,8 @@ async function detectArbitrageOpportunities(): Promise<void> {
         console.log(`[扫描] WS-only 模式，跳过订单簿拉取 (机会由 WS 更新维护)`);
         dashboardData.stats.lastFullUpdate = new Date().toISOString();
         dashboardData.stats.connectionStatus.polymarketWs = getPolymarketWsStatus();
+        dashboardData.stats.connectionStatus.predictWs = getPredictOrderbookCache()?.isWsConnected() ? 'connected' : 'disconnected';
+        dashboardData.stats.connectionStatus.bscWss = (() => { try { return getBscOrderWatcher().isConnected() ? 'connected' : 'disconnected'; } catch { return 'disconnected' as const; } })();
         dashboardData.stats.dataVersion++;
         updateCount++;
         await broadcastUpdate();
@@ -4133,6 +4139,8 @@ async function detectArbitrageOpportunities(): Promise<void> {
     dashboardData.stats.latency.polymarket = polyCount > 0 ? Math.round(polyLatencySum / polyCount) : 0;
     dashboardData.stats.connectionStatus.predictApi = predictSuccess > 0 ? 'ok' : 'error';
     dashboardData.stats.connectionStatus.polymarketWs = getPolymarketWsStatus();
+    dashboardData.stats.connectionStatus.predictWs = getPredictOrderbookCache()?.isWsConnected() ? 'connected' : 'disconnected';
+    dashboardData.stats.connectionStatus.bscWss = (() => { try { return getBscOrderWatcher().isConnected() ? 'connected' : 'disconnected'; } catch { return 'disconnected' as const; } })();
     dashboardData.stats.arbStats.makerCount = makerOpps.length;
     dashboardData.stats.arbStats.takerCount = takerOpps.length;
     dashboardData.stats.arbStats.avgProfit = avgProfit;
