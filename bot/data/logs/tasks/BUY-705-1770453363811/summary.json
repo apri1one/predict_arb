@@ -1,0 +1,151 @@
+{
+  "taskId": "BUY-705-1770453363811",
+  "type": "BUY",
+  "marketId": 705,
+  "title": "Will the Seattle Seahawks win Super Bowl 2026?",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 0.9970000000000001,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 31,
+  "totalSnapshots": 5,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 3,
+    "ORDER_SUBMITTED": 5,
+    "ORDER_CANCELLED": 2,
+    "TASK_PAUSED": 1,
+    "TASK_RESUMED": 1,
+    "ORDER_PARTIAL_FILL": 4,
+    "HEDGE_STARTED": 3,
+    "HEDGE_ATTEMPT": 3,
+    "HEDGE_PARTIAL": 2,
+    "HEDGE_COMPLETED": 3,
+    "ORDER_FILLED": 2,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1770453364407,
+  "endTime": 1770468331320,
+  "durationMs": 14966913,
+  "predictFilledQty": 2000,
+  "hedgedQty": 2000,
+  "avgPredictPrice": 0.315,
+  "avgPolymarketPrice": 0.6820000000000002,
+  "actualProfit": 5.999999999999783,
+  "profitPercent": 0.9523809523809179,
+  "unwindLoss": 0,
+  "pauseCount": 1,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770453364412,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770453364478,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770453365063,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770453495296,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770453495296,
+      "event": "TASK_PAUSED",
+      "detail": "Polymarket WS 断连 (token: 1044542779...) (未知)"
+    },
+    {
+      "timestamp": 1770453495527,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770453496387,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770453496388,
+      "event": "TASK_RESUMED",
+      "detail": "Depth recovered: 38270.91 shares, qty=2000 (未知)"
+    },
+    {
+      "timestamp": 1770462362071,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770466321251,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770466321997,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 951.032"
+    },
+    {
+      "timestamp": 1770466322565,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770466322792,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 951.032"
+    },
+    {
+      "timestamp": 1770468155226,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 11.035999999999945"
+    },
+    {
+      "timestamp": 1770468155509,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770468155774,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 11.035999999999945"
+    },
+    {
+      "timestamp": 1770468330780,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 2000"
+    },
+    {
+      "timestamp": 1770468330785,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 1037.94"
+    },
+    {
+      "timestamp": 1770468331034,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770468331314,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 1037.94"
+    },
+    {
+      "timestamp": 1770468331314,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 1037.94"
+    },
+    {
+      "timestamp": 1770468331314,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $6.00"
+    }
+  ],
+  "generatedAt": 1770468331320
+}

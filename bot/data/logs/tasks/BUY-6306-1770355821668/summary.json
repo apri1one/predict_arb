@@ -1,0 +1,151 @@
+{
+  "taskId": "BUY-6306-1770355821668",
+  "type": "BUY",
+  "marketId": 6306,
+  "title": "LoL: KT Rolster vs DN Freecs (BO3) - LCK Cup Play-In - Buy KT",
+  "logSchemaVersion": "1.0.0",
+  "status": "HEDGE_FAILED",
+  "isSuccess": false,
+  "strategy": "MAKER",
+  "avgTotalCost": 1,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 31,
+  "totalSnapshots": 5,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 2,
+    "ORDER_SUBMITTED": 4,
+    "PRICE_GUARD_TRIGGERED": 3,
+    "ORDER_CANCELLED": 3,
+    "TASK_PAUSED": 3,
+    "PRICE_GUARD_RESUMED": 2,
+    "TASK_RESUMED": 2,
+    "ORDER_PARTIAL_FILL": 2,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 5,
+    "HEDGE_PARTIAL": 1,
+    "HEDGE_FAILED": 1,
+    "TASK_FAILED": 1
+  },
+  "startTime": 1770355821520,
+  "endTime": 1770365860016,
+  "durationMs": 10038496,
+  "predictFilledQty": 400,
+  "hedgedQty": 186,
+  "avgPredictPrice": 0.73,
+  "avgPolymarketPrice": 0.27,
+  "actualProfit": 0,
+  "profitPercent": 0,
+  "unwindLoss": 0,
+  "pauseCount": 3,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770355821526,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770355821527,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770355822911,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770361784434,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770362339233,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1770362339983,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770362339983,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.2800 > max=0.2700 (未知)"
+    },
+    {
+      "timestamp": 1770362409262,
+      "event": "PRICE_GUARD_RESUMED"
+    },
+    {
+      "timestamp": 1770362410787,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770362410788,
+      "event": "TASK_RESUMED"
+    },
+    {
+      "timestamp": 1770364841059,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1770364842163,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770364842163,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.2800 > max=0.2700 (未知)"
+    },
+    {
+      "timestamp": 1770365854683,
+      "event": "PRICE_GUARD_RESUMED"
+    },
+    {
+      "timestamp": 1770365855409,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770365855409,
+      "event": "TASK_RESUMED"
+    },
+    {
+      "timestamp": 1770365856394,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 400"
+    },
+    {
+      "timestamp": 1770365856670,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770365856860,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1770365857371,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 400"
+    },
+    {
+      "timestamp": 1770365857371,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.2800 > max=0.2700 (未知)"
+    },
+    {
+      "timestamp": 1770365860006,
+      "event": "HEDGE_FAILED",
+      "detail": "Hedge: 400"
+    },
+    {
+      "timestamp": 1770365860011,
+      "event": "TASK_FAILED",
+      "detail": "Hedge failed, 214 shares unhedged, est. loss: $15.62 (UNWIND disabled) (未知)"
+    }
+  ],
+  "generatedAt": 1770365860016
+}

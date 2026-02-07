@@ -1,0 +1,83 @@
+{
+  "taskId": "BUY-6304-1770352927959",
+  "type": "BUY",
+  "marketId": 6304,
+  "title": "LoL: DRX vs OKSavingsBank BRION (BO3) - LCK Cup Play-In - Buy DRX",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 1,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 10,
+  "totalSnapshots": 2,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 1,
+    "ORDER_SUBMITTED": 2,
+    "ORDER_FILLED": 2,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 1,
+    "HEDGE_COMPLETED": 1,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1770352927818,
+  "endTime": 1770357951451,
+  "durationMs": 5023633,
+  "predictFilledQty": 1000,
+  "hedgedQty": 1000,
+  "avgPredictPrice": 0.54,
+  "avgPolymarketPrice": 0.46,
+  "actualProfit": -5.551115123125783e-14,
+  "profitPercent": -1.0279842820603302e-14,
+  "unwindLoss": 0,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770352927822,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770352927837,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770352929602,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770357950797,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 1000"
+    },
+    {
+      "timestamp": 1770357950801,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 1000"
+    },
+    {
+      "timestamp": 1770357951141,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770357951444,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 1000"
+    },
+    {
+      "timestamp": 1770357951444,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 1000"
+    },
+    {
+      "timestamp": 1770357951445,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $-0.00"
+    }
+  ],
+  "generatedAt": 1770357951452
+}

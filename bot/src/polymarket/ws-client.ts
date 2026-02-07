@@ -14,17 +14,47 @@ import type {
     WebSocketAuth,
 } from './types.js';
 
+function getPositiveNumberEnv(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (!raw) return fallback;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getPositiveIntegerEnv(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (!raw) return fallback;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizePositiveNumber(value: number | undefined, fallback: number): number {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function normalizePositiveInteger(value: number | undefined, fallback: number): number {
+    return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function normalizeNonNegativeNumber(value: number | undefined, fallback: number): number {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
 // Default configuration
-const DEFAULT_WS_URL = 'wss://ws-subscriptions-clob.polymarket.com';
-const DEFAULT_PING_INTERVAL = 10000; // 10 seconds
-const DEFAULT_RECONNECT_DELAY = 5000; // 5 seconds
-const DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
+const DEFAULT_WS_URL = (process.env.POLYMARKET_CLOB_WS_URL || 'wss://ws-subscriptions-clob.polymarket.com').trim();
+const DEFAULT_PING_INTERVAL = getPositiveNumberEnv('POLYMARKET_WS_PING_INTERVAL_MS', 10000);
+const DEFAULT_RECONNECT_DELAY = getPositiveNumberEnv('POLYMARKET_WS_RECONNECT_DELAY_MS', 5000);
+const DEFAULT_MAX_RECONNECT_ATTEMPTS = getPositiveIntegerEnv('POLYMARKET_WS_MAX_RECONNECT_ATTEMPTS', 10);
+const DEFAULT_RECONNECT_BACKOFF_MULTIPLIER = getPositiveNumberEnv('POLYMARKET_WS_RECONNECT_BACKOFF', 1.5);
+const DEFAULT_RECONNECT_MAX_DELAY_MS = getPositiveNumberEnv('POLYMARKET_WS_RECONNECT_MAX_DELAY_MS', 0);
 
 export interface WebSocketClientConfig {
     url?: string;
     pingInterval?: number;
     reconnectDelay?: number;
     maxReconnectAttempts?: number;
+    reconnectBackoffMultiplier?: number;
+    reconnectMaxDelayMs?: number;
     auth?: WebSocketAuth;
 }
 
@@ -44,6 +74,8 @@ export class PolymarketWebSocketClient {
     private readonly pingInterval: number;
     private readonly reconnectDelay: number;
     private readonly maxReconnectAttempts: number;
+    private readonly reconnectBackoffMultiplier: number;
+    private readonly reconnectMaxDelayMs: number;
     private readonly auth?: WebSocketAuth;
 
     private ws: WebSocket | null = null;
@@ -66,9 +98,14 @@ export class PolymarketWebSocketClient {
 
     constructor(config: WebSocketClientConfig = {}) {
         this.url = config.url || DEFAULT_WS_URL;
-        this.pingInterval = config.pingInterval || DEFAULT_PING_INTERVAL;
-        this.reconnectDelay = config.reconnectDelay || DEFAULT_RECONNECT_DELAY;
-        this.maxReconnectAttempts = config.maxReconnectAttempts || DEFAULT_MAX_RECONNECT_ATTEMPTS;
+        this.pingInterval = normalizePositiveNumber(config.pingInterval, DEFAULT_PING_INTERVAL);
+        this.reconnectDelay = normalizePositiveNumber(config.reconnectDelay, DEFAULT_RECONNECT_DELAY);
+        this.maxReconnectAttempts = normalizePositiveInteger(config.maxReconnectAttempts, DEFAULT_MAX_RECONNECT_ATTEMPTS);
+        this.reconnectBackoffMultiplier = normalizePositiveNumber(
+            config.reconnectBackoffMultiplier,
+            DEFAULT_RECONNECT_BACKOFF_MULTIPLIER
+        );
+        this.reconnectMaxDelayMs = normalizeNonNegativeNumber(config.reconnectMaxDelayMs, DEFAULT_RECONNECT_MAX_DELAY_MS);
         this.auth = config.auth;
     }
 
@@ -542,7 +579,10 @@ export class PolymarketWebSocketClient {
         this.reconnectAttempts++;
         this.state = 'reconnecting';
 
-        const delay = this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1);
+        const uncappedDelay = this.reconnectDelay * Math.pow(this.reconnectBackoffMultiplier, this.reconnectAttempts - 1);
+        const delay = this.reconnectMaxDelayMs > 0
+            ? Math.min(uncappedDelay, this.reconnectMaxDelayMs)
+            : uncappedDelay;
         console.log(`[WS] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
         this.reconnectTimer = setTimeout(() => {

@@ -8,6 +8,8 @@
 import { EventEmitter } from 'events';
 import { getBscOrderWatcher, getSharesFromFillEvent, getFillDirection, type OrderFilledEvent } from '../services/bsc-order-watcher.js';
 import { getTokenMarketCache, type TokenLookupResult } from '../services/token-market-cache.js';
+import { getTaskService } from '../dashboard/task-service.js';
+import type { TaskStatus } from '../dashboard/types.js';
 import { TelegramNotifier, createTelegramNotifier } from './telegram.js';
 
 export interface BscOrderNotifierConfig {
@@ -20,6 +22,28 @@ export interface BscOrderNotifierConfig {
 
     silencePeriodMs?: number;
 }
+
+interface TaskIntentMatch {
+    taskId: string;
+    side: 'BUY' | 'SELL';
+    outcome: 'YES' | 'NO';
+    title: string;
+}
+
+const TASK_INTENT_LOOKBACK_MS = 10 * 60 * 1000;
+const ACTIVE_TASK_STATUSES = new Set<TaskStatus>([
+    'PENDING',
+    'VALIDATING',
+    'PREDICT_SUBMITTED',
+    'PARTIALLY_FILLED',
+    'PAUSED',
+    'HEDGING',
+    'HEDGE_PENDING',
+    'HEDGE_RETRY',
+    'LOSS_HEDGE',
+    'UNWINDING',
+    'UNWIND_PENDING',
+]);
 
 export class BscOrderNotifier extends EventEmitter {
     private telegram: TelegramNotifier;
@@ -201,11 +225,6 @@ export class BscOrderNotifier extends EventEmitter {
 
         const marketTitle = lookup?.market.title || '未知市场';
         const tokenSide = lookup?.side || '?';  // YES/NO
-        // 体育市场显示队名 (如 "NO (Wizards)")，普通市场仅显示 YES/NO
-        const outcomeName = tokenSide === 'YES' ? lookup?.market.yesName : lookup?.market.noName;
-        const sideDisplay = outcomeName && outcomeName !== 'Yes' && outcomeName !== 'No'
-            ? `${tokenSide} (${outcomeName})`
-            : tokenSide;
 
         // 使用统一工具函数
         const shares = getSharesFromFillEvent(event);
@@ -216,26 +235,65 @@ export class BscOrderNotifier extends EventEmitter {
             ? event.takerAmountFilled
             : event.makerAmountFilled;
 
-        // 计算成交价格
+        // 计算成交价格（链上原始视角）
         const price = shares > 0 ? usdcAmount / shares : 0;
+
+        // 默认展示链上视角；若能匹配到任务意图，优先展示任务视角（修复 T-T 消息反向问题）
+        let displayTitle = marketTitle;
+        let displaySide: 'YES' | 'NO' | '?' = tokenSide === 'YES' || tokenSide === 'NO' ? tokenSide : '?';
+        let displayDirection: 'BUY' | 'SELL' | null = direction;
+        let displayPrice = price;
+        let displayUsdcAmount = usdcAmount;
+
+        const taskIntent = this.resolveTaskIntent(lookup?.market.marketId, event.timestamp, shares);
+        if (taskIntent) {
+            displayTitle = taskIntent.title || displayTitle;
+            displayDirection = taskIntent.side;
+
+            const shouldFlip = (displaySide === 'YES' || displaySide === 'NO')
+                && displaySide !== taskIntent.outcome
+                && shares > 0;
+
+            if (shouldFlip) {
+                // 互补面换算：p(NO)=1-p(YES)
+                displayPrice = Math.max(0, Math.min(1, 1 - displayPrice));
+                displayUsdcAmount = Math.max(0, shares - displayUsdcAmount);
+            }
+            displaySide = taskIntent.outcome;
+
+            console.log(
+                `[BscOrderNotifier] 应用任务意图修正 tx=${event.txHash.slice(0, 12)} task=${taskIntent.taskId} ` +
+                `chain=${direction || '?'} ${tokenSide} -> task=${taskIntent.side} ${taskIntent.outcome}`,
+            );
+        }
+
+        // 体育市场显示队名 (如 "NO (Wizards)")，普通市场仅显示 YES/NO
+        const outcomeName = displaySide === 'YES'
+            ? lookup?.market.yesName
+            : displaySide === 'NO'
+                ? lookup?.market.noName
+                : undefined;
+        const sideDisplay = outcomeName && outcomeName !== 'Yes' && outcomeName !== 'No'
+            ? `${displaySide} (${outcomeName})`
+            : displaySide;
 
         // 角色：挂单方还是吃单方（链上角色，NegRisk 结算可能与 API 层不同）
         const role = event.maker.toLowerCase() === myAddress ? 'Maker' : 'Taker';
 
         // 交易类型
-        const actionEmoji = direction === 'BUY' ? '📈' : direction === 'SELL' ? '📉' : '❓';
-        const actionText = direction === 'BUY' ? '买入' : direction === 'SELL' ? '卖出' : '成交';
+        const actionEmoji = displayDirection === 'BUY' ? '📈' : displayDirection === 'SELL' ? '📉' : '❓';
+        const actionText = displayDirection === 'BUY' ? '买入' : displayDirection === 'SELL' ? '卖出' : '成交';
 
         const feeAmount = role === 'Maker' ? 0 : event.fee;
         const message = `🟠 ✅ <b>Predict 订单成交</b> (链上确认)
 
 <b>类型:</b> ${actionEmoji} ${actionText}
-<b>市场:</b> ${this.escapeHtml(marketTitle.slice(0, 60))}${marketTitle.length > 60 ? '...' : ''}
+<b>市场:</b> ${this.escapeHtml(displayTitle.slice(0, 60))}${displayTitle.length > 60 ? '...' : ''}
 <b>方向:</b> ${sideDisplay}
 <b>角色:</b> ${role}
-<b>成交价:</b> ${(price * 100).toFixed(1)}¢
+<b>成交价:</b> ${(displayPrice * 100).toFixed(1)}¢
 <b>成交量:</b> ${shares.toFixed(2)} 股
-<b>成交额:</b> $${usdcAmount.toFixed(2)}
+<b>成交额:</b> $${displayUsdcAmount.toFixed(2)}
 <b>手续费:</b> $${feeAmount.toFixed(4)}
 
 <b>订单:</b> <code>${event.orderHash.slice(0, 16)}...</code>
@@ -247,6 +305,48 @@ export class BscOrderNotifier extends EventEmitter {
 
         await this.telegram.sendText(message);
         this.emit('notified', event);
+    }
+
+    private resolveTaskIntent(
+        marketId: number | undefined,
+        fillTimestamp: number,
+        shares: number
+    ): TaskIntentMatch | null {
+        if (!marketId || !Number.isFinite(marketId) || marketId <= 0) return null;
+
+        try {
+            const taskService = getTaskService();
+            const candidates = taskService.getTasks({ marketId, includeCompleted: true });
+            if (candidates.length === 0) return null;
+
+            let best: TaskIntentMatch | null = null;
+            let bestScore = Number.POSITIVE_INFINITY;
+
+            for (const task of candidates) {
+                const timeDiff = Math.abs(task.updatedAt - fillTimestamp);
+                if (timeDiff > TASK_INTENT_LOOKBACK_MS) continue;
+
+                const qtyRef = task.predictFilledQty > 0 ? task.predictFilledQty : task.quantity;
+                const qtyDiff = Math.abs(qtyRef - shares);
+                const statusPenalty = ACTIVE_TASK_STATUSES.has(task.status) ? 0 : 20000;
+                const score = timeDiff + qtyDiff * 1500 + statusPenalty;
+
+                if (score < bestScore) {
+                    bestScore = score;
+                    best = {
+                        taskId: task.id,
+                        side: task.type,
+                        outcome: task.arbSide,
+                        title: task.title || '',
+                    };
+                }
+            }
+
+            return best;
+        } catch (e: any) {
+            console.warn('[BscOrderNotifier] resolveTaskIntent failed:', e?.message || e);
+            return null;
+        }
     }
 
     private isDuplicateNotification(key: string): boolean {

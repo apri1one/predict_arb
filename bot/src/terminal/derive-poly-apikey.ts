@@ -6,6 +6,7 @@
 import { config } from 'dotenv';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { readFileSync, writeFileSync } from 'fs';
 import { ethers } from 'ethers';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -129,8 +130,29 @@ async function main() {
     }
 
     if (creds) {
+        // 写入 .env 文件
+        const envPath = resolve(__dirname, '../../..', '.env');
+        let envContent = readFileSync(envPath, 'utf-8');
+
+        const updates: Record<string, string> = {
+            'POLYMARKET_API_KEY': creds.apiKey,
+            'POLYMARKET_API_SECRET': creds.secret,
+            'POLYMARKET_PASSPHRASE': creds.passphrase,
+        };
+
+        for (const [key, value] of Object.entries(updates)) {
+            const regex = new RegExp(`^${key}=.*$`, 'm');
+            if (regex.test(envContent)) {
+                envContent = envContent.replace(regex, `${key}=${value}`);
+            } else {
+                envContent = envContent.trimEnd() + `\n${key}=${value}\n`;
+            }
+        }
+
+        writeFileSync(envPath, envContent, 'utf-8');
+
         console.log('\n' + '═'.repeat(60));
-        console.log('✅ API 凭证获取成功！请更新 .env 文件:');
+        console.log('✅ API 凭证已写入 .env 文件:');
         console.log('═'.repeat(60));
         console.log(`POLYMARKET_API_KEY=${creds.apiKey}`);
         console.log(`POLYMARKET_API_SECRET=${creds.secret}`);

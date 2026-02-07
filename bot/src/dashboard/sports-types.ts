@@ -25,7 +25,7 @@ export interface PolyMarket {
     question: string;
     conditionId: string;
     slug: string;
-    outcomes: string;           // JSON string: '["Heat", "Bulls"]'
+    outcomes: string;           // JSON string: '["Heat", "Bulls"]' 或 '["Yes", "No"]' (足球等三方市场)
     outcomePrices: string;      // JSON string: '["0.45", "0.55"]'
     clobTokenIds: string;       // JSON string: '["token1", "token2"]'
     endDate: string;
@@ -35,6 +35,11 @@ export interface PolyMarket {
     closed: boolean;
     gameStartTime?: string;
     neg_risk?: boolean;
+    groupItemTitle?: string;    // Gamma API: 球队名 (如 "Manchester United FC") 或 "Draw (...)"
+    events?: Array<{            // Gamma API: 父事件信息
+        title?: string;         // 如 "Manchester United FC vs. Tottenham Hotspur FC"
+        slug?: string;          // 如 "epl-mun-tot-2026-02-07"
+    }>;
 }
 
 // ============================================================================

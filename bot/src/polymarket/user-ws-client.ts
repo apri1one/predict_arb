@@ -10,15 +10,43 @@
 
 import WebSocket from 'ws';
 
+function getPositiveNumberEnv(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (!raw) return fallback;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getPositiveIntegerEnv(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (!raw) return fallback;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizePositiveNumber(value: number | undefined, fallback: number): number {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function normalizePositiveInteger(value: number | undefined, fallback: number): number {
+    return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function normalizeNonNegativeNumber(value: number | undefined, fallback: number): number {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
 // ============================================================================
 // 常量 / 配置
 // ============================================================================
 
-const DEFAULT_WS_USER_URL = 'wss://ws-subscriptions-clob.polymarket.com/ws/user';
-const DEFAULT_PING_INTERVAL_MS = 30000;
-const DEFAULT_RECONNECT_DELAY_MS = 5000;
-const DEFAULT_MAX_RECONNECT_ATTEMPTS = 5;
-const DEFAULT_CONNECT_TIMEOUT_MS = 10000;
+const DEFAULT_WS_USER_URL = (process.env.POLYMARKET_USER_WS_URL || 'wss://ws-subscriptions-clob.polymarket.com/ws/user').trim();
+const DEFAULT_PING_INTERVAL_MS = getPositiveNumberEnv('POLYMARKET_USER_WS_PING_INTERVAL_MS', 30000);
+const DEFAULT_RECONNECT_DELAY_MS = getPositiveNumberEnv('POLYMARKET_USER_WS_RECONNECT_DELAY_MS', 5000);
+const DEFAULT_MAX_RECONNECT_ATTEMPTS = getPositiveIntegerEnv('POLYMARKET_USER_WS_MAX_RECONNECT_ATTEMPTS', 5);
+const DEFAULT_CONNECT_TIMEOUT_MS = getPositiveNumberEnv('POLYMARKET_USER_WS_CONNECT_TIMEOUT_MS', 10000);
+const DEFAULT_RECONNECT_BACKOFF_MULTIPLIER = getPositiveNumberEnv('POLYMARKET_USER_WS_RECONNECT_BACKOFF', 1.5);
+const DEFAULT_RECONNECT_MAX_DELAY_MS = getPositiveNumberEnv('POLYMARKET_USER_WS_RECONNECT_MAX_DELAY_MS', 30000);
 
 // ============================================================================
 // 类型定义
@@ -72,6 +100,8 @@ export interface PolymarketUserWsClientConfig {
     reconnectDelayMs?: number;
     maxReconnectAttempts?: number;
     connectTimeoutMs?: number;
+    reconnectBackoffMultiplier?: number;
+    reconnectMaxDelayMs?: number;
 }
 
 export type UserWsFinalStatus = 'MATCHED' | 'CANCELLED' | 'TIMEOUT' | 'LIVE';
@@ -87,6 +117,8 @@ export class PolymarketUserWsClient {
     private readonly reconnectDelayMs: number;
     private readonly maxReconnectAttempts: number;
     private readonly connectTimeoutMs: number;
+    private readonly reconnectBackoffMultiplier: number;
+    private readonly reconnectMaxDelayMs: number;
 
     private ws: WebSocket | null = null;
     private pingTimer: ReturnType<typeof setInterval> | null = null;
@@ -119,10 +151,15 @@ export class PolymarketUserWsClient {
     constructor(auth: UserWsAuth, config: PolymarketUserWsClientConfig = {}) {
         this.auth = auth;
         this.url = config.url ?? DEFAULT_WS_USER_URL;
-        this.pingIntervalMs = config.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
-        this.reconnectDelayMs = config.reconnectDelayMs ?? DEFAULT_RECONNECT_DELAY_MS;
-        this.maxReconnectAttempts = config.maxReconnectAttempts ?? DEFAULT_MAX_RECONNECT_ATTEMPTS;
-        this.connectTimeoutMs = config.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+        this.pingIntervalMs = normalizePositiveNumber(config.pingIntervalMs, DEFAULT_PING_INTERVAL_MS);
+        this.reconnectDelayMs = normalizePositiveNumber(config.reconnectDelayMs, DEFAULT_RECONNECT_DELAY_MS);
+        this.maxReconnectAttempts = normalizePositiveInteger(config.maxReconnectAttempts, DEFAULT_MAX_RECONNECT_ATTEMPTS);
+        this.connectTimeoutMs = normalizePositiveNumber(config.connectTimeoutMs, DEFAULT_CONNECT_TIMEOUT_MS);
+        this.reconnectBackoffMultiplier = normalizePositiveNumber(
+            config.reconnectBackoffMultiplier,
+            DEFAULT_RECONNECT_BACKOFF_MULTIPLIER
+        );
+        this.reconnectMaxDelayMs = normalizeNonNegativeNumber(config.reconnectMaxDelayMs, DEFAULT_RECONNECT_MAX_DELAY_MS);
     }
 
     // ============================================================================
@@ -605,7 +642,10 @@ export class PolymarketUserWsClient {
         }
 
         this.reconnectAttempts++;
-        const delay = Math.min(this.reconnectDelayMs * Math.pow(1.5, this.reconnectAttempts - 1), 30000);
+        const uncappedDelay = this.reconnectDelayMs * Math.pow(this.reconnectBackoffMultiplier, this.reconnectAttempts - 1);
+        const delay = this.reconnectMaxDelayMs > 0
+            ? Math.min(uncappedDelay, this.reconnectMaxDelayMs)
+            : uncappedDelay;
 
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null;

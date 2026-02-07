@@ -106,7 +106,8 @@ export type TaskLifecycleEventType =
     | 'TASK_COMPLETED'
     | 'TASK_FAILED'
     | 'TASK_CANCELLED'
-    | 'DEPTH_RESTORED';
+    | 'DEPTH_RESTORED'
+    | 'DELAYED_FILL_DETECTED';
 
 export interface TaskLifecyclePayload {
     status: TaskStatus;
@@ -402,6 +403,7 @@ export const EVENT_PRIORITY_MAP: Record<TaskLogEventType, EventPriority> = {
     TASK_FAILED: 'CRITICAL',
     TASK_CANCELLED: 'CRITICAL',
     DEPTH_RESTORED: 'CRITICAL',
+    DELAYED_FILL_DETECTED: 'CRITICAL',
     // 订单 - CRITICAL
     ORDER_SUBMITTED: 'CRITICAL',
     ORDER_PARTIAL_FILL: 'INFO',
@@ -467,6 +469,7 @@ export const NOTIFY_EVENTS: Set<TaskLogEventType> = new Set([
     'TASK_FAILED',
     'TASK_COMPLETED',
     'TASK_CANCELLED',
+    'DELAYED_FILL_DETECTED',
 ]);
 
 // ============================================================================

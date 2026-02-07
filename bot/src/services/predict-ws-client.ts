@@ -16,11 +16,40 @@ import { EventEmitter } from 'events';
 // 常量
 // ============================================================================
 
+function getPositiveNumberEnv(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (!raw) return fallback;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getPositiveIntegerEnv(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (!raw) return fallback;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizePositiveNumber(value: number | undefined, fallback: number): number {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function normalizePositiveInteger(value: number | undefined, fallback: number): number {
+    return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function normalizeNonNegativeNumber(value: number | undefined, fallback: number): number {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
 const WS_URL = 'wss://ws.predict.fun/ws';
 const HEARTBEAT_INTERVAL_MS = 15000; // 服务器每 15 秒发心跳
 const SUBSCRIBE_TIMEOUT_MS = 10000;
-const RECONNECT_DELAY_MS = 3000;
-const MAX_RECONNECT_ATTEMPTS = 5;
+const DEFAULT_WS_URL = (process.env.PREDICT_WS_URL || WS_URL).trim();
+const DEFAULT_AUTO_RECONNECT = process.env.PREDICT_WS_AUTO_RECONNECT !== 'false';
+const DEFAULT_RECONNECT_DELAY_MS = getPositiveNumberEnv('PREDICT_WS_RECONNECT_DELAY_MS', 3000);
+const DEFAULT_MAX_RECONNECT_ATTEMPTS = getPositiveIntegerEnv('PREDICT_WS_MAX_RECONNECT_ATTEMPTS', 5);
+const DEFAULT_MAX_RECONNECT_DELAY_MS = getPositiveNumberEnv('PREDICT_WS_RECONNECT_MAX_DELAY_MS', 0);
 
 // ============================================================================
 // 类型定义
@@ -30,6 +59,10 @@ export interface PredictWsConfig {
     apiKey: string;
     jwt?: string; // 用于 predictWalletEvents 订阅
     autoReconnect?: boolean;
+    wsUrl?: string;
+    reconnectDelayMs?: number;
+    maxReconnectAttempts?: number;
+    maxReconnectDelayMs?: number;
 }
 
 // 订单簿更新消息
@@ -119,9 +152,18 @@ export class PredictWsClient extends EventEmitter {
     constructor(config: PredictWsConfig) {
         super();
         this.config = {
-            autoReconnect: true,
+            autoReconnect: DEFAULT_AUTO_RECONNECT,
+            wsUrl: DEFAULT_WS_URL,
+            reconnectDelayMs: DEFAULT_RECONNECT_DELAY_MS,
+            maxReconnectAttempts: DEFAULT_MAX_RECONNECT_ATTEMPTS,
+            maxReconnectDelayMs: DEFAULT_MAX_RECONNECT_DELAY_MS,
             ...config,
         };
+
+        this.config.reconnectDelayMs = normalizePositiveNumber(this.config.reconnectDelayMs, DEFAULT_RECONNECT_DELAY_MS);
+        this.config.maxReconnectAttempts = normalizePositiveInteger(this.config.maxReconnectAttempts, DEFAULT_MAX_RECONNECT_ATTEMPTS);
+        this.config.maxReconnectDelayMs = normalizeNonNegativeNumber(this.config.maxReconnectDelayMs, DEFAULT_MAX_RECONNECT_DELAY_MS);
+        this.config.wsUrl = (this.config.wsUrl || DEFAULT_WS_URL).trim();
     }
 
     // ============================================================================
@@ -285,7 +327,9 @@ export class PredictWsClient extends EventEmitter {
 
     private async doConnect(): Promise<void> {
         return new Promise((resolve, reject) => {
-            const url = `${WS_URL}?apiKey=${encodeURIComponent(this.config.apiKey)}`;
+            const wsUrl = this.config.wsUrl || WS_URL;
+            const separator = wsUrl.includes('?') ? '&' : '?';
+            const url = `${wsUrl}${separator}apiKey=${encodeURIComponent(this.config.apiKey)}`;
             const connectStartTime = Date.now();
 
             console.log('[PredictWS] 正在连接...');
@@ -352,16 +396,22 @@ export class PredictWsClient extends EventEmitter {
         if (!this.shouldReconnect || !this.config.autoReconnect) return;
         if (this.reconnectTimer) return;
 
-        if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        const maxReconnectAttempts = this.config.maxReconnectAttempts ?? DEFAULT_MAX_RECONNECT_ATTEMPTS;
+        if (this.reconnectAttempts >= maxReconnectAttempts) {
             console.error('[PredictWS] 达到最大重连次数');
             this.emit('maxReconnectAttemptsReached');
             return;
         }
 
         this.reconnectAttempts++;
-        const delay = RECONNECT_DELAY_MS * this.reconnectAttempts;
+        const reconnectDelayMs = this.config.reconnectDelayMs ?? DEFAULT_RECONNECT_DELAY_MS;
+        const maxReconnectDelayMs = this.config.maxReconnectDelayMs ?? DEFAULT_MAX_RECONNECT_DELAY_MS;
+        const uncappedDelay = reconnectDelayMs * this.reconnectAttempts;
+        const delay = maxReconnectDelayMs > 0
+            ? Math.min(uncappedDelay, maxReconnectDelayMs)
+            : uncappedDelay;
 
-        console.log(`[PredictWS] 将在 ${delay}ms 后重连 (${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+        console.log(`[PredictWS] 将在 ${delay}ms 后重连 (${this.reconnectAttempts}/${maxReconnectAttempts})`);
 
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null;

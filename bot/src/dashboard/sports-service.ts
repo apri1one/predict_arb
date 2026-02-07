@@ -1453,10 +1453,49 @@ export class SportsService {
             awayTeam = NBA_ABBR_TO_TEAM[nbaParsed.away] || nbaParsed.away.toUpperCase();
             homeTeam = NBA_ABBR_TO_TEAM[nbaParsed.home] || nbaParsed.home.toUpperCase();
         } else {
-            // 非 NBA 市场，使用 outcomes
-            const outcomes = predictMarket.outcomes || [];
-            awayTeam = outcomes[0]?.name || 'Away';
-            homeTeam = outcomes[1]?.name || 'Home';
+            // 非 NBA 市场: 多级回退提取球队名
+            // Predict outcomes 通常是 "Yes"/"No"，不含球队信息
+            // 足球 (EPL) Polymarket 三方市场拆成独立二元市场 ("Will X win?")，outcomes 也是 ["Yes","No"]
+            let polyOutcomes: string[] = [];
+            try {
+                polyOutcomes = JSON.parse(polyMarket.outcomes || '[]') as string[];
+            } catch { /* ignore */ }
+
+            const predictOutcomes = predictMarket.outcomes || [];
+            const predictName0 = predictOutcomes[0]?.name || '';
+            const predictName1 = predictOutcomes[1]?.name || '';
+
+            // 辅助: 判断 outcome 名称是否有意义 (不是 "Yes"/"No")
+            const isGenericOutcome = (name: string) => {
+                const lower = name.toLowerCase();
+                return lower === 'yes' || lower === 'no';
+            };
+
+            const polyOutcomesUseful = polyOutcomes.length >= 2
+                && !isGenericOutcome(polyOutcomes[0])
+                && !isGenericOutcome(polyOutcomes[1]);
+            const predictNamesUseful = predictName0 && predictName1
+                && !isGenericOutcome(predictName0)
+                && !isGenericOutcome(predictName1);
+
+            if (polyOutcomesUseful) {
+                // Polymarket outcomes 有实际球队名 (如 ["Spirit", "FaZe"])
+                awayTeam = polyOutcomes[0];
+                homeTeam = polyOutcomes[1];
+            } else if (predictNamesUseful) {
+                awayTeam = predictName0;
+                homeTeam = predictName1;
+            } else {
+                // Polymarket outcomes 是 "Yes"/"No" (如足球三方市场拆分)
+                // 尝试从 groupItemTitle、question、Predict title、categorySlug 提取球队名
+                const extracted = this.extractTeamNamesFromContext(
+                    polyMarket,
+                    match.predictTitle,
+                    match.predictCategorySlug
+                );
+                awayTeam = extracted.away;
+                homeTeam = extracted.home;
+            }
         }
 
         // 解析 token IDs
@@ -1717,6 +1756,135 @@ export class SportsService {
             .join(' ');
 
         return `${awayCity} at ${homeCity}`;
+    }
+
+    /**
+     * 从 categorySlug 解析队伍名称
+     * 支持格式: "sport-team1-team2-YYYY-MM-DD" (如 "lol-lgd-up-2026-01-15", "cs2-spirit-faze-2026-01-15")
+     * 和 "team1-vs-team2" / "team1-team2-YYYY-MM-DD" 等变体
+     */
+    /**
+     * 从多个上下文字段提取球队名（用于 outcomes 是 "Yes"/"No" 的场景）
+     *
+     * 足球等三方市场: Polymarket 拆成独立二元市场 ("Will X win?")，outcomes=["Yes","No"]
+     * 需要从 groupItemTitle、question、title、slug 等字段还原球队信息
+     */
+    /**
+     * 从多个上下文字段提取球队名（用于 outcomes 是 "Yes"/"No" 的场景）
+     *
+     * 典型场景: 足球三方市场 (Polymarket 拆成 "Will X win?" 独立市场)
+     * 数据来源优先级:
+     *   1. Polymarket events[0].title ("Team A vs. Team B")
+     *   2. Predict title 中的 "vs"/"@" 格式
+     *   3. Polymarket question 中的 "vs" 格式
+     *   4. categorySlug 解析 (缩写回退)
+     *   5. predictTitle 作为单球队名
+     */
+    private extractTeamNamesFromContext(
+        polyMarket: PolyMarket,
+        predictTitle: string,
+        categorySlug: string
+    ): { away: string; home: string } {
+        // 1. Polymarket events[0].title (最可靠，如 "Manchester United FC vs. Tottenham Hotspur FC")
+        const eventTitle = polyMarket.events?.[0]?.title;
+        if (eventTitle) {
+            const vsFromEvent = this.parseTeamsFromVsFormat(eventTitle);
+            if (vsFromEvent) return vsFromEvent;
+        }
+
+        // 2. Predict title 中的 "vs"/"@" 格式
+        const vsFromTitle = this.parseTeamsFromVsFormat(predictTitle);
+        if (vsFromTitle) return vsFromTitle;
+
+        // 3. Polymarket question 中的 "vs" 格式
+        //    如: "Will Manchester United FC vs. Tottenham Hotspur FC end in a draw?"
+        const vsFromQuestion = this.parseTeamsFromVsFormat(polyMarket.question);
+        if (vsFromQuestion) return vsFromQuestion;
+
+        // 4. categorySlug 解析 (如 "epl-tot-mun-2026-02-07")
+        const slugTeams = this.parseTeamsFromSlug(categorySlug);
+        if (slugTeams) return slugTeams;
+
+        // 5. predictTitle 作为单球队名 (如 "Manchester United")
+        //    跳过 "Draw"、"Match Winner" 等通用标题
+        const genericTitles = ['draw', 'match winner', 'yes', 'no'];
+        if (predictTitle && !genericTitles.includes(predictTitle.toLowerCase())) {
+            // groupItemTitle 可能有更完整的名字
+            const groupTitle = polyMarket.groupItemTitle;
+            if (groupTitle && !groupTitle.toLowerCase().startsWith('draw')) {
+                return { away: groupTitle, home: predictTitle };
+            }
+            return { away: predictTitle, home: '' };
+        }
+
+        // 6. groupItemTitle 回退
+        const groupTitle = polyMarket.groupItemTitle;
+        if (groupTitle && !groupTitle.toLowerCase().startsWith('draw')) {
+            return { away: groupTitle, home: '' };
+        }
+
+        return { away: predictTitle || 'Team 1', home: 'Team 2' };
+    }
+
+    /**
+     * 从 "Team A vs Team B" / "Team A vs. Team B" / "Team A @ Team B" 格式解析球队名
+     */
+    private parseTeamsFromVsFormat(text: string): { away: string; home: string } | null {
+        if (!text) return null;
+        // "X vs Y", "X vs. Y", "X @ Y" — 贪婪匹配到行尾再清理
+        const match = text.match(/^(.+?)\s+(?:vs\.?|@)\s+(.+)$/i);
+        if (match && match[1] && match[2]) {
+            const away = match[1].trim();
+            // 清理 home 部分的尾部噪音 (日期、问号、"end in a draw" 等)
+            let home = match[2]
+                .replace(/\s+end\s+in\s+a\s+draw.*$/i, '')
+                .replace(/\s+on\s+\d{4}.*$/i, '')
+                .replace(/\?$/, '')
+                .trim();
+            if (away && home) return { away, home };
+        }
+        return null;
+    }
+
+    private parseTeamsFromSlug(slug: string): { away: string; home: string } | null {
+        if (!slug) return null;
+
+        // 格式 1: "X-at-Y" (NBA 城市格式，由 formatCategorySlugAsTitle 处理)
+        // 这里不处理，由 nbaParsed 分支覆盖
+
+        // 格式 2: "sport-team1-team2-YYYY-MM-DD"
+        // 先移除尾部日期
+        const dateStripped = slug.replace(/-\d{4}-\d{2}-\d{2}$/, '');
+        if (!dateStripped || dateStripped === slug.replace(/-/g, '')) return null;
+
+        // 尝试分割: 第一段可能是体育类型前缀
+        const parts = dateStripped.split('-');
+        if (parts.length < 2) return null;
+
+        // 已知的体育类型前缀
+        const sportPrefixes = ['nba', 'nfl', 'nhl', 'mlb', 'epl', 'mma', 'lol', 'dota', 'dota2', 'cs', 'cs2', 'csgo', 'ufc', 'soccer'];
+        const firstPart = parts[0].toLowerCase();
+
+        let teamParts: string[];
+        if (sportPrefixes.includes(firstPart)) {
+            // 第一段是体育类型，剩余是队伍
+            teamParts = parts.slice(1);
+        } else {
+            teamParts = parts;
+        }
+
+        if (teamParts.length < 2) return null;
+
+        // 过滤 "vs" 连接词
+        const filtered = teamParts.filter(p => p.toLowerCase() !== 'vs');
+        if (filtered.length < 2) return null;
+
+        // 简单二分: 前半=away, 后半=home
+        const mid = Math.ceil(filtered.length / 2);
+        const away = filtered.slice(0, mid).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const home = filtered.slice(mid).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+        return { away, home };
     }
 
     private detectSport(categorySlug: string, polySlug: string, isNbaBySlug: boolean = false): SportType {

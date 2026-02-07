@@ -4823,7 +4823,7 @@ async function main(): Promise<void> {
         'HEDGE_RETRY', 'UNWINDING', 'UNWIND_PENDING', 'PAUSED',
     ];
     const tasksToRecover = taskService.getTasks({ status: recoverableStatuses });
-    if (tasksToRecover.length > 0 && polymarketWsClient?.isConnected()) {
+    if (tasksToRecover.length > 0 && polymarketWsClient) {
         const taskTokens: string[] = [];
         for (const task of tasksToRecover) {
             if (task.polymarketYesTokenId) taskTokens.push(task.polymarketYesTokenId);

@@ -1,0 +1,199 @@
+{
+  "taskId": "BUY-6305-1770359862909",
+  "type": "BUY",
+  "marketId": 6305,
+  "title": "LoL: Anyone's Legend vs Bilibili Gaming (BO3) - LPL Group Ascend - Buy AL",
+  "logSchemaVersion": "1.0.0",
+  "status": "HEDGE_FAILED",
+  "isSuccess": false,
+  "strategy": "MAKER",
+  "avgTotalCost": 0.99,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 64,
+  "totalSnapshots": 10,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 3,
+    "ORDER_SUBMITTED": 9,
+    "ORDER_CANCELLED": 4,
+    "ORDER_PARTIAL_FILL": 14,
+    "HEDGE_STARTED": 7,
+    "HEDGE_ATTEMPT": 12,
+    "HEDGE_PARTIAL": 6,
+    "HEDGE_COMPLETED": 6,
+    "HEDGE_FAILED": 1,
+    "TASK_FAILED": 1
+  },
+  "startTime": 1770359862637,
+  "endTime": 1770368092433,
+  "durationMs": 8229796,
+  "predictFilledQty": 488,
+  "hedgedQty": 486.09,
+  "avgPredictPrice": 0.48,
+  "avgPolymarketPrice": 0.51,
+  "actualProfit": 0,
+  "profitPercent": 0,
+  "unwindLoss": 0,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770359862643,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770359862664,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770359863149,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770360062273,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770360062308,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770360063245,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770361784433,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770362371122,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770362371315,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770362372271,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770365640343,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 75.5164"
+    },
+    {
+      "timestamp": 1770365640635,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770365640878,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 75.5164"
+    },
+    {
+      "timestamp": 1770366541256,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 21.15299999999999"
+    },
+    {
+      "timestamp": 1770366541570,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770366541879,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 21.15299999999999"
+    },
+    {
+      "timestamp": 1770366576744,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 2.632000000000005"
+    },
+    {
+      "timestamp": 1770366577354,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770366577704,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 2.632000000000005"
+    },
+    {
+      "timestamp": 1770367299039,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770367299622,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 101.19315"
+    },
+    {
+      "timestamp": 1770367300135,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770367300408,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 101.19315"
+    },
+    {
+      "timestamp": 1770367754974,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 19.230000000000018"
+    },
+    {
+      "timestamp": 1770367755307,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770367755614,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 19.230000000000018"
+    },
+    {
+      "timestamp": 1770368088488,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 266.3837"
+    },
+    {
+      "timestamp": 1770368088802,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770368089165,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 266.3837"
+    },
+    {
+      "timestamp": 1770368089982,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 1.910000000000025"
+    },
+    {
+      "timestamp": 1770368092395,
+      "event": "HEDGE_FAILED",
+      "detail": "Hedge: 1.910000000000025"
+    },
+    {
+      "timestamp": 1770368092401,
+      "event": "TASK_FAILED",
+      "detail": "Hedge failed, 1.910000000000025 shares unhedged, est. loss: $0.09 (UNWIND disabled) (未知)"
+    }
+  ],
+  "generatedAt": 1770368092433
+}

@@ -34,6 +34,15 @@ const ENV_TTL_MS = Number(process.env.PREDICT_ORDERBOOK_CACHE_TTL_MS) || DEFAULT
 const ENV_ALLOW_STALE = process.env.PREDICT_ALLOW_STALE_ORDERBOOK_CACHE === 'true';
 const ENV_WS_ENABLED = process.env.PREDICT_ORDERBOOK_SOURCE?.toLowerCase() !== 'rest';
 const ENV_REST_ENABLED = process.env.PREDICT_ORDERBOOK_SOURCE?.toLowerCase() !== 'ws';
+const ENV_WS_RECONNECT_DELAY_MS = Number(process.env.PREDICT_WS_RECONNECT_DELAY_MS) > 0
+    ? Number(process.env.PREDICT_WS_RECONNECT_DELAY_MS)
+    : 3000;
+const ENV_WS_MAX_RECONNECT_ATTEMPTS = Number.parseInt(process.env.PREDICT_WS_MAX_RECONNECT_ATTEMPTS || '', 10) > 0
+    ? Number.parseInt(process.env.PREDICT_WS_MAX_RECONNECT_ATTEMPTS || '', 10)
+    : 5;
+const ENV_WS_MAX_RECONNECT_DELAY_MS = Number(process.env.PREDICT_WS_RECONNECT_MAX_DELAY_MS) > 0
+    ? Number(process.env.PREDICT_WS_RECONNECT_MAX_DELAY_MS)
+    : 0;
 
 // ============================================================================
 // 类型定义
@@ -60,6 +69,9 @@ export interface OrderbookCacheConfig {
     wsEnabled?: boolean;
     restEnabled?: boolean;
     restApiKey?: string;  // REST 专用 Key（轮换）
+    wsReconnectDelayMs?: number;
+    wsMaxReconnectAttempts?: number;
+    wsMaxReconnectDelayMs?: number;
 }
 
 export interface OrderbookCacheStats {
@@ -113,6 +125,9 @@ export class PredictOrderbookCache {
             wsEnabled: config.wsEnabled ?? ENV_WS_ENABLED,
             restEnabled: config.restEnabled ?? ENV_REST_ENABLED,
             restApiKey: config.restApiKey || config.apiKey,
+            wsReconnectDelayMs: config.wsReconnectDelayMs ?? ENV_WS_RECONNECT_DELAY_MS,
+            wsMaxReconnectAttempts: config.wsMaxReconnectAttempts ?? ENV_WS_MAX_RECONNECT_ATTEMPTS,
+            wsMaxReconnectDelayMs: config.wsMaxReconnectDelayMs ?? ENV_WS_MAX_RECONNECT_DELAY_MS,
         };
     }
 
@@ -379,6 +394,9 @@ export class PredictOrderbookCache {
                 apiKey: this.config.apiKey,
                 jwt: this.config.jwt || undefined,
                 autoReconnect: true,
+                reconnectDelayMs: this.config.wsReconnectDelayMs,
+                maxReconnectAttempts: this.config.wsMaxReconnectAttempts,
+                maxReconnectDelayMs: this.config.wsMaxReconnectDelayMs,
             });
         }
 
