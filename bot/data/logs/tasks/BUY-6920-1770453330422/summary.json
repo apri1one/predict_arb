@@ -1,0 +1,184 @@
+{
+  "taskId": "BUY-6920-1770453330422",
+  "type": "BUY",
+  "marketId": 6920,
+  "title": "Denver Nuggets vs Chicago Bulls - Buy Bulls",
+  "logSchemaVersion": "1.0.0",
+  "status": "HEDGE_FAILED",
+  "isSuccess": false,
+  "strategy": "MAKER",
+  "avgTotalCost": 0.9977780880573397,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 62,
+  "totalSnapshots": 11,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 4,
+    "ORDER_SUBMITTED": 7,
+    "ORDER_PARTIAL_FILL": 15,
+    "HEDGE_STARTED": 7,
+    "HEDGE_ATTEMPT": 12,
+    "HEDGE_PARTIAL": 6,
+    "HEDGE_COMPLETED": 6,
+    "ORDER_CANCELLED": 1,
+    "TASK_PAUSED": 1,
+    "HEDGE_FAILED": 1,
+    "TASK_FAILED": 1
+  },
+  "startTime": 1770453331297,
+  "endTime": 1770489680971,
+  "durationMs": 36349674,
+  "predictFilledQty": 585.0726000000001,
+  "hedgedQty": 107.43,
+  "avgPredictPrice": 0.33,
+  "avgPolymarketPrice": 0.6677780880573397,
+  "actualProfit": 0,
+  "profitPercent": 0,
+  "unwindLoss": 0,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770453331302,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770453331382,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770453332182,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770462362886,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770466321994,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770467391219,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 8.9551"
+    },
+    {
+      "timestamp": 1770467391654,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770467391899,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 8.9551"
+    },
+    {
+      "timestamp": 1770469992972,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 14.924999999999999"
+    },
+    {
+      "timestamp": 1770469993247,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770469993489,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 14.924999999999999"
+    },
+    {
+      "timestamp": 1770486371227,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770486371992,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 23.8801"
+    },
+    {
+      "timestamp": 1770486372515,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770486372757,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 23.8801"
+    },
+    {
+      "timestamp": 1770487290757,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 14.925000000000004"
+    },
+    {
+      "timestamp": 1770487291037,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770487291295,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 14.925000000000004"
+    },
+    {
+      "timestamp": 1770487297634,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 14.924999999999997"
+    },
+    {
+      "timestamp": 1770487297930,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770487298189,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 14.924999999999997"
+    },
+    {
+      "timestamp": 1770488859540,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 29.849999999999994"
+    },
+    {
+      "timestamp": 1770488859848,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770488860100,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 29.849999999999994"
+    },
+    {
+      "timestamp": 1770489679443,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 476.1199000000001"
+    },
+    {
+      "timestamp": 1770489679449,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 585.0726000000001"
+    },
+    {
+      "timestamp": 1770489679450,
+      "event": "TASK_PAUSED",
+      "detail": "深度保护: depth=0.00 < remaining=891.0473 (未知)"
+    },
+    {
+      "timestamp": 1770489680955,
+      "event": "HEDGE_FAILED",
+      "detail": "Hedge: 476.1199000000001"
+    },
+    {
+      "timestamp": 1770489680961,
+      "event": "TASK_FAILED",
+      "detail": "Hedge failed, 477.6426000000001 shares unhedged, est. loss: $15.76 (UNWIND disabled) (未知)"
+    }
+  ],
+  "generatedAt": 1770489680971
+}

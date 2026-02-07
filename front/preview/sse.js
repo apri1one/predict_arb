@@ -80,8 +80,29 @@ const useArbScanner = (addNotification, addOrderToast) => {
                 const warnCache = missingFieldWarnRef.current;
 
                 // 1. 更新缓存：新数据更新已有条目，或添加新条目
+                //    Boost 字段做“有值优先”合并，避免被无 boost 的增量包覆盖
                 newOpps.forEach(opp => {
-                    cache.set(opp.id, { opp, lastSeen: now });
+                    const prevEntry = cache.get(opp.id);
+                    const prevOpp = prevEntry?.opp;
+                    const prevHasBoost = Boolean(prevOpp?.boosted || prevOpp?.boostStartTime || prevOpp?.boostEndTime);
+                    const currHasBoost = Boolean(opp.boosted || opp.boostStartTime || opp.boostEndTime);
+
+                    let mergedOpp = opp;
+                    if (!currHasBoost && prevHasBoost) {
+                        mergedOpp = {
+                            ...opp,
+                            boosted: Boolean(prevOpp.boosted || prevOpp.boostStartTime || prevOpp.boostEndTime),
+                            boostStartTime: prevOpp.boostStartTime || null,
+                            boostEndTime: prevOpp.boostEndTime || null,
+                        };
+                    } else if (currHasBoost && !opp.boosted) {
+                        mergedOpp = {
+                            ...opp,
+                            boosted: true,
+                        };
+                    }
+
+                    cache.set(opp.id, { opp: mergedOpp, lastSeen: now });
                 });
 
                 // 2. 清理过期条目（超过60秒未更新）

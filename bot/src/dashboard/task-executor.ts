@@ -1781,8 +1781,14 @@ export class TaskExecutor extends EventEmitter {
 
         // 当前正在监听的订单 hash（用于检测 hash 变更）
         let watchedOrderHash: string | null = null;
-        // 基准偏移使用 ctx 字段（已在 startTask 初始化），使延迟验证定时器能同步更新
-        ctx.baseFilledBeforeOrder = ctx.totalPredictFilled;
+        // 基准偏移初始化：
+        // - 正常场景（新订单）: base = 已成交总量，rest/wss 从 0 开始累加
+        // - 恢复场景（已有 currentOrderHash 且已有成交）:
+        //   Predict API filledQty 是“订单累计成交”，不能再叠加 base，否则会双计数
+        const isResumingLiveOrderWithHistory = Boolean(ctx.currentOrderHash && ctx.totalPredictFilled > 0);
+        if (!isResumingLiveOrderWithHistory) {
+            ctx.baseFilledBeforeOrder = ctx.totalPredictFilled;
+        }
         // REST 连续失败计数（防止无限静默重试）
         let restConsecutiveFailures = 0;
         const REST_MAX_CONSECUTIVE_FAILURES = 20; // 连续 20 次 (~10s) 后告警
@@ -1882,10 +1888,23 @@ export class TaskExecutor extends EventEmitter {
 
         // 初始注册（如果有订单）
         if (ctx.currentOrderHash) {
-            // 首次进入时，base 已经是 ctx.totalPredictFilled（恢复场景）
-            // 但 WSS/REST 状态需要从 0 开始（只追踪当前订单的成交）
-            ctx.wssFilledQty = 0;
-            ctx.restFilledQty = 0;
+            // 重要：
+            // 恢复已有订单且已有历史成交时，restFilledQty 需要保留“累计成交基线”，
+            // 并将 base 置 0，避免 merged = base + rest 造成双计数。
+            // 新订单场景仍按原逻辑：base=已有总成交，rest/wss 从 0 开始。
+            if (isResumingLiveOrderWithHistory) {
+                const baseline = Math.max(ctx.restFilledQty, ctx.totalPredictFilled);
+                ctx.baseFilledBeforeOrder = 0;
+                ctx.wssFilledQty = 0;
+                ctx.restFilledQty = baseline;
+                console.log(
+                    `[TaskExecutor] Task ${task.id}: resume existing order with historical fills, ` +
+                    `baseline=${baseline.toFixed(4)}, base=0`,
+                );
+            } else {
+                ctx.wssFilledQty = 0;
+                ctx.restFilledQty = 0;
+            }
             watchedOrderHash = ctx.currentOrderHash;
 
             try {

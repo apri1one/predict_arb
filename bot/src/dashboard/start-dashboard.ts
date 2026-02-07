@@ -1556,6 +1556,23 @@ function getPredictOrderbookForWsUpdate(marketId: number): { bids: OrderBookLeve
 }
 
 /**
+ * 统一注入/清理 boost 字段，避免 WS 增量路径遗漏或缓存残留过期状态。
+ */
+function applyBoostToOpportunity(opp: ArbOpportunity): ArbOpportunity {
+    const boost = isMarketBoosted(opp.marketId);
+    if (boost.boosted) {
+        opp.boosted = true;
+        opp.boostStartTime = boost.boostStartTime;
+        opp.boostEndTime = boost.boostEndTime;
+    } else {
+        delete opp.boosted;
+        delete opp.boostStartTime;
+        delete opp.boostEndTime;
+    }
+    return opp;
+}
+
+/**
  * 处理 Polymarket WS 订单簿更新，增量更新对应市场的套利机会
  * - 记录 Polymarket WS 更新时间戳
  * - profit > 0 时更新机会
@@ -1592,7 +1609,7 @@ function buildOpportunityFromDepth(
         ? (strategy === 'MAKER' ? yesDepth.predictYesBid : yesDepth.predictYesAsk)
         : (strategy === 'MAKER' ? noDepth.predictNoBid : noDepth.predictNoAsk);
 
-    return {
+    const opportunity: ArbOpportunity = {
         marketId: pair.predictId,
         title: pair.predictQuestion,
         strategy,
@@ -1646,6 +1663,7 @@ function buildOpportunityFromDepth(
         predictVolume: pair.predictVolume,
         polyVolume: pair.polyVolume,
     };
+    return applyBoostToOpportunity(opportunity);
 }
 
 function removeOpportunityByKey(marketId: number, side: 'YES' | 'NO', strategy: 'MAKER' | 'TAKER'): void {
@@ -4010,12 +4028,7 @@ async function detectArbitrageOpportunities(): Promise<void> {
 
     // Inject boost flags
     for (const opp of opportunities) {
-        const boost = isMarketBoosted(opp.marketId);
-        if (boost.boosted) {
-            opp.boosted = true;
-            opp.boostStartTime = boost.boostStartTime;
-            opp.boostEndTime = boost.boostEndTime;
-        }
+        applyBoostToOpportunity(opp);
     }
 
     for (const opp of opportunities) {
@@ -4108,6 +4121,8 @@ async function detectArbitrageOpportunities(): Promise<void> {
         if (!fetchedIds.has(key)) {
             // 检查是否过期
             if (cacheNow - cachedOpp.lastUpdate < CACHE_EXPIRY_MS) {
+                // 缓存补齐/清理 boost 字段（防止显示过期状态）
+                applyBoostToOpportunity(cachedOpp);
                 // 缓存的机会不是新的
                 cachedOpp.isNew = false;
                 opportunities.push(cachedOpp);

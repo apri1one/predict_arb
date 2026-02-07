@@ -61,64 +61,45 @@ const parseBoostTimeMs = (value) => {
     return Number.isNaN(ts) ? null : ts;
 };
 
-/** Format boost time as HH:MM (local). */
-const formatBoostClock = (ms) => {
-    if (!ms) return null;
-    const d = new Date(ms);
-    if (isNaN(d.getTime())) return null;
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
-};
-
-/** Boost countdown text (returns {text, phase}, null if expired). */
-const formatBoostCountdown = (boostStartTime, boostEndTime) => {
+/** 获取 boost 徽标状态：UPCOMING 显示倒计时，ACTIVE 显示 boosted。 */
+const getBoostBadgeState = (boostStartTime, boostEndTime) => {
     const startMs = parseBoostTimeMs(boostStartTime);
     const endMs = parseBoostTimeMs(boostEndTime);
-    if (!startMs && !endMs) return null;
     const now = Date.now();
-    const remaining = (targetMs) => targetMs - now;
-    const fmt = (ms) => {
-        const hours = Math.floor(ms / 3600000);
-        const mins = Math.floor((ms % 3600000) / 60000);
-        if (hours > 0) return `${hours}h ${mins}m`;
-        return `${mins}m`;
-    };
 
     if (startMs && now < startMs) {
-        const ms = remaining(startMs);
-        if (ms <= 0) return null;
-        return { text: fmt(ms), phase: 'UPCOMING' };
+        const mins = Math.max(1, Math.ceil((startMs - now) / 60000));
+        return { phase: 'UPCOMING', text: `boost in ${mins}min` };
     }
-    if (endMs && now < endMs) {
-        const ms = remaining(endMs);
-        if (ms <= 0) return null;
-        return { text: fmt(ms), phase: 'ACTIVE' };
+
+    if (endMs && now > endMs) {
+        return null;
     }
-    if (startMs && now >= startMs && !endMs) {
-        const clock = formatBoostClock(startMs);
-        return { text: clock || 'LIVE', phase: 'ACTIVE' };
-    }
-    return null;
+
+    return { phase: 'ACTIVE', text: 'boosted' };
 };
 
-/** BoostCountdown - self-updating every 60s. */
+/** Boost badge：未开始显示倒计时，开始后显示闪烁金色 boosted。 */
 const BoostCountdown = ({ boostStartTime, boostEndTime }) => {
-    const [state, setState] = useState(() => formatBoostCountdown(boostStartTime, boostEndTime));
+    const [state, setState] = useState(() => getBoostBadgeState(boostStartTime, boostEndTime));
 
     useEffect(() => {
-        if (!boostStartTime && !boostEndTime) return;
-        const update = () => setState(formatBoostCountdown(boostStartTime, boostEndTime));
+        const update = () => setState(getBoostBadgeState(boostStartTime, boostEndTime));
         update();
-        const timer = setInterval(update, 60000);
+        const timer = setInterval(update, 30000);
         return () => clearInterval(timer);
     }, [boostStartTime, boostEndTime]);
 
     if (!state) return null;
-    const label = state.phase === 'UPCOMING' ? `BOOST IN ${state.text}` : `BOOST ${state.text}`;
+
+    const isActive = state.phase === 'ACTIVE';
+    const className = isActive
+        ? 'text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 border border-amber-500/40 text-amber-300 font-bold tracking-wide lowercase animate-pulse-slow'
+        : 'text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 border border-amber-500/40 text-amber-400 font-semibold tracking-wide lowercase';
+
     return (
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 border border-amber-500/40 text-amber-400 font-semibold">
-            {label}
+        <span className={className}>
+            {state.text}
         </span>
     );
 };
@@ -488,6 +469,7 @@ const ViewLinks = ({ predictId, predictSlug: backendSlug, polymarketSlug, polyma
 const OpportunityCard = ({ opp, onOpenTaskModal, activeTask }) => {
     const [expanded, setExpanded] = useState(false);
     const timeSinceUpdate = Math.floor((Date.now() - opp.lastUpdate) / 1000);
+    const isBoosted = Boolean(opp.boosted || opp.boostStartTime || opp.boostEndTime);
     // FIX: 所有套利开仓都应该是 BUY 类型任务
     // arbSide 字段控制买 YES 还是 NO (YES端: 买YES, NO端: 买NO)
     // SELL 类型仅用于平仓现有持仓，不用于套利开仓
@@ -501,7 +483,7 @@ const OpportunityCard = ({ opp, onOpenTaskModal, activeTask }) => {
     return (
         <div className="group">
             <div className={`glass-card rounded-xl transition-all duration-300 overflow-hidden h-full relative
-                ${(opp.boostStartTime || opp.boostEndTime) ? 'border-2 border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.15)]' : 'border border-zinc-800/50'}
+                ${isBoosted ? 'border-2 border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.15)]' : 'border border-zinc-800/50'}
                 ${expanded ? 'border-amber-500/30 shadow-glow-sm bg-zinc-900/80' : 'hover:border-white/10 hover:scale-[1.005]'}`}>
 
                 {/* 任务标签 (斜角丝带) */}
@@ -525,9 +507,7 @@ const OpportunityCard = ({ opp, onOpenTaskModal, activeTask }) => {
                             {opp.isInverted && <Badge variant="inverted" icon="arrow-left-right">INV</Badge>}
                             {opp.profitPercent > 2.5 && <Badge variant="warning">HOT</Badge>}
                             {opp.risk.level === 'HIGH' && <Badge variant="danger" icon="alert-triangle">RISK</Badge>}
-                            {(opp.boostStartTime || opp.boostEndTime) && (
-                                <BoostCountdown boostStartTime={opp.boostStartTime} boostEndTime={opp.boostEndTime} />
-                            )}
+                            {isBoosted && <BoostCountdown boostStartTime={opp.boostStartTime} boostEndTime={opp.boostEndTime} />}
                             {opp.endDate && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-400 font-mono">
                                     <Icon name="clock" size={10} className="inline mr-1" />
@@ -2409,6 +2389,7 @@ const TaskLogModal = ({ isOpen, onClose, taskId, apiBaseUrl }) => {
 // --- Sports Card ---
 const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, tasks = [] }) => {
     const [expanded, setExpanded] = useState(false);
+    const isBoosted = Boolean(market.boosted || market.boostStartTime || market.boostEndTime);
     const [takerConfirm, setTakerConfirm] = useState(null); // { direction: 'away'|'home', opp: SportsArbOpportunity }
     const [takerQuantity, setTakerQuantity] = useState(100); // Taker 数量输入
 
@@ -2662,7 +2643,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, task
     return (
         <div className="group">
             <div className={`glass-card rounded-xl transition-all duration-300 overflow-hidden h-full relative
-                ${(market.boostStartTime || market.boostEndTime) ? 'border-2 border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.15)]' : 'border border-zinc-800/50'}
+                ${isBoosted ? 'border-2 border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.15)]' : 'border border-zinc-800/50'}
                 ${expanded ? 'border-amber-500/30 shadow-glow-sm bg-zinc-900/80' : 'hover:border-white/10 hover:scale-[1.005]'}
                 ${hasArb ? 'ring-1 ring-emerald-500/20' : ''}
                 ${hasActiveTask ? 'ring-1 ring-blue-500/30' : ''}`}>
@@ -2697,9 +2678,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, task
                                 <span className="text-lg">{sportIcon}</span>
                                 <Badge variant="default">{market.sport?.toUpperCase()}</Badge>
                                 {hasArb && <Badge variant="success">ARB</Badge>}
-                                {(market.boostStartTime || market.boostEndTime) && (
-                                    <BoostCountdown boostStartTime={market.boostStartTime} boostEndTime={market.boostEndTime} />
-                                )}
+                                {isBoosted && <BoostCountdown boostStartTime={market.boostStartTime} boostEndTime={market.boostEndTime} />}
                                 {!market.consistency?.isValid && <Badge variant="danger" icon="alert-triangle">异常</Badge>}
                             </div>
                             <div className="flex items-center gap-2">

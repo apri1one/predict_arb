@@ -1,125 +1,23 @@
 {
-  "timestamp": "2026-02-07T12:10:08.135Z",
+  "timestamp": "2026-02-07T19:03:42.761Z",
   "summary": {
-    "total": 393,
-    "matched": 390,
+    "total": 375,
+    "matched": 375,
     "failed": 0
   },
   "matches": [
     {
       "predict": {
-        "id": 6745,
-        "title": "Manchester United",
-        "question": "Will Manchester United win the Premier League game?",
-        "conditionId": "0x775f3f5400f1ad765a36b29a599e6c79de397ac7d47ca04c7b1ba64ddb2a963f",
-        "feeRateBps": 200,
-        "categorySlug": "epl-tot-mun-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Manchester United FC win on 2026-02-07?",
-        "conditionId": "0xd67bc386525766614eb15c746e8e1f2b3a71ca105882ea276ba29f05829c4385",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6746,
-        "title": "Draw",
-        "question": "Will the Premier League game end in a draw?",
-        "conditionId": "0x1410e12a91572ce7d0e93995f8a877c3ecf1a8b45c308d300bbd7ec6b681defb",
-        "feeRateBps": 200,
-        "categorySlug": "epl-tot-mun-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Manchester United FC vs. Tottenham Hotspur FC end in a draw?",
-        "conditionId": "0xee1085eafdef6e42c8b71afaf1b3cb5779af83b99bb029ddaf3c85cc57e9f3dc",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6747,
-        "title": "Tottenham Hotspur",
-        "question": "Will Tottenham Hotspur win the Premier League game?",
-        "conditionId": "0x7c1c65a07ce4bdd99b1a53e9da9264a9234b8f5d5c92baec468ec622932ca710",
-        "feeRateBps": 200,
-        "categorySlug": "epl-tot-mun-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Tottenham Hotspur FC win on 2026-02-07?",
-        "conditionId": "0xc283831e4876db51a50cb138959c7ed47b93555e9031fcb820e3e90110def8d3",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6753,
-        "title": "Rayo Vallecano",
-        "question": "Will Rayo Vallecano win the La Liga game?",
-        "conditionId": "0x4c184a3adde7959fff823a981e369cfb2c7a3e9c0650ef3138f92af4792968be",
-        "feeRateBps": 200,
-        "categorySlug": "la-liga-ovi-rvc-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Rayo Vallecano de Madrid win on 2026-02-07?",
-        "conditionId": "0x6f1de453a61d15388c4d354b968ababa591de7f3f3c7d8700023bae59aecf033",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6754,
-        "title": "Draw",
-        "question": "Will the La Liga game end in a draw?",
-        "conditionId": "0xdb6cfddd094763d85e6ba229b331735fb7a960402465b3c09ca4e84d91c1046e",
-        "feeRateBps": 200,
-        "categorySlug": "la-liga-ovi-rvc-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Rayo Vallecano de Madrid vs. Real Oviedo end in a draw?",
-        "conditionId": "0x3977d1370e4bf0a06b78d0ec4bcf1dfa48cfdb92895b029f0f898b087d6983f4",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6755,
-        "title": "Oviedo",
-        "question": "Will Oviedo win the La Liga game?",
-        "conditionId": "0x4566c5b340369b97319170c77d5a7da87a46391762010739f1346322b396cc28",
-        "feeRateBps": 200,
-        "categorySlug": "la-liga-ovi-rvc-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Real Oviedo win on 2026-02-07?",
-        "conditionId": "0x7be5f7e1cfa89bdb3b73bade56e58b48ee118b16881b7449c43bf432933b3336",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 7154,
+        "id": 7155,
         "title": "Match Winner",
-        "question": "Dota 2: Team Yandex vs Team Spirit (BO3) - BLAST Slam Play-In",
-        "conditionId": "0xc8d0654b9f48f99a9f23102aac25efd8003fd675cccbc276e81efe8bd342f72c",
+        "question": "Dota 2: Team Falcons vs Xtreme Gaming (BO3) - BLAST Slam Play-In",
+        "conditionId": "0x2eef8c07cce7158743525e4630924d5219714c9a9cd248b0b28520be209b8377",
         "feeRateBps": 200,
-        "categorySlug": "dota2-ty-ts8-2026-02-07"
+        "categorySlug": "dota2-flc-xtreme-2026-02-07"
       },
       "polymarket": {
-        "question": "Dota 2: Team Yandex vs Team Spirit (BO3) - BLAST Slam Play-In",
-        "conditionId": "0x10f6dc48b0fd79a2f0f83983d3e422d4c91a50b3926a54fe3b173aca4912f642",
+        "question": "Dota 2: Team Falcons vs Xtreme Gaming (BO3) - BLAST Slam Play-In",
+        "conditionId": "0xac097a52ae787fe558fe00cb3a6e1d4a33cf4ea53ace237db92b276ec1ee4108",
         "active": true,
         "closed": false,
         "acceptingOrders": true
@@ -127,16 +25,16 @@
     },
     {
       "predict": {
-        "id": 6998,
+        "id": 7001,
         "title": "Match Winner",
-        "question": "LoL: Team Heretics vs Fnatic (BO1) - LEC Versus Regular Season",
-        "conditionId": "0xc941a35ceb4f5de35f0e9e64cda46954297d0b410aeb123ea4f44549d44d7a47",
+        "question": "LoL: Natus Vincere vs G2 Esports (BO1) - LEC Versus Regular Season",
+        "conditionId": "0x503b1df1412233cbd5558c0d0b2b137512c6159339caac2b50e3515bc0f7be73",
         "feeRateBps": 200,
-        "categorySlug": "lol-th-fnc-2026-02-07"
+        "categorySlug": "lol-navi-g2-2026-02-07"
       },
       "polymarket": {
-        "question": "LoL: Team Heretics vs Fnatic (BO1) - LEC Versus Regular Season",
-        "conditionId": "0x8e3a989d0419663c138d21edf0f8fd9b1e127cd0f521c5b30d6af8cd9a3d7643",
+        "question": "LoL: Natus Vincere vs G2 Esports (BO1) - LEC Versus Regular Season",
+        "conditionId": "0x86ade7340f38c10ebe7cccde6475886f932e03dc79a5b7dd06500a802f97fe49",
         "active": true,
         "closed": false,
         "acceptingOrders": true
@@ -144,16 +42,16 @@
     },
     {
       "predict": {
-        "id": 6999,
+        "id": 7002,
         "title": "Match Winner",
-        "question": "LoL: Shifters vs Karmine Corp Blue (BO1) - LEC Versus Regular Season",
-        "conditionId": "0x0303f0b8bd3b05c3b252ece4ef667c4e247da934fd84c3c69850360d91e866d4",
+        "question": "LoL: Team Vitality vs Movistar KOI (BO1) - LEC Versus Regular Season",
+        "conditionId": "0x4483e406c98d345a8a6a662a4ff63bbfc37dcbc27258d34975283d4ce37c6015",
         "feeRateBps": 200,
-        "categorySlug": "lol-shft-kcb-2026-02-07"
+        "categorySlug": "lol-vit-mkoi-2026-02-07"
       },
       "polymarket": {
-        "question": "LoL: Shifters vs Karmine Corp Blue (BO1) - LEC Versus Regular Season",
-        "conditionId": "0x6cbb11f3872ab71b193cbd3b5e791f356a10f3e259efb21a027306c93ae173d9",
+        "question": "LoL: Team Vitality vs Movistar KOI (BO1) - LEC Versus Regular Season",
+        "conditionId": "0xc276373fbeaa6f5a4277084e7bf886e0220fa05063751cef0c09583d78d80472",
         "active": true,
         "closed": false,
         "acceptingOrders": true
@@ -161,16 +59,16 @@
     },
     {
       "predict": {
-        "id": 705,
-        "title": "Seattle",
-        "question": "Will the Seattle Seahawks win Super Bowl 2026?",
-        "conditionId": "0x18a0002ca813167e10fc0f58358904d36f2e94999f1c3d9273da7694b5698590",
+        "id": 7003,
+        "title": "Match Winner",
+        "question": "LoL: Karmine Corp vs GIANTX (BO1) - LEC Versus Regular Season",
+        "conditionId": "0x184ef53ffbe71d189261d14adebdf5daa67286336b42cf02e703edc458b6d980",
         "feeRateBps": 200,
-        "categorySlug": "super-bowl-champion-2026-731"
+        "categorySlug": "lol-kc-gx-2026-02-07"
       },
       "polymarket": {
-        "question": "Will the Seattle Seahawks win Super Bowl 2026?",
-        "conditionId": "0xa0eafdfa7da17483796f77f4b287d28834ab97db4a9a6e999b52c1ba239bc2f3",
+        "question": "LoL: Karmine Corp vs GIANTX (BO1) - LEC Versus Regular Season",
+        "conditionId": "0x2f18b347f07582bedcad8b18c656ae46f88273bd1adf8f8edbbc6f5576440f2a",
         "active": true,
         "closed": false,
         "acceptingOrders": true
@@ -178,33 +76,16 @@
     },
     {
       "predict": {
-        "id": 709,
-        "title": "New England",
-        "question": "Will the New England Patriots win Super Bowl 2026?",
-        "conditionId": "0xd508ecc40b4568b503bba710398ff062d369f4ef96a971795ba8dd17e10f6da1",
+        "id": 6891,
+        "title": "Houston Rockets vs Oklahoma City Thunder",
+        "question": "Who will win: Houston Rockets vs Oklahoma City Thunder?",
+        "conditionId": "0xcc1a65c64eb22fa4ec2b9fe8c10b2eb4c3dbd636d0ea5246f26bc628df777a49",
         "feeRateBps": 200,
-        "categorySlug": "super-bowl-champion-2026-731"
+        "categorySlug": "nba-hou-okc-2026-02-07"
       },
       "polymarket": {
-        "question": "Will the New England Patriots win Super Bowl 2026?",
-        "conditionId": "0xc914317b14972d5d15f30740d3bdf32f4028877c13b9d7ccc78b4ba33f67fb1e",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6714,
-        "title": "Another US government shutdown by February 14?",
-        "question": "Another US government shutdown by February 14?",
-        "conditionId": "0xafe65e1ecb8aa98434d70a2c1ad8754211356239def31b280813765cea877f70",
-        "feeRateBps": 200,
-        "categorySlug": "another-us-government-shutdown-by-february-14"
-      },
-      "polymarket": {
-        "question": "Another US government shutdown by February 14?",
-        "conditionId": "0x4b78de44ea49d0eb8d5fee85352294b6f679a47c56944c6ad5c945e9a2ba7211",
+        "question": "Rockets vs. Thunder",
+        "conditionId": "0xdfdab7827bcc6553118209bedcf56d4de3fbc4f2df3e4f4c377486c88f522b05",
         "active": true,
         "closed": false,
         "acceptingOrders": true
@@ -256,6 +137,57 @@
       "polymarket": {
         "question": "Will Elche CF win on 2026-02-07?",
         "conditionId": "0x53b0f9e803120e454697fb7e2d1b559c2d7420eb9409db3dc790bd395a53769d",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 705,
+        "title": "Seattle",
+        "question": "Will the Seattle Seahawks win Super Bowl 2026?",
+        "conditionId": "0x18a0002ca813167e10fc0f58358904d36f2e94999f1c3d9273da7694b5698590",
+        "feeRateBps": 200,
+        "categorySlug": "super-bowl-champion-2026-731"
+      },
+      "polymarket": {
+        "question": "Will the Seattle Seahawks win Super Bowl 2026?",
+        "conditionId": "0xa0eafdfa7da17483796f77f4b287d28834ab97db4a9a6e999b52c1ba239bc2f3",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 709,
+        "title": "New England",
+        "question": "Will the New England Patriots win Super Bowl 2026?",
+        "conditionId": "0xd508ecc40b4568b503bba710398ff062d369f4ef96a971795ba8dd17e10f6da1",
+        "feeRateBps": 200,
+        "categorySlug": "super-bowl-champion-2026-731"
+      },
+      "polymarket": {
+        "question": "Will the New England Patriots win Super Bowl 2026?",
+        "conditionId": "0xc914317b14972d5d15f30740d3bdf32f4028877c13b9d7ccc78b4ba33f67fb1e",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 6714,
+        "title": "Another US government shutdown by February 14?",
+        "question": "Another US government shutdown by February 14?",
+        "conditionId": "0xafe65e1ecb8aa98434d70a2c1ad8754211356239def31b280813765cea877f70",
+        "feeRateBps": 200,
+        "categorySlug": "another-us-government-shutdown-by-february-14"
+      },
+      "polymarket": {
+        "question": "Another US government shutdown by February 14?",
+        "conditionId": "0x4b78de44ea49d0eb8d5fee85352294b6f679a47c56944c6ad5c945e9a2ba7211",
         "active": true,
         "closed": false,
         "acceptingOrders": true
@@ -343,312 +275,6 @@
       "polymarket": {
         "question": "Will Trump acquire Greenland before 2027?",
         "conditionId": "0xd595eb9b81885ff018738300c79047e3ec89e87294424f57a29a7fa9162bf116",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6785,
-        "title": "Bournemouth",
-        "question": "Will Bournemouth win the Premier League game?",
-        "conditionId": "0x9295e0737b415f4c0b732da6d9cec94f456def69cebc84ee154f29aef54fb9b1",
-        "feeRateBps": 200,
-        "categorySlug": "epl-avl-bou-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will AFC Bournemouth win on 2026-02-07?",
-        "conditionId": "0x8092a469858277b0fcf9d5ae73f4f49730990d76618229509efb314bd2700de7",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6786,
-        "title": "Draw",
-        "question": "Will the Premier League game end in a draw?",
-        "conditionId": "0xaec7ac659f76380c4ffcdf7d50c517d73a7ceb024f2ca5f4ff49c469a2755656",
-        "feeRateBps": 200,
-        "categorySlug": "epl-avl-bou-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will AFC Bournemouth vs. Aston Villa FC end in a draw?",
-        "conditionId": "0x829f82b2a89d6a94ea781bbeb4635bdc5365d9561b4a51853d4498ab113b8afb",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6787,
-        "title": "Aston Villa",
-        "question": "Will Aston Villa win the Premier League game?",
-        "conditionId": "0xfa124125bb1cf6d4726b90391b1235472551b26bdff1d407ed8a6ea6da6385e5",
-        "feeRateBps": 200,
-        "categorySlug": "epl-avl-bou-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Aston Villa FC win on 2026-02-07?",
-        "conditionId": "0x93d579efeb9c060306ee3c20cc5caedbb3b1fac7051f256abf2fc7bbfad589d1",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6788,
-        "title": "Burnley",
-        "question": "Will Burnley win the Premier League game?",
-        "conditionId": "0x9a400904659b277f4ce7e1055344739ddd6c8072a868fc4f6c1f057a4c64ca27",
-        "feeRateBps": 200,
-        "categorySlug": "epl-whu-bur-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Burnley FC win on 2026-02-07?",
-        "conditionId": "0x5af9bf6142e00404fd424b29675b9aa4c15b3d3197a2539e003c06999852b645",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6789,
-        "title": "Draw",
-        "question": "Will the Premier League game end in a draw?",
-        "conditionId": "0x83eb0078caa4cb12407c2be33e9aae0ee663683c150095b0b8edb2a3f08dce74",
-        "feeRateBps": 200,
-        "categorySlug": "epl-whu-bur-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Burnley FC vs. West Ham United FC end in a draw?",
-        "conditionId": "0xbb4ca089b5a0bcbd29226b4eedf0003131a1d3eef28b0470baefb49337bfdd63",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6790,
-        "title": "West Ham United",
-        "question": "Will West Ham United win the Premier League game?",
-        "conditionId": "0x44dd321c61665d07fb7e7c693bd15ee62628b68df96a175007c6b12cfaa38a97",
-        "feeRateBps": 200,
-        "categorySlug": "epl-whu-bur-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will West Ham United FC win on 2026-02-07?",
-        "conditionId": "0xa50230496e3e99a09350ca2140e6b6f206654fad1e2eb2f5e3452b9f3f7b335c",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6791,
-        "title": "Wolverhampton Wanderers",
-        "question": "Will Wolverhampton Wanderers win the Premier League game?",
-        "conditionId": "0xebeaedddd7ea953f831a83538bca698c27caecbec9f54d6715f0847e3df6dafb",
-        "feeRateBps": 200,
-        "categorySlug": "epl-che-wol-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Wolverhampton Wanderers FC win on 2026-02-07?",
-        "conditionId": "0x9bbce30ea7300b7764367bd646c90143bc4b07e322b3cf306170a13f38f2710b",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6792,
-        "title": "Draw",
-        "question": "Will the Premier League game end in a draw?",
-        "conditionId": "0xc06ea9cf314bfdea8d0721407b4f30b366ff144fab7367b397adf04ae6bf1256",
-        "feeRateBps": 200,
-        "categorySlug": "epl-che-wol-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Wolverhampton Wanderers FC vs. Chelsea FC end in a draw?",
-        "conditionId": "0x900101897f328866e8da9a4e7bdd3571df518c1818bc7a186f981d0b88a8e59c",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6793,
-        "title": "Chelsea",
-        "question": "Will Chelsea win the Premier League game?",
-        "conditionId": "0xf3fee425864d61ffd6729a086e06a7b7fd8f6b043df937f324d13c8664cf5929",
-        "feeRateBps": 200,
-        "categorySlug": "epl-che-wol-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Chelsea FC win on 2026-02-07?",
-        "conditionId": "0xec8f66b8a8c9478c6232e911a0cf89fe427494584f43fd6ffb2fcdf04636a046",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6794,
-        "title": "Fulham",
-        "question": "Will Fulham win the Premier League game?",
-        "conditionId": "0xe47494ea1cbe865a4d21f7f8d9f7dd70bb6359d0b2ef7e08f7d546447ad89472",
-        "feeRateBps": 200,
-        "categorySlug": "epl-eve-ful-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Fulham FC win on 2026-02-07?",
-        "conditionId": "0xa8a432523dc08db1683fdad809a103dc943952534957181afecec8080cb457ad",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6795,
-        "title": "Draw",
-        "question": "Will the Premier League game end in a draw?",
-        "conditionId": "0x3739c19b613de489ea84f0b4ab7d3f96b7266d37fe61cfabab6f13476e264b7d",
-        "feeRateBps": 200,
-        "categorySlug": "epl-eve-ful-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Fulham FC vs. Everton FC end in a draw?",
-        "conditionId": "0x9df153c095b96bfbecc4f17fecfc14c850aff91d84f3d790aa5dfd3338517ca4",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6796,
-        "title": "Everton",
-        "question": "Will Everton win the Premier League game?",
-        "conditionId": "0x0ad7ece711926a480918d64aa1c03d8b281eb97b6befabf7e07798ce7c8054dd",
-        "feeRateBps": 200,
-        "categorySlug": "epl-eve-ful-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Everton FC win on 2026-02-07?",
-        "conditionId": "0xb733a61f8690ad1968bad618ad8dbf0373f26e99c535c8d3ecb483f651f5f32f",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6797,
-        "title": "Arsenal",
-        "question": "Will Arsenal win the Premier League game?",
-        "conditionId": "0xb20548367ad48f7300232037a19ddc08e12402d5affaccf0a34b7e31b67d79e5",
-        "feeRateBps": 200,
-        "categorySlug": "epl-sun-ars-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Arsenal FC win on 2026-02-07?",
-        "conditionId": "0xb70421b008cc10b877278c923d7278ad705c8cd25375bb89962b17ce116495af",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6798,
-        "title": "Draw",
-        "question": "Will the Premier League game end in a draw?",
-        "conditionId": "0xeb47cba553e89237cdeb19060be99c9c076900512457020fcf60c22548dbcd16",
-        "feeRateBps": 200,
-        "categorySlug": "epl-sun-ars-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Arsenal FC vs. Sunderland AFC end in a draw?",
-        "conditionId": "0x610ee78437f14813b2a61b997f0a202e47c67df0d025ede85e9f7966e9d6f60a",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6799,
-        "title": "Sunderland",
-        "question": "Will Sunderland win the Premier League game?",
-        "conditionId": "0x827372101ef6028dc20c9cbd6bb48c4fad1e82615de70555b31d510cde3f962a",
-        "feeRateBps": 200,
-        "categorySlug": "epl-sun-ars-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will Sunderland AFC win on 2026-02-07?",
-        "conditionId": "0x225a0496b0420c4fc9b24089e096f262be609a4bc713c1c4edad1a202764d2b2",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6800,
-        "title": "Barcelona",
-        "question": "Will Barcelona win the La Liga game?",
-        "conditionId": "0x079ca90103795edcf3493c97365023d3555fb65affb0c6e514ee65d279889929",
-        "feeRateBps": 200,
-        "categorySlug": "la-liga-mal-fcb-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will FC Barcelona win on 2026-02-07?",
-        "conditionId": "0x235905f3bce3bfd4d7c98ba78b9e7b7a795d9769c768a8b4c556f1a4c3775e12",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6801,
-        "title": "Draw",
-        "question": "Will the La Liga game end in a draw?",
-        "conditionId": "0xe14844cd294454a257284a3b28494547bfc30c3412b2857f8d508825d81a4c8b",
-        "feeRateBps": 200,
-        "categorySlug": "la-liga-mal-fcb-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will FC Barcelona vs. RCD Mallorca end in a draw?",
-        "conditionId": "0x5d125b1d8aef28680a01fba3b111315169fc15de78fcf29057067412f93e040e",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6802,
-        "title": "Mallorca",
-        "question": "Will Mallorca win the La Liga game?",
-        "conditionId": "0x949eb19274a9f9298910af4fa6870456c9d023367bf35642e884700f1d9e8d29",
-        "feeRateBps": 200,
-        "categorySlug": "la-liga-mal-fcb-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Will RCD Mallorca win on 2026-02-07?",
-        "conditionId": "0x5b0dd4b88cad89ef9298930fbaec6d8edb6e5f59b96b4baa80777b17e7099218",
         "active": true,
         "closed": false,
         "acceptingOrders": true
@@ -768,23 +394,6 @@
       "polymarket": {
         "question": "Wizards vs. Nets",
         "conditionId": "0x0cb8af5c2d8b2c03561f509af4fcd1f592f4c962b20e56e8fd279198e5b8ec07",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 6891,
-        "title": "Houston Rockets vs Oklahoma City Thunder",
-        "question": "Who will win: Houston Rockets vs Oklahoma City Thunder?",
-        "conditionId": "0xcc1a65c64eb22fa4ec2b9fe8c10b2eb4c3dbd636d0ea5246f26bc628df777a49",
-        "feeRateBps": 200,
-        "categorySlug": "nba-hou-okc-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Rockets vs. Thunder",
-        "conditionId": "0xdfdab7827bcc6553118209bedcf56d4de3fbc4f2df3e4f4c377486c88f522b05",
         "active": true,
         "closed": false,
         "acceptingOrders": true
@@ -1302,6 +911,176 @@
     },
     {
       "predict": {
+        "id": 7249,
+        "title": "Detroit Pistons vs Charlotte Hornets",
+        "question": "Who will win: Detroit Pistons vs Charlotte Hornets?",
+        "conditionId": "0x1c6c31bd8632ffb4875abbca7889e5304335a7bc73aa319f3622380db7a207b1",
+        "feeRateBps": 200,
+        "categorySlug": "nba-det-cha-2026-02-09"
+      },
+      "polymarket": {
+        "question": "Pistons vs. Hornets",
+        "conditionId": "0xa40d206194c1ce5007d664a0be65336a9591c96516cef47be05f6041e683ed0b",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 7250,
+        "title": "Milwaukee Bucks vs Orlando Magic",
+        "question": "Who will win: Milwaukee Bucks vs Orlando Magic?",
+        "conditionId": "0x62fe70d90714cbc6d96fe01306cabfb20e2fb5169ea894b86d9d3dca6e97befb",
+        "feeRateBps": 200,
+        "categorySlug": "nba-mil-orl-2026-02-09"
+      },
+      "polymarket": {
+        "question": "Bucks vs. Magic",
+        "conditionId": "0xbdbd5ccfa1ddad6795bb805081bc734d4777310a088c19dc94ae1a169ba23f41",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 7251,
+        "title": "Utah Jazz vs Miami Heat",
+        "question": "Who will win: Utah Jazz vs Miami Heat?",
+        "conditionId": "0x27fea741ff7912ce3cdc93b936a75231e219632f42a960eb710ed41640cc455b",
+        "feeRateBps": 200,
+        "categorySlug": "nba-uta-mia-2026-02-09"
+      },
+      "polymarket": {
+        "question": "Jazz vs. Heat",
+        "conditionId": "0x921dacd3abffd37c4664d928a826c15adb2bf21054dd60b77c27c372f8a06a6f",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 7252,
+        "title": "Chicago Bulls vs Brooklyn Nets",
+        "question": "Who will win: Chicago Bulls vs Brooklyn Nets?",
+        "conditionId": "0x8871eb2da5c96ee8e9e6c93846c59199dd186d53d81345db32b62becf4d1402e",
+        "feeRateBps": 200,
+        "categorySlug": "nba-chi-bkn-2026-02-09"
+      },
+      "polymarket": {
+        "question": "Bulls vs. Nets",
+        "conditionId": "0x2d977e9f937dd6c4735964fc00390517451096a105b63bc392e3af14655697f1",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 7258,
+        "title": "Sacramento Kings vs New Orleans Pelicans",
+        "question": "Who will win: Sacramento Kings vs New Orleans Pelicans?",
+        "conditionId": "0xf79854e7ed56096f8a091657e426e5e7a3b7a5dcccdc33763547f08b2d6828ac",
+        "feeRateBps": 200,
+        "categorySlug": "nba-sac-nop-2026-02-09"
+      },
+      "polymarket": {
+        "question": "Kings vs. Pelicans",
+        "conditionId": "0x47c5d17c6a08b61ff62ee7139e8698c18b6015b2be26a4c63e3fe13603a50772",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 7259,
+        "title": "Atlanta Hawks vs Minnesota Timberwolves",
+        "question": "Who will win: Atlanta Hawks vs Minnesota Timberwolves?",
+        "conditionId": "0xcbad101aff08963c8a52c8e17ead5d00514f5397c09b048778399cf387916e3e",
+        "feeRateBps": 200,
+        "categorySlug": "nba-atl-min-2026-02-09"
+      },
+      "polymarket": {
+        "question": "Hawks vs. Timberwolves",
+        "conditionId": "0x28ffb6b7990509ba2a6517d6444278a97bbf73b7c66f4426e4e8024dd7812c2d",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 7267,
+        "title": "Cleveland Cavaliers vs Denver Nuggets",
+        "question": "Who will win: Cleveland Cavaliers vs Denver Nuggets?",
+        "conditionId": "0xf814d5b69b318c1c4dbf235218446e472087855935dc80b623b8c3960692e270",
+        "feeRateBps": 200,
+        "categorySlug": "nba-cle-den-2026-02-09"
+      },
+      "polymarket": {
+        "question": "Cavaliers vs. Nuggets",
+        "conditionId": "0xee92fc21e78cbfda991437176d305595b839210880ef60ba3e4a685620151e16",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 7314,
+        "title": "Philadelphia 76ers vs Portland Trail Blazers",
+        "question": "Who will win: Philadelphia 76ers vs Portland Trail Blazers?",
+        "conditionId": "0xaf2e7a08d9523cdcc1c89713c4f8776647de8b2305dc195d98b0f86d575ae25b",
+        "feeRateBps": 200,
+        "categorySlug": "nba-phi-por-2026-02-09"
+      },
+      "polymarket": {
+        "question": "76ers vs. Trail Blazers",
+        "conditionId": "0x4ba2f1c8c313fb3826e3f5e76db2dbf227c03bd0fedd85c237bd44247953d426",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 7315,
+        "title": "Memphis Grizzlies vs Golden State Warriors",
+        "question": "Who will win: Memphis Grizzlies vs Golden State Warriors?",
+        "conditionId": "0xe401aae9b470618ac708a0a8936613de494b64e16631b8d2de617775633e8a09",
+        "feeRateBps": 200,
+        "categorySlug": "nba-mem-gsw-2026-02-09"
+      },
+      "polymarket": {
+        "question": "Grizzlies vs. Warriors",
+        "conditionId": "0x589b74a8c97aebaf0a6edd9849ea933cac8130ccfc992395b34e171476463b5c",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 7316,
+        "title": "Oklahoma City Thunder vs Los Angeles Lakers",
+        "question": "Who will win: Oklahoma City Thunder vs Los Angeles Lakers?",
+        "conditionId": "0xfa9bc881b68262f9b3fe38787851f8d0663c5fe4c86068c8215b275b5b999453",
+        "feeRateBps": 200,
+        "categorySlug": "nba-okc-lal-2026-02-09"
+      },
+      "polymarket": {
+        "question": "Thunder vs. Lakers",
+        "conditionId": "0xdc0c198d4c140e959a1c70773defb0094f2a8ba77f5abe64f62af38816fc1a24",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
         "id": 7000,
         "title": "Match Winner",
         "question": "LoL: SK Gaming vs Los Ratones (BO1) - LEC Versus Regular Season",
@@ -1312,74 +1091,6 @@
       "polymarket": {
         "question": "LoL: SK Gaming vs Los Ratones (BO1) - LEC Versus Regular Season",
         "conditionId": "0x5f10635302026ee7269c4eb68fd3f231a6270878a244200cbd5f00ce164a42aa",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 7001,
-        "title": "Match Winner",
-        "question": "LoL: Natus Vincere vs G2 Esports (BO1) - LEC Versus Regular Season",
-        "conditionId": "0x503b1df1412233cbd5558c0d0b2b137512c6159339caac2b50e3515bc0f7be73",
-        "feeRateBps": 200,
-        "categorySlug": "lol-navi-g2-2026-02-07"
-      },
-      "polymarket": {
-        "question": "LoL: Natus Vincere vs G2 Esports (BO1) - LEC Versus Regular Season",
-        "conditionId": "0x86ade7340f38c10ebe7cccde6475886f932e03dc79a5b7dd06500a802f97fe49",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 7002,
-        "title": "Match Winner",
-        "question": "LoL: Team Vitality vs Movistar KOI (BO1) - LEC Versus Regular Season",
-        "conditionId": "0x4483e406c98d345a8a6a662a4ff63bbfc37dcbc27258d34975283d4ce37c6015",
-        "feeRateBps": 200,
-        "categorySlug": "lol-vit-mkoi-2026-02-07"
-      },
-      "polymarket": {
-        "question": "LoL: Team Vitality vs Movistar KOI (BO1) - LEC Versus Regular Season",
-        "conditionId": "0xc276373fbeaa6f5a4277084e7bf886e0220fa05063751cef0c09583d78d80472",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 7003,
-        "title": "Match Winner",
-        "question": "LoL: Karmine Corp vs GIANTX (BO1) - LEC Versus Regular Season",
-        "conditionId": "0x184ef53ffbe71d189261d14adebdf5daa67286336b42cf02e703edc458b6d980",
-        "feeRateBps": 200,
-        "categorySlug": "lol-kc-gx-2026-02-07"
-      },
-      "polymarket": {
-        "question": "LoL: Karmine Corp vs GIANTX (BO1) - LEC Versus Regular Season",
-        "conditionId": "0x2f18b347f07582bedcad8b18c656ae46f88273bd1adf8f8edbbc6f5576440f2a",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 7155,
-        "title": "Match Winner",
-        "question": "Dota 2: Team Falcons vs Xtreme Gaming (BO3) - BLAST Slam Play-In",
-        "conditionId": "0x2eef8c07cce7158743525e4630924d5219714c9a9cd248b0b28520be209b8377",
-        "feeRateBps": 200,
-        "categorySlug": "dota2-flc-xtreme-2026-02-07"
-      },
-      "polymarket": {
-        "question": "Dota 2: Team Falcons vs Xtreme Gaming (BO3) - BLAST Slam Play-In",
-        "conditionId": "0xac097a52ae787fe558fe00cb3a6e1d4a33cf4ea53ace237db92b276ec1ee4108",
         "active": true,
         "closed": false,
         "acceptingOrders": true
@@ -5569,6 +5280,57 @@
     },
     {
       "predict": {
+        "id": 6753,
+        "title": "Rayo Vallecano",
+        "question": "Will Rayo Vallecano win the La Liga game?",
+        "conditionId": "0x4c184a3adde7959fff823a981e369cfb2c7a3e9c0650ef3138f92af4792968be",
+        "feeRateBps": 200,
+        "categorySlug": "la-liga-ovi-rvc-2026-02-07"
+      },
+      "polymarket": {
+        "question": "Will Rayo Vallecano de Madrid win on 2026-02-07?",
+        "conditionId": "0x6f1de453a61d15388c4d354b968ababa591de7f3f3c7d8700023bae59aecf033",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 6754,
+        "title": "Draw",
+        "question": "Will the La Liga game end in a draw?",
+        "conditionId": "0xdb6cfddd094763d85e6ba229b331735fb7a960402465b3c09ca4e84d91c1046e",
+        "feeRateBps": 200,
+        "categorySlug": "la-liga-ovi-rvc-2026-02-07"
+      },
+      "polymarket": {
+        "question": "Will Rayo Vallecano de Madrid vs. Real Oviedo end in a draw?",
+        "conditionId": "0x3977d1370e4bf0a06b78d0ec4bcf1dfa48cfdb92895b029f0f898b087d6983f4",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
+        "id": 6755,
+        "title": "Oviedo",
+        "question": "Will Oviedo win the La Liga game?",
+        "conditionId": "0x4566c5b340369b97319170c77d5a7da87a46391762010739f1346322b396cc28",
+        "feeRateBps": 200,
+        "categorySlug": "la-liga-ovi-rvc-2026-02-07"
+      },
+      "polymarket": {
+        "question": "Will Real Oviedo win on 2026-02-07?",
+        "conditionId": "0x7be5f7e1cfa89bdb3b73bade56e58b48ee118b16881b7449c43bf432933b3336",
+        "active": true,
+        "closed": false,
+        "acceptingOrders": true
+      }
+    },
+    {
+      "predict": {
         "id": 6766,
         "title": "Will Li Guyi perform at the Spring Festival Gala?",
         "question": "Will Li Guyi perform at the Spring Festival Gala?",
@@ -5970,23 +5732,6 @@
       "polymarket": {
         "question": "Starmer out by December 31, 2026?",
         "conditionId": "0x2bde6486e7067f48ee21344d8b5c1af458732536eb4d080932c88c3a7c2d2126",
-        "active": true,
-        "closed": false,
-        "acceptingOrders": true
-      }
-    },
-    {
-      "predict": {
-        "id": 7264,
-        "title": "Match Winner",
-        "question": "LoL: Nongshim Red Force vs DN Freecs (BO3) - LCK Cup Play-In",
-        "conditionId": "0x541e69c38cceeaa66001f6ffa6b8801053ae962fab8bbb95adf133fc5d6dde96",
-        "feeRateBps": 200,
-        "categorySlug": "lol-ns-dnf-2026-02-07"
-      },
-      "polymarket": {
-        "question": "LoL: Nongshim Red Force vs DN Freecs (BO3) - LCK Cup Play-In",
-        "conditionId": "0xf01a18511caa909f0d696f98f79fe9f8729749830d33dcef131f243124102781",
         "active": true,
         "closed": false,
         "acceptingOrders": true

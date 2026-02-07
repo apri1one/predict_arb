@@ -40,6 +40,8 @@ const mapOpportunity = (raw) => {
         : (profitPercent < 2.5 || maxQuantity < 60 ? 'MED' : 'LOW');
     const slippage = Math.max(0.2, Math.min(2.5, profitPercent < 1 ? 1.8 : profitPercent < 2 ? 1.1 : 0.6));
 
+    const boosted = Boolean(raw?.boosted || raw?.boostStartTime || raw?.boostEndTime);
+
     return {
         id: `${raw?.marketId || 'm'}-${side}-${raw?.strategy || 'UNK'}`,
         marketId: raw?.marketId || 0,
@@ -78,7 +80,7 @@ const mapOpportunity = (raw) => {
         isInverted: Boolean(raw?.isInverted),
         isNew: Boolean(raw?.isNew),     // 是否是新发现的机会
         endDate: raw?.endDate || null,  // 结算时间 (ISO 8601)
-        boosted: Boolean(raw?.boosted),
+        boosted,
         boostStartTime: raw?.boostStartTime || null,
         boostEndTime: raw?.boostEndTime || null,
         risk: {
