@@ -53,6 +53,9 @@ bot/src/testing/local/
 # Bot runtime state (local)
 bot/data/tasks.json
 bot/data/task-logs.db
+bot/data/logs/
+bot/data/*-slugs.json
+bot/polymarket-match-result.json
 
 # Preview scratch files
 front/preview/*.txt
