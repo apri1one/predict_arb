@@ -148,6 +148,9 @@ export class SportsService {
 
     // 刷新计数器 (用于日志)
     private polyRefreshCount: number = 0;
+
+    // MVP/Champion 等特殊体育市场 ID (走主市场 WS 链路，不进入体育面板)
+    private liveOnlySportsMarketIds: Set<number> = new Set();
     private predictRefreshCount: number = 0;
 
     constructor() {
@@ -171,6 +174,13 @@ export class SportsService {
      */
     getMarkets(): SportsMatchedMarket[] {
         return this.cachedMarkets;
+    }
+
+    /**
+     * 获取 MVP/Champion 等特殊体育市场 ID（走主市场 WS 链路，不进入体育面板）
+     */
+    getLiveOnlySportsMarketIds(): number[] {
+        return Array.from(this.liveOnlySportsMarketIds);
     }
 
     /**
@@ -725,6 +735,20 @@ export class SportsService {
         return allMarkets;
     }
 
+    /**
+     * 特殊体育事件（如 MVP / Champion）保留在 LIVE 面板，不进入 SPORTS 面板。
+     * 原因：这类市场可走主链路 WS 订阅，不应走体育模块的 REST 刷新链路。
+     */
+    private isLiveOnlySportsSpecialMarket(market: any): boolean {
+        const text = [
+            market?.title || '',
+            market?.question || '',
+            market?.categorySlug || '',
+        ].join(' ').toLowerCase();
+
+        return /\bmvp\b/.test(text) || /\bchampion\b/.test(text);
+    }
+
     private async fetchAndMatchMarkets(): Promise<InternalMatchedMarket[]> {
         // 1. 使用分页 API 获取所有 Predict 市场 (非分页 API 只返回约 25 个)
         const allMarkets = await this.fetchAllPredictMarkets();
@@ -732,25 +756,40 @@ export class SportsService {
         // 筛选活跃市场 (API 已用 status=OPEN 过滤，兼容 REGISTERED/UNPAUSED 等非 RESOLVED 状态)
         const predictMarkets = allMarkets.filter(m => m.status !== 'RESOLVED');
 
+        // MVP/Champion 事件：不进入体育面板，留在 LIVE 面板（主市场 WS 链路）
+        const liveOnlyPredictIds = new Set<number>();
+        for (const m of predictMarkets) {
+            if (this.isLiveOnlySportsSpecialMarket(m)) {
+                liveOnlyPredictIds.add(m.id);
+            }
+        }
+        // 保存 MVP/Champion 市场 ID（供 WS 补订阅使用）
+        this.liveOnlySportsMarketIds = liveOnlyPredictIds;
+        const sportsCandidateMarkets = predictMarkets.filter(m => !liveOnlyPredictIds.has(m.id));
+
         // 筛选体育市场 (关键词匹配)
-        const predictSportsMarkets = predictMarkets.filter(m => {
+        const predictSportsMarkets = sportsCandidateMarkets.filter(m => {
             const cat = (m.categorySlug || '').toLowerCase();
             const title = (m.title || '').toLowerCase();
             return SPORTS_KEYWORDS.some(k => cat.includes(k) || title.includes(k));
         });
 
         // 筛选 NBA "X-at-Y" 格式市场 (城市名匹配)
-        const predictNbaMarkets = predictMarkets.filter(m => {
+        const predictNbaMarkets = sportsCandidateMarkets.filter(m => {
             const parsed = this.parsePredictNbaSlug(m.categorySlug);
             return parsed !== null;
         });
 
         // 有 Polymarket 链接的市场
-        const linkedMarkets = predictMarkets.filter(m =>
+        const linkedMarkets = sportsCandidateMarkets.filter(m =>
             m.polymarketConditionIds && m.polymarketConditionIds.length > 0
         );
 
-        console.log(`[SportsService] Predict: ${predictMarkets.length} total (paginated), ${predictSportsMarkets.length} keyword-sports, ${predictNbaMarkets.length} NBA, ${linkedMarkets.length} linked`);
+        console.log(
+            `[SportsService] Predict: ${predictMarkets.length} total (paginated), ` +
+            `${liveOnlyPredictIds.size} live-only(MVP/Champion), ` +
+            `${predictSportsMarkets.length} keyword-sports, ${predictNbaMarkets.length} NBA, ${linkedMarkets.length} linked`
+        );
 
         // 2. 获取 Polymarket 体育市场
         const polyMarkets = await this.fetchPolymarketSportsMarkets();

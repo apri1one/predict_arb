@@ -4947,31 +4947,34 @@ async function main(): Promise<void> {
         // 1. Predict 订单簿补订阅
         if (usePredictWsMode) {
             const sportsMarketIds = sportsService.getMarkets().map(m => m.predictMarketId).filter(Boolean);
-            if (sportsMarketIds.length > 0) {
+            const liveOnlySportsIds = sportsService.getLiveOnlySportsMarketIds();  // MVP/Champion 市场
+            const allSportsMarketIds = [...sportsMarketIds, ...liveOnlySportsIds];
+
+            if (allSportsMarketIds.length > 0) {
                 const unifiedCache = getPredictOrderbookCache();
                 if (unifiedCache) {
-                    await unifiedCache.subscribeMarkets(sportsMarketIds);
-                    console.log(`✅ 体育市场 Predict 订单簿已补订阅: ${sportsMarketIds.length} 个市场`);
+                    await unifiedCache.subscribeMarkets(allSportsMarketIds);
+                    console.log(`✅ 体育市场 Predict 订单簿已补订阅: ${sportsMarketIds.length} 个体育面板市场 + ${liveOnlySportsIds.length} 个特殊市场(MVP/Champion)`);
 
                     // REST 预热：Predict WS 无初始快照，订阅后用 REST 填充缓存
-                    console.log(`🔥 正在预热体育市场订单簿 (${sportsMarketIds.length} 个)...`);
+                    console.log(`🔥 正在预热体育市场订单簿 (${allSportsMarketIds.length} 个)...`);
                     const warmStart = Date.now();
                     const WARM_BATCH = 10;
                     const WARM_DELAY = 200;
                     let warmed = 0;
-                    for (let i = 0; i < sportsMarketIds.length; i += WARM_BATCH) {
-                        const batch = sportsMarketIds.slice(i, i + WARM_BATCH);
+                    for (let i = 0; i < allSportsMarketIds.length; i += WARM_BATCH) {
+                        const batch = allSportsMarketIds.slice(i, i + WARM_BATCH);
                         await Promise.all(batch.map(async (id) => {
                             try {
                                 const book = await unifiedCache.getOrderbook(id);
                                 if (book) warmed++;
                             } catch { /* 静默 */ }
                         }));
-                        if (i + WARM_BATCH < sportsMarketIds.length) {
+                        if (i + WARM_BATCH < allSportsMarketIds.length) {
                             await new Promise(r => setTimeout(r, WARM_DELAY));
                         }
                     }
-                    console.log(`✅ 体育市场预热完成: ${warmed}/${sportsMarketIds.length}，耗时 ${Date.now() - warmStart}ms`);
+                    console.log(`✅ 体育市场预热完成: ${warmed}/${allSportsMarketIds.length}，耗时 ${Date.now() - warmStart}ms`);
                 }
             }
         }
