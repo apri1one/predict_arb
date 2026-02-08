@@ -857,6 +857,13 @@ export class TaskExecutor extends EventEmitter {
     }
 
     /**
+     * 检查任务是否正在运行
+     */
+    isTaskRunning(taskId: string): boolean {
+        return this.runningTasks.has(taskId);
+    }
+
+    /**
      * 获取运行中任务数量
      */
     getRunningTaskCount(): number {
@@ -1439,61 +1446,43 @@ export class TaskExecutor extends EventEmitter {
 
                     ctx.isPaused = true;
 
-                    // 记录价格守护触发
-                    await this.taskLogger.logPriceGuard(task.id, 'PRICE_GUARD_TRIGGERED', {
-                        polymarketTokenId: hedgeTokenId,
-                        triggerPrice: currentPrice,
-                        thresholdPrice: threshold,
-                        predictPrice: task.predictPrice,
-                        arbValid: false,
-                        pauseCount: task.pauseCount + 1,
-                    });
-
-                    // 捕获订单簿快照
-                    await this.captureSnapshot(task.id, 'price_guard', task);
-
                     // 构造取消原因
                     const priceReasonMsg = side === 'BUY'
                         ? `价格保护: poly ask=${currentPrice.toFixed(4)} > max=${threshold.toFixed(4)}`
                         : `价格保护: poly bid=${currentPrice.toFixed(4)} < min=${threshold.toFixed(4)}`;
 
-                    // 取消 Predict 订单 (取消前先查订单状态，避免取消已成交订单)
+                    // Cancel-first: 立即取消 Predict 订单，最高优先级
                     let cancelSuccess = false;
                     if (ctx.currentOrderHash) {
                         try {
-                            const preStatus = await this.predictTrader.getOrderStatus(ctx.currentOrderHash);
-                            if (preStatus && preStatus.filledQty > ctx.restFilledQty) {
-                                ctx.restFilledQty = preStatus.filledQty;
+                            cancelSuccess = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
+                            // 取消后查询最终成交量
+                            const postStatus = await this.predictTrader.getOrderStatus(ctx.currentOrderHash);
+                            if (postStatus && postStatus.filledQty > ctx.restFilledQty) {
+                                ctx.restFilledQty = postStatus.filledQty;
                             }
-                            // 订单已完全成交，跳过取消，让主循环处理对冲
-                            if (preStatus && preStatus.status === 'FILLED') {
-                                console.log(`[TaskExecutor] Price guard: order already FILLED, skip cancel → main loop will hedge`);
-                                await this.taskLogger.logTaskLifecycle(task.id, 'TASK_RESUMED', {
+                            if (postStatus && postStatus.status === 'FILLED') {
+                                // 订单已完全成交 (cancel 为 noop)，让主循环处理对冲
+                                console.log(`[TaskExecutor] Price guard: order FILLED after cancel → main loop will hedge`);
+                                // 日志和快照 fire-and-forget
+                                this.taskLogger.logPriceGuard(task.id, 'PRICE_GUARD_TRIGGERED', {
+                                    polymarketTokenId: hedgeTokenId,
+                                    triggerPrice: currentPrice,
+                                    thresholdPrice: threshold,
+                                    predictPrice: task.predictPrice,
+                                    arbValid: false,
+                                    pauseCount: task.pauseCount + 1,
+                                }).catch(() => {});
+                                this.taskLogger.logTaskLifecycle(task.id, 'TASK_RESUMED', {
                                     status: task.status as any,
-                                    reason: 'Price guard: order already FILLED before cancel, resuming for hedge',
-                                });
+                                    reason: 'Price guard: order FILLED after cancel (noop), resuming for hedge',
+                                }).catch(() => {});
                                 ctx.isPaused = false;
                                 return;
                             }
-                            cancelSuccess = await this.predictTrader.cancelOrder(ctx.currentOrderHash);
                             if (cancelSuccess) {
-                                // 取消后再查一次确认最终成交量 (处理竞态: cancel noop 但订单实际已成交)
-                                const postStatus = await this.predictTrader.getOrderStatus(ctx.currentOrderHash);
-                                if (postStatus && postStatus.filledQty > ctx.restFilledQty) {
-                                    ctx.restFilledQty = postStatus.filledQty;
-                                }
-                                if (postStatus && postStatus.status === 'FILLED') {
-                                    // cancel 返回 noop 但订单实际已成交，跳过取消逻辑，让主循环处理对冲
-                                    console.log(`[TaskExecutor] Price guard: cancel noop but order FILLED → main loop will hedge`);
-                                    await this.taskLogger.logTaskLifecycle(task.id, 'TASK_RESUMED', {
-                                        status: task.status as any,
-                                        reason: 'Price guard: order FILLED after cancel (noop), resuming for hedge',
-                                    });
-                                    ctx.isPaused = false;
-                                    return;
-                                }
-                                // 正常取消成功
-                                await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
+                                // 正常取消成功 — 日志后置 fire-and-forget
+                                this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
                                     platform: 'predict',
                                     orderId: ctx.currentOrderHash,
                                     side: side,
@@ -1503,7 +1492,7 @@ export class TaskExecutor extends EventEmitter {
                                     remainingQty: task.quantity - ctx.totalPredictFilled,
                                     avgPrice: task.predictPrice,
                                     cancelReason: priceReasonMsg,
-                                }, ctx.currentOrderHash);
+                                }, ctx.currentOrderHash).catch(() => {});
                             }
                         } catch (e) {
                             console.warn('[TaskExecutor] Failed to cancel order on pause:', e);
@@ -1517,6 +1506,17 @@ export class TaskExecutor extends EventEmitter {
                         }
                         // 取消失败时保留 hash，主循环 Fix1 会 REST 轮询检测成交
                     }
+
+                    // 日志和快照后置 (fire-and-forget，不阻塞关键路径)
+                    this.taskLogger.logPriceGuard(task.id, 'PRICE_GUARD_TRIGGERED', {
+                        polymarketTokenId: hedgeTokenId,
+                        triggerPrice: currentPrice,
+                        thresholdPrice: threshold,
+                        predictPrice: task.predictPrice,
+                        arbValid: false,
+                        pauseCount: task.pauseCount + 1,
+                    }).catch(() => {});
+                    this.captureSnapshot(task.id, 'price_guard', task).catch(() => {});
 
                     // 记录任务暂停
                     const reasonMsg = side === 'BUY'
@@ -1994,7 +1994,8 @@ export class TaskExecutor extends EventEmitter {
                             const hedgeCheck = await this.checkShouldHedge(ctx, newlyObservedFilled, isPredictFullyFilled);
 
                             if (hedgeCheck.shouldHedge) {
-                                const hedgeResult = await this.executeIncrementalHedge(ctx, hedgeCheck.hedgeQty, side);
+                                // 价格保护触发后 hash 被清除进入此分支，放宽价格检查优先对冲
+                                const hedgeResult = await this.executeIncrementalHedge(ctx, hedgeCheck.hedgeQty, side, ctx.isPaused ? 0.02 : 0);
 
                                 if (hedgeResult.filledQty > 0) {
                                     console.log(`[TaskExecutor] Hedge delta: ${hedgeResult.filledQty}, total hedged: ${ctx.totalHedged}`);
@@ -2218,7 +2219,8 @@ export class TaskExecutor extends EventEmitter {
                         // 对冲已成交部分 (无论 guard 还是 external，都尝试对冲，绝不触发反向平仓)
                         const hedgeCheck = await this.checkShouldHedge(ctx, unhedgedQty, false);
                         if (hedgeCheck.shouldHedge) {
-                            const hedgeResult = await this.executeIncrementalHedge(ctx, hedgeCheck.hedgeQty, side);
+                            // 价格保护触发后的取消，放宽价格检查优先对冲
+                            const hedgeResult = await this.executeIncrementalHedge(ctx, hedgeCheck.hedgeQty, side, ctx.isPaused ? 0.02 : 0);
                             if (hedgeResult.filledQty > 0) {
                                 console.log(`[TaskExecutor] Hedge delta after ${cancelSource} cancel: ${hedgeResult.filledQty}, total hedged: ${ctx.totalHedged}`);
                                 const avgHedgePrice = ctx.totalHedged > 0 ? ctx.hedgePriceSum / ctx.totalHedged : 0;
@@ -2391,7 +2393,8 @@ export class TaskExecutor extends EventEmitter {
     private async executeIncrementalHedge(
         ctx: TaskContext,
         quantity: number,
-        side: 'BUY' | 'SELL'
+        side: 'BUY' | 'SELL',
+        emergencyBuffer: number = 0
     ): Promise<{ success: boolean; filledQty: number; avgPrice: number }> {
         const task = ctx.task;
         const { signal } = ctx;
@@ -2484,8 +2487,9 @@ export class TaskExecutor extends EventEmitter {
                     hedgePrice = orderbook.asks[0].price;
                     hedgeSide = 'BUY';
 
-                    if (hedgePrice > task.polymarketMaxAsk) {
-                        throw new Error(`Hedge price ${hedgePrice} exceeds max ${task.polymarketMaxAsk}`);
+                    const maxAllowed = task.polymarketMaxAsk + emergencyBuffer;
+                    if (hedgePrice > maxAllowed) {
+                        throw new Error(`Hedge price ${hedgePrice} exceeds max ${maxAllowed}${emergencyBuffer > 0 ? ` (incl. emergency buffer ${emergencyBuffer})` : ''}`);
                     }
                 } else {
                     // SELL 任务: 卖出 Poly (NO/YES based on isInverted) 对冲
@@ -2495,8 +2499,9 @@ export class TaskExecutor extends EventEmitter {
                     hedgePrice = orderbook.bids[0].price;
                     hedgeSide = 'SELL';
 
-                    if (hedgePrice < task.polymarketMinBid) {
-                        throw new Error(`Hedge price ${hedgePrice} below min ${task.polymarketMinBid}`);
+                    const minAllowed = task.polymarketMinBid - emergencyBuffer;
+                    if (hedgePrice < minAllowed) {
+                        throw new Error(`Hedge price ${hedgePrice} below min ${minAllowed}${emergencyBuffer > 0 ? ` (incl. emergency buffer ${emergencyBuffer})` : ''}`);
                     }
                 }
 
