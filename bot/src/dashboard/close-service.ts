@@ -196,7 +196,7 @@ export function refreshMarketMatches(): void {
 /**
  * 获取 Predict 扩展持仓（含 marketId 和 conditionId 映射）
  */
-const CLOSE_POSITIONS_REFRESH_MS = Number(process.env.CLOSE_POSITIONS_REFRESH_MS || 10000);
+const CLOSE_POSITIONS_REFRESH_MS = Number(process.env.CLOSE_POSITIONS_REFRESH_MS || 5000);
 let lastPositionsRefresh = 0;
 let cachedPredictPositions: ExtendedPredictPosition[] = [];
 let cachedPolyPositions: ExtendedPolyPosition[] = [];

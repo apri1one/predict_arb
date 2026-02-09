@@ -29,7 +29,7 @@ import { getSportsService, setSportsPredictOrderbookProvider } from './sports-se
 import { fetchBoostData, isMarketBoosted, getBoostCache } from './boost-cache.js';
 import { initUrlMapper, getPredictSlug, getPolymarketSlug, cachePredictSlugs, generatePredictSlug } from './url-mapper.js';
 import { getBscOrderWatcher, stopBscOrderWatcher, type OrderFilledEvent as BscOrderFilledEvent } from '../services/bsc-order-watcher.js';
-import { getPredictOrderWatcher, stopPredictOrderWatcher } from '../services/predict-order-watcher.js';
+import { getPredictOrderWatcher, stopPredictOrderWatcher, type OrderFilledEvent } from '../services/predict-order-watcher.js';
 import type { WalletEventData } from '../services/predict-ws-client.js';
 import { getTokenMarketCache, stopTokenMarketCache } from '../services/token-market-cache.js';
 import { getPredictOrderbookCache, initPredictOrderbookCache, stopPredictOrderbookCache, type CachedOrderbook } from '../services/predict-orderbook-cache.js';
@@ -1402,16 +1402,24 @@ function scheduleSportsRecompute(): void {
 
 let closeRecomputeTimer: ReturnType<typeof setTimeout> | null = null;
 let closeRecomputeForce = false;
+let closeRecomputeInFlight = false;
+let closeRecomputePending = false;
 
 /**
- * 节流触发平仓机会重算 (200ms 节流)
+ * 节流触发平仓机会重算 (200ms 节流 + 单飞锁)
  * WS 更新时调用，实际触发 calculateCloseOpportunities
  */
 function scheduleCloseRecompute(forcePositionsRefresh: boolean = false): void {
     if (forcePositionsRefresh) closeRecomputeForce = true;
+    // 正在执行时标记 pending，当前轮完成后自动重算
+    if (closeRecomputeInFlight) {
+        closeRecomputePending = true;
+        return;
+    }
     if (closeRecomputeTimer) return;
     closeRecomputeTimer = setTimeout(async () => {
         closeRecomputeTimer = null;
+        closeRecomputeInFlight = true;
         const shouldForce = closeRecomputeForce;
         closeRecomputeForce = false;
         try {
@@ -1420,6 +1428,13 @@ function scheduleCloseRecompute(forcePositionsRefresh: boolean = false): void {
             markDirty('closeOpportunities', JSON.stringify(cachedCloseOpportunities));
         } catch {
             markDirty('closeOpportunities', JSON.stringify(cachedCloseOpportunities));
+        } finally {
+            closeRecomputeInFlight = false;
+            // 执行期间有新事件到达，立即触发下一轮
+            if (closeRecomputePending) {
+                closeRecomputePending = false;
+                scheduleCloseRecompute();
+            }
         }
     }, CLOSE_RECOMPUTE_THROTTLE_MS);
 }
@@ -2710,10 +2725,21 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
                 return;
             }
 
-            // 启动 TaskExecutor 异步执行任务
-            taskExecutor.startTask(taskId).catch(error => {
-                console.error(`[Dashboard] Task ${taskId} execution error:`, error);
-            });
+            // 前置检查: 任务是否已在运行中 (状态可能仍为 PENDING 但实际已启动)
+            if (taskExecutor.isTaskRunning(taskId)) {
+                res.writeHead(409, {
+                    'Content-Type': 'application/json',
+                    ...corsHeaders,
+                });
+                res.end(JSON.stringify({
+                    success: false,
+                    error: `Task ${taskId} is already running`
+                }));
+                return;
+            }
+
+            // 启动 TaskExecutor (await 确保初始化阶段的错误能返回前端)
+            await taskExecutor.startTask(taskId);
 
             // 立即返回，任务状态更新通过 SSE 推送
             const updated = taskService.getTask(taskId);
@@ -4417,10 +4443,8 @@ async function main(): Promise<void> {
         try {
             const predictWatcher = getPredictOrderWatcher();
 
-            // 监听所有钱包事件（包括未成交的订单状态）
-            // 监听所有钱包事件（包括订单创建、接受、取消等）
+            // 监听所有钱包事件（完整订单生命周期 SSE 广播）
             predictWatcher.on('walletEvent', (walletEvent: WalletEventData) => {
-                // 从事件中提取 tokenId 用于市场匹配
                 const rawData = walletEvent.rawData as any;
                 const tokenId = String(rawData?.makerAssetId || rawData?.order?.makerAssetId || rawData?.tokenId || '');
                 const tokenCache = getTokenMarketCache();
@@ -4432,6 +4456,11 @@ async function main(): Promise<void> {
                     marketId: marketInfo?.market.marketId,
                     marketTitle: marketInfo?.market.title,
                 });
+            });
+
+            // 监听成交事件 → 触发平仓机会重算
+            predictWatcher.on('orderFilled', (_filledEvent: OrderFilledEvent) => {
+                scheduleCloseRecompute(true);
             });
 
             predictWatcher.on('subscriptionLost', (info: { reason: string }) => {
@@ -5220,7 +5249,7 @@ async function main(): Promise<void> {
     // 平仓机会 SSE 广播 (1秒，串行调度，立即首发) - 使用统一节流广播
     // 注意：calculateCloseOpportunities 需要多次 API 调用，较慢
     // ========================================================================
-    const CLOSE_BROADCAST_MS = 10000;
+    const CLOSE_BROADCAST_MS = 3000;
     const subscribedCloseTokenIds = new Set<string>();  // 已订阅的平仓 tokenIds
     serialSchedulerStops.push(createSerialScheduler('CloseBroadcast', CLOSE_BROADCAST_MS, async () => {
         try {

@@ -103,6 +103,10 @@ interface TaskContext {
     cancelledOrderBaseQty?: number;
     /** 结算验证定时器 */
     cancelSettlementTimer?: ReturnType<typeof setTimeout>;
+    /** WS 深度监听器 ID */
+    depthListenerId?: string;
+    /** 防重入：WS 触发的 checkDepth 正在执行 */
+    depthCheckPending?: boolean;
 }
 
 // ============================================================================
@@ -2931,10 +2935,22 @@ export class TaskExecutor extends EventEmitter {
         maxPrice: number,
         minPrice: number
     ): void {
-        const DEPTH_CHECK_INTERVAL = 1000; // 1秒检查一次
+        // 非体育市场: WS 覆盖高频检查，REST 轮询降为 3s 兜底
+        const DEPTH_CHECK_INTERVAL = ctx.task.isSportsMarket ? 1000 : 3000;
         const DEPTH_EXPAND_COOLDOWN_MS = 10_000; // 扩增冷却期，防止扩缩振荡
 
         const checkDepth = async () => {
+            // 互斥门禁：WS 和轮询共用，防止并发取消/重提
+            if (ctx.depthCheckPending) return;
+            ctx.depthCheckPending = true;
+            try {
+                await checkDepthInner();
+            } finally {
+                ctx.depthCheckPending = false;
+            }
+        };
+
+        const checkDepthInner = async () => {
             if (ctx.signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
 
             // 检查任务是否已进入终态，避免在取消后继续操作
@@ -3363,6 +3379,58 @@ export class TaskExecutor extends EventEmitter {
             setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
         };
 
+        // WS 事件驱动深度检查（非体育市场）—— 带防抖滞回
+        // checkDepth 内置互斥门禁，WS 和轮询均安全调用
+        if (this.polyWsClient && !ctx.task.isSportsMarket) {
+            let insufficientCount = 0;
+            const DEPTH_INSUFFICIENT_THRESHOLD = 2; // 连续 N 次 WS 推送深度不足才触发
+            let recoveryCount = 0;
+            const DEPTH_RECOVERY_THRESHOLD = 2;     // 连续 N 次确认深度恢复才触发
+
+            const listenerId = this.polyWsClient.addOrderBookListener((book) => {
+                if (ctx.signal.aborted || ctx.isSubmitting) return;
+
+                const remaining = ctx.task.quantity - ctx.totalPredictFilled;
+                if (remaining <= 0) return;
+
+                // 同步计算可对冲深度
+                let hedgeableDepth = 0;
+                const PRICE_EPSILON = 1e-9;
+                if (side === 'BUY') {
+                    for (const [price, size] of book.asks) {
+                        if (price <= maxPrice + PRICE_EPSILON) hedgeableDepth += size;
+                    }
+                } else {
+                    for (const [price, size] of book.bids) {
+                        if (price >= minPrice - PRICE_EPSILON) hedgeableDepth += size;
+                    }
+                }
+                if (ctx.phantomDepthDetected) hedgeableDepth = 0;
+
+                if (hedgeableDepth < remaining) {
+                    recoveryCount = 0;
+                    insufficientCount++;
+                    if (insufficientCount >= DEPTH_INSUFFICIENT_THRESHOLD) {
+                        checkDepth(); // 互斥门禁在 checkDepth 内部
+                    }
+                } else {
+                    insufficientCount = 0;
+                    // 深度恢复/可扩量：PAUSED 或已缩量时也主动触发
+                    if (ctx.isPaused || ctx.task.quantity < ctx.task.totalQuantity) {
+                        recoveryCount++;
+                        if (recoveryCount >= DEPTH_RECOVERY_THRESHOLD) {
+                            checkDepth();
+                            recoveryCount = 0;
+                        }
+                    } else {
+                        recoveryCount = 0;
+                    }
+                }
+            }, hedgeTokenId);
+
+            ctx.depthListenerId = listenerId;
+        }
+
         // 启动深度监控（延迟 2 秒开始，给订单提交一些时间）
         setTimeout(checkDepth, 2000);
     }
@@ -3445,10 +3513,10 @@ export class TaskExecutor extends EventEmitter {
         ctx.cancelledOrderBaseQty = baseQty;
 
         let checks = 0;
-        const MAX_CHECKS = 6;
-        const INTERVAL = 5000;
+        const VERIFY_INTERVALS = [1000, 1000, 2000, 5000, 10000, 15000];
+        const MAX_CHECKS = VERIFY_INTERVALS.length;
 
-        console.log(`[TaskExecutor] 📋 调度延迟结算验证: task=${task.id}, hash=${orderHash.slice(0, 16)}..., baseQty=${baseQty.toFixed(2)}, 每${INTERVAL / 1000}s检查一次, 共${MAX_CHECKS}次`);
+        console.log(`[TaskExecutor] 📋 调度延迟结算验证: task=${task.id}, hash=${orderHash.slice(0, 16)}..., baseQty=${baseQty.toFixed(2)}, 前密后疏检查 (${VERIFY_INTERVALS.map(v => v / 1000 + 's').join(',')})`);
 
         const verify = async () => {
             checks++;
@@ -3457,7 +3525,7 @@ export class TaskExecutor extends EventEmitter {
                 if (!status) {
                     console.log(`[TaskExecutor] 延迟验证 ${checks}/${MAX_CHECKS}: hash=${orderHash.slice(0, 16)}... 状态查询失败，跳过`);
                     if (checks < MAX_CHECKS) {
-                        ctx.cancelSettlementTimer = setTimeout(verify, INTERVAL);
+                        ctx.cancelSettlementTimer = setTimeout(verify, VERIFY_INTERVALS[checks] ?? VERIFY_INTERVALS[VERIFY_INTERVALS.length - 1]);
                     } else {
                         this.cleanupCancelVerification(ctx);
                     }
@@ -3505,7 +3573,7 @@ export class TaskExecutor extends EventEmitter {
                 }
 
                 if (checks < MAX_CHECKS) {
-                    ctx.cancelSettlementTimer = setTimeout(verify, INTERVAL);
+                    ctx.cancelSettlementTimer = setTimeout(verify, VERIFY_INTERVALS[checks] ?? VERIFY_INTERVALS[VERIFY_INTERVALS.length - 1]);
                 } else {
                     console.log(`[TaskExecutor] 延迟验证完成: task=${task.id}, hash=${orderHash.slice(0, 16)}..., 共${MAX_CHECKS}次检查`);
                     this.cleanupCancelVerification(ctx);
@@ -3513,7 +3581,7 @@ export class TaskExecutor extends EventEmitter {
             } catch (err: any) {
                 console.warn(`[TaskExecutor] 延迟验证异常 ${checks}/${MAX_CHECKS}: ${err.message}`);
                 if (checks < MAX_CHECKS) {
-                    ctx.cancelSettlementTimer = setTimeout(verify, INTERVAL);
+                    ctx.cancelSettlementTimer = setTimeout(verify, VERIFY_INTERVALS[checks] ?? VERIFY_INTERVALS[VERIFY_INTERVALS.length - 1]);
                 } else {
                     this.cleanupCancelVerification(ctx);
                 }
@@ -3524,7 +3592,7 @@ export class TaskExecutor extends EventEmitter {
         if (ctx.cancelSettlementTimer) {
             clearTimeout(ctx.cancelSettlementTimer);
         }
-        ctx.cancelSettlementTimer = setTimeout(verify, INTERVAL);
+        ctx.cancelSettlementTimer = setTimeout(verify, VERIFY_INTERVALS[0]);
     }
 
     /**
@@ -3710,6 +3778,11 @@ export class TaskExecutor extends EventEmitter {
         this.orderMonitor.stopPriceGuard(hedgeTokenId);
         if (ctx.currentOrderHash) {
             this.orderMonitor.stopPredictWatch(ctx.currentOrderHash);
+        }
+        // 清理 WS 深度监听器
+        if (ctx.depthListenerId && this.polyWsClient) {
+            this.polyWsClient.removeOrderBookListener(ctx.depthListenerId);
+            ctx.depthListenerId = undefined;
         }
     }
 

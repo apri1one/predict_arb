@@ -110,6 +110,9 @@ export class PredictOrderWatcher extends EventEmitter {
         this.wsClient.setJwt(this.jwt);
 
         this.walletEventHandler = (event) => {
+            // 透传所有钱包事件（供 SSE 广播完整订单生命周期）
+            this.emit('walletEvent', event);
+            // 过滤成交事件 → emit orderFilled
             this.handleWalletEvent(event);
         };
 
