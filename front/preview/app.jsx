@@ -24,7 +24,7 @@ var {
 const App = () => {
     const { notifications, settings, setSettings, addNotification, dismissNotification } = useNotifications();
     const { toasts: orderToasts, addOrderToast } = useOrderToasts();
-    const { opportunities, history, chartData, stats, accounts, tasks, sports, isConnected, exposureAlert, setExposureAlert } = useArbScanner(addNotification, addOrderToast);
+    const { opportunities, history, chartData, stats, accounts, tasks, sports, closeOpportunities, isConnected, exposureAlert, setExposureAlert } = useArbScanner(addNotification, addOrderToast);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
     const [taskModalData, setTaskModalData] = useState(null); // { opp, type: 'BUY' | 'SELL' }
     const [logModalOpen, setLogModalOpen] = useState(false);
@@ -393,7 +393,7 @@ const App = () => {
                 {activeTab === 'ANALYTICS' ? (
                     <AnalyticsDashboard stats={stats} chartData={chartData} />
                 ) : activeTab === 'CLOSE' ? (
-                    <ClosePositionTab onSwitchToTasks={() => setActiveTab('TASKS')} tasks={tasks} />
+                    <ClosePositionTab onSwitchToTasks={() => setActiveTab('TASKS')} tasks={tasks} sseData={closeOpportunities} />
                 ) : activeTab === 'SPORTS' ? (
                     <div className="space-y-3">
                         <div className="flex items-center justify-between mb-4 px-1">

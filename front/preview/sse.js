@@ -35,6 +35,7 @@ const useArbScanner = (addNotification, addOrderToast) => {
     const [markets, setMarkets] = useState([]);
     const [tasks, setTasks] = useState([]);
     const [sports, setSports] = useState({ markets: [], stats: { totalMatched: 0, withArbitrage: 0, avgProfit: 0, maxProfit: 0 }, lastUpdate: 0 });
+    const [closeOpportunities, setCloseOpportunities] = useState({ opportunities: [], lastUpdate: null });
     const [isConnected, setIsConnected] = useState(false);
     const [exposureAlert, setExposureAlert] = useState(null);
     const eventSourceRef = useRef(null);
@@ -260,6 +261,16 @@ const useArbScanner = (addNotification, addOrderToast) => {
             }
         });
 
+        // 处理平仓机会更新 (SSE 驱动，替代 REST 轮询)
+        es.addEventListener('closeOpportunities', (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                setCloseOpportunities({ opportunities: data, lastUpdate: Date.now() });
+            } catch (err) {
+                console.error('Parse closeOpportunities error:', err);
+            }
+        });
+
         // 处理任务事件 (订单状态浮窗通知)
         es.addEventListener('taskEvent', (e) => {
             try {
@@ -299,7 +310,7 @@ const useArbScanner = (addNotification, addOrderToast) => {
         };
     }, [connectSSE]);
 
-    return { opportunities, history, chartData, stats, accounts, tasks, sports, isConnected, exposureAlert, setExposureAlert };
+    return { opportunities, history, chartData, stats, accounts, tasks, sports, closeOpportunities, isConnected, exposureAlert, setExposureAlert };
 };
 
 Preview.useArbScanner = useArbScanner;

@@ -561,51 +561,42 @@ const ClosePositionCard = ({ opportunity, onTaskCreated, activeTask }) => {
 // ============================================================================
 // ClosePositionTab - 平仓管理标签页
 // ============================================================================
-const ClosePositionTab = ({ onSwitchToTasks, tasks = [] }) => {
+const ClosePositionTab = ({ onSwitchToTasks, tasks = [], sseData }) => {
     const [opportunities, setOpportunities] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [lastRefresh, setLastRefresh] = useState(null);
-    const [isCached, setIsCached] = useState(false);
+    const [manualRefreshing, setManualRefreshing] = useState(false);
 
-    // forceRefresh: true 强制刷新，false 使用缓存
-    const fetchOpportunities = useCallback(async (forceRefresh = false) => {
-        setLoading(true);
+    // SSE 推送驱动：后端每 10 秒广播，前端实时接收
+    useEffect(() => {
+        if (sseData && sseData.opportunities && sseData.lastUpdate) {
+            setOpportunities(sseData.opportunities);
+            setLastRefresh(new Date(sseData.lastUpdate));
+            setLoading(false);
+        }
+    }, [sseData]);
+
+    // 手动刷新：强制后端重算（不影响 SSE 流）
+    const handleManualRefresh = useCallback(async () => {
+        setManualRefreshing(true);
         setError(null);
         try {
-            const url = forceRefresh
-                ? `${API_BASE_URL}/api/close-opportunities?refresh=true`
-                : `${API_BASE_URL}/api/close-opportunities`;
-            const res = await fetch(url);
+            const res = await fetch(`${API_BASE_URL}/api/close-opportunities?refresh=true`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             setOpportunities(data.opportunities || []);
-            setIsCached(data.cached || false);
-            // 使用服务端返回的更新时间
             setLastRefresh(data.lastUpdate ? new Date(data.lastUpdate) : new Date());
         } catch (e) {
             setError(e.message);
         } finally {
-            setLoading(false);
+            setManualRefreshing(false);
         }
     }, []);
 
-    useEffect(() => {
-        // 初始加载使用缓存
-        fetchOpportunities(false);
-        // 定时刷新也使用缓存（后台定时器会更新缓存）
-        const interval = setInterval(() => fetchOpportunities(false), 30000);
-        return () => clearInterval(interval);
-    }, [fetchOpportunities]);
-
-    // 手动刷新强制重新计算
-    const handleManualRefresh = () => {
-        fetchOpportunities(true);
-    };
-
     const handleTaskCreated = () => {
-        // 任务创建后使用缓存刷新（后台定时器会更新缓存）
-        fetchOpportunities(false);
+        // 任务创建后触发一次手动刷新
+        handleManualRefresh();
     };
 
     const profitableCount = opportunities.filter(o => o.tt?.isValid || o.mt?.isValid).length;
@@ -624,15 +615,15 @@ const ClosePositionTab = ({ onSwitchToTasks, tasks = [] }) => {
                     </h3>
                     <button
                         onClick={handleManualRefresh}
-                        disabled={loading}
+                        disabled={manualRefreshing}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                            loading
+                            manualRefreshing
                                 ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                                 : 'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20'
                         }`}
                     >
-                        <Icon name={loading ? "loader" : "refresh-cw"} size={12} className={loading ? 'animate-spin' : ''} />
-                        {loading ? '刷新中...' : '刷新'}
+                        <Icon name={manualRefreshing ? "loader" : "refresh-cw"} size={12} className={manualRefreshing ? 'animate-spin' : ''} />
+                        {manualRefreshing ? '刷新中...' : '刷新'}
                     </button>
                 </div>
                 <div className="grid grid-cols-4 gap-6">
