@@ -107,6 +107,8 @@ interface TaskContext {
     depthListenerId?: string;
     /** 防重入：WS 触发的 checkDepth 正在执行 */
     depthCheckPending?: boolean;
+    /** 深度监控正在调整订单（取消→重提），防止主循环误判为外部取消 */
+    isDepthAdjusting?: boolean;
 }
 
 // ============================================================================
@@ -2282,8 +2284,9 @@ export class TaskExecutor extends EventEmitter {
                     } else if (ctx.totalPredictFilled === 0) {
                         // 没有成交，检查是否是深度/价格保护导致的取消
                         // hash 变化 = guard 已处理, isPaused = guard 正在处理 (cancel 失败但订单已取消)
-                        if (ctx.currentOrderHash !== watchedOrderHash || ctx.isPaused) {
-                            console.log(`[TaskExecutor] Task ${task.id}: Order cancelled by guard (hash changed: ${watchedOrderHash?.slice(0, 10)} → ${ctx.currentOrderHash?.slice(0, 10) || 'null'}), continuing...`);
+                        // isDepthAdjusting = 深度监控正在调整订单（取消→重提）
+                        if (ctx.currentOrderHash !== watchedOrderHash || ctx.isPaused || ctx.isDepthAdjusting) {
+                            console.log(`[TaskExecutor] Task ${task.id}: Order cancelled by guard (hash changed: ${watchedOrderHash?.slice(0, 10)} → ${ctx.currentOrderHash?.slice(0, 10) || 'null'}, isDepthAdjusting: ${!!ctx.isDepthAdjusting}), continuing...`);
                             // 记录订单取消事件
                             await this.taskLogger.logOrderEvent(task.id, 'ORDER_CANCELLED', {
                                 platform: 'predict',
@@ -2997,6 +3000,25 @@ export class TaskExecutor extends EventEmitter {
                             return;
                         }
                         ctx.isSubmitting = true;
+                        ctx.isDepthAdjusting = true;
+
+                        // 再次检查 abort 状态（深度检测是异步的，期间可能任务已被取消）
+                        if (ctx.signal.aborted || ctx.priceGuardAbort?.signal.aborted) {
+                            console.log(`[TaskExecutor] Depth recovery aborted (task cancelled during async depth check)`);
+                            ctx.isSubmitting = false;
+                            ctx.isDepthAdjusting = false;
+                            return;
+                        }
+
+                        // 再次检查任务终态（双重保险）
+                        const currentTaskAfterDepthCheck = this.taskService.getTask(task.id);
+                        const terminalStatuses: TaskStatus[] = ['COMPLETED', 'FAILED', 'CANCELLED', 'HEDGE_FAILED', 'UNWIND_COMPLETED'];
+                        if (!currentTaskAfterDepthCheck || terminalStatuses.includes(currentTaskAfterDepthCheck.status)) {
+                            console.log(`[TaskExecutor] Depth recovery aborted: task in terminal state ${currentTaskAfterDepthCheck?.status}`);
+                            ctx.isSubmitting = false;
+                            ctx.isDepthAdjusting = false;
+                            return;
+                        }
 
                         // 深度恢复：更新 task.quantity 到深度支持的量（不超过 totalQuantity）
                         const oldQuantity = task.quantity;
@@ -3008,6 +3030,21 @@ export class TaskExecutor extends EventEmitter {
                         const taskWithRemaining = { ...task, quantity: recoverableQty };
                         const result = await this.submitPredictOrder(taskWithRemaining, side);
                         if (result.success) {
+                            // 提交成功后再次检查任务状态（submitOrder 是异步的，期间任务可能被取消）
+                            const taskAfterSubmit = this.taskService.getTask(task.id);
+                            if (!taskAfterSubmit || terminalStatuses.includes(taskAfterSubmit.status)) {
+                                console.log(`[TaskExecutor] Depth recovery: order submitted but task is ${taskAfterSubmit?.status}, cancelling new order`);
+                                // 任务已终止，取消刚提交的订单
+                                try {
+                                    await this.predictTrader.cancelOrder(result.hash!);
+                                } catch (e) {
+                                    console.warn(`[TaskExecutor] Failed to cancel orphan order: ${e}`);
+                                }
+                                ctx.isSubmitting = false;
+                                ctx.isDepthAdjusting = false;
+                                return;
+                            }
+
                             ctx.isPaused = false;
                             ctx.currentOrderHash = result.hash;
 
@@ -3048,6 +3085,7 @@ export class TaskExecutor extends EventEmitter {
                         }
                         } finally {
                             ctx.isSubmitting = false;
+                            ctx.isDepthAdjusting = false;
                         }
                     }
                 }
@@ -3088,6 +3126,9 @@ export class TaskExecutor extends EventEmitter {
                             // 深度支持更多量，取消当前订单并扩增重下
                             console.log(`[TaskExecutor] Depth expand: depth=${hedgeDepth.toFixed(2)} supports ${expandableQty} > current remaining ${remainingQty}`);
 
+                            // 标记深度调整中，防止主循环误判为外部取消
+                            ctx.isDepthAdjusting = true;
+
                             let cancelSuccess = false;
                             if (ctx.currentOrderHash) {
                                 try {
@@ -3098,6 +3139,7 @@ export class TaskExecutor extends EventEmitter {
                                     }
                                     if (preStatus && preStatus.status === 'FILLED') {
                                         console.log(`[TaskExecutor] Depth expand: order already FILLED, skip expand → main loop will hedge`);
+                                        ctx.isDepthAdjusting = false;
                                         setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
                                         return;
                                     }
@@ -3110,6 +3152,7 @@ export class TaskExecutor extends EventEmitter {
                                         }
                                         if (postStatus && postStatus.status === 'FILLED') {
                                             console.log(`[TaskExecutor] Depth expand: cancel noop but order FILLED → main loop will hedge`);
+                                            ctx.isDepthAdjusting = false;
                                             setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
                                             return;
                                         }
@@ -3134,9 +3177,26 @@ export class TaskExecutor extends EventEmitter {
                                     ctx.currentOrderHash = undefined;
                                 } else {
                                     // 取消失败，跳过本次扩增
+                                    ctx.isDepthAdjusting = false;
                                     setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
                                     return;
                                 }
+                            }
+
+                            // 再次检查 abort 状态（取消订单是异步的，期间可能任务已被取消）
+                            if (ctx.signal.aborted || ctx.priceGuardAbort?.signal.aborted) {
+                                console.log(`[TaskExecutor] Depth expand aborted after cancel (task cancelled during async operation)`);
+                                ctx.isDepthAdjusting = false;
+                                return;
+                            }
+
+                            // 再次检查任务终态（双重保险）
+                            const currentTaskAfterCancel = this.taskService.getTask(ctx.task.id);
+                            const terminalStatuses: TaskStatus[] = ['COMPLETED', 'FAILED', 'CANCELLED', 'HEDGE_FAILED', 'UNWIND_COMPLETED'];
+                            if (!currentTaskAfterCancel || terminalStatuses.includes(currentTaskAfterCancel.status)) {
+                                console.log(`[TaskExecutor] Depth expand aborted: task in terminal state ${currentTaskAfterCancel?.status}`);
+                                ctx.isDepthAdjusting = false;
+                                return;
                             }
 
                             // 互斥
@@ -3154,6 +3214,20 @@ export class TaskExecutor extends EventEmitter {
                                 const taskWithExpandedQty = { ...task, quantity: expandableQty };
                                 const result = await this.submitPredictOrder(taskWithExpandedQty, side);
                                 if (result.success) {
+                                    // 提交成功后再次检查任务状态（submitOrder 是异步的，期间任务可能被取消）
+                                    const taskAfterSubmit = this.taskService.getTask(task.id);
+                                    if (!taskAfterSubmit || terminalStatuses.includes(taskAfterSubmit.status)) {
+                                        console.log(`[TaskExecutor] Depth expand: order submitted but task is ${taskAfterSubmit?.status}, cancelling new order`);
+                                        // 任务已终止，取消刚提交的订单
+                                        try {
+                                            await this.predictTrader.cancelOrder(result.hash!);
+                                        } catch (e) {
+                                            console.warn(`[TaskExecutor] Failed to cancel orphan order: ${e}`);
+                                        }
+                                        ctx.isDepthAdjusting = false;
+                                        return;
+                                    }
+
                                     ctx.currentOrderHash = result.hash;
                                     const updatedTask = this.updateTask(task.id, {
                                         quantity: newQuantity,
@@ -3184,6 +3258,7 @@ export class TaskExecutor extends EventEmitter {
                                 }
                             } finally {
                                 ctx.isSubmitting = false;
+                                ctx.isDepthAdjusting = false;
                             }
                         }
                     }
@@ -3290,6 +3365,9 @@ export class TaskExecutor extends EventEmitter {
             // 深度部分可用，调整数量
             console.log(`[TaskExecutor] Adjusting task quantity: ${task.quantity} → ${newQuantity}`);
 
+            // 标记深度调整中，防止主循环误判为外部取消
+            ctx.isDepthAdjusting = true;
+
             // 取消当前订单
             let depthAdjustCancelSuccess = false;
             if (ctx.currentOrderHash) {
@@ -3318,6 +3396,7 @@ export class TaskExecutor extends EventEmitter {
                 } else {
                     // 取消失败，不能安全地重新下单，跳过本次调整
                     console.warn('[TaskExecutor] Depth adjustment skipped: cancel failed, retaining current order');
+                    ctx.isDepthAdjusting = false;
                     setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
                     return;
                 }
@@ -3333,6 +3412,14 @@ export class TaskExecutor extends EventEmitter {
             const taskBeforeResubmit = this.taskService.getTask(ctx.task.id);
             if (!taskBeforeResubmit || terminalStatuses.includes(taskBeforeResubmit.status)) {
                 console.log(`[TaskExecutor] Depth adjustment: task ${ctx.task.id} became ${taskBeforeResubmit?.status} after order cancel, aborting resubmit`);
+                ctx.isDepthAdjusting = false;
+                return;
+            }
+
+            // 再次检查 abort 状态（取消订单是异步的，期间可能任务已被取消）
+            if (ctx.signal.aborted || ctx.priceGuardAbort?.signal.aborted) {
+                console.log(`[TaskExecutor] Depth adjustment aborted after cancel (task cancelled during async operation)`);
+                ctx.isDepthAdjusting = false;
                 return;
             }
 
@@ -3352,6 +3439,21 @@ export class TaskExecutor extends EventEmitter {
                 const result = await this.submitPredictOrder(taskWithNewQty, side);
 
                 if (result.success) {
+                    // 提交成功后再次检查任务状态（submitOrder 是异步的，期间任务可能被取消）
+                    const taskAfterSubmit = this.taskService.getTask(ctx.task.id);
+                    if (!taskAfterSubmit || terminalStatuses.includes(taskAfterSubmit.status)) {
+                        console.log(`[TaskExecutor] Depth adjustment: order submitted but task is ${taskAfterSubmit?.status}, cancelling new order`);
+                        // 任务已终止，取消刚提交的订单
+                        try {
+                            await this.predictTrader.cancelOrder(result.hash!);
+                        } catch (e) {
+                            console.warn(`[TaskExecutor] Failed to cancel orphan order: ${e}`);
+                        }
+                        ctx.isSubmitting = false;
+                        ctx.isDepthAdjusting = false;
+                        return;
+                    }
+
                     ctx.currentOrderHash = result.hash;
 
                     await this.taskLogger.logOrderEvent(task.id, 'ORDER_SUBMITTED', {
@@ -3373,6 +3475,7 @@ export class TaskExecutor extends EventEmitter {
             }
             } finally {
                 ctx.isSubmitting = false;
+                ctx.isDepthAdjusting = false;
             }
 
             // 继续监控
