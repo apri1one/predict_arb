@@ -299,6 +299,35 @@ export class TaskExecutor extends EventEmitter {
                     const priceCheck = await this.checkPriceValidity(task);
                     if (!priceCheck.valid) {
                         console.warn(`[TaskExecutor] ⚠️ 任务 ${task.id} 价格无效: ${priceCheck.reason}`);
+
+                        // Cancel-first: 价格无效时立即取消 Predict 挂单，防止无保护成交
+                        let orderAlreadyFilled = false;
+                        if (task.currentOrderHash) {
+                            console.log(`[TaskExecutor] 自动恢复 cancel-first: 取消订单 ${task.currentOrderHash.slice(0, 20)}...`);
+                            try {
+                                const cancelSuccess = await this.predictTrader.cancelOrder(task.currentOrderHash);
+                                // 取消后查询最终状态，确认是否已成交
+                                const postStatus = await this.predictTrader.getOrderStatus(task.currentOrderHash);
+                                if (postStatus && postStatus.status === 'FILLED') {
+                                    orderAlreadyFilled = true;
+                                    console.warn(`[TaskExecutor] 任务 ${task.id}: 订单已完全成交，需要对冲处理`);
+                                } else if (cancelSuccess) {
+                                    console.log(`[TaskExecutor] 任务 ${task.id}: 订单已取消`);
+                                    this.updateTask(task.id, { currentOrderHash: undefined });
+                                }
+                            } catch (e: any) {
+                                console.warn(`[TaskExecutor] 自动恢复取消订单失败: ${e.message}`);
+                            }
+                        }
+
+                        // 如果订单已完全成交，不能简单暂停 — 需要进入正常恢复流程处理对冲
+                        if (orderAlreadyFilled) {
+                            console.log(`[TaskExecutor] 任务 ${task.id}: 订单已成交，进入恢复流程处理对冲`);
+                            await this.startTask(task.id);
+                            console.log(`[TaskExecutor] ✅ 任务 ${task.id} 已恢复执行 (对冲模式)`);
+                            continue;
+                        }
+
                         // 记录价格无效
                         await this.taskLogger.logTaskLifecycle(task.id, 'TASK_PAUSED', {
                             status: 'PAUSED',
