@@ -731,7 +731,7 @@ async function pauseTasksForWsDisconnect(): Promise<void> {
     if (wsPauseInProgress || wsPauseActive) return;
     wsPauseInProgress = true;
     try {
-        const pausedIds = await taskExecutor.pauseTasks('WS disconnected', { concurrency: 4, timeoutMs: 60000 });
+        const pausedIds = await taskExecutor.pauseTasks('WS disconnected', { concurrency: 4, timeoutMs: 60000, excludeSports: true });
         for (const id of pausedIds) wsPausedTaskIds.add(id);
         if (pausedIds.length > 0) {
             wsPauseActive = true;
@@ -4976,14 +4976,14 @@ async function main(): Promise<void> {
         // 1. Predict 订单簿补订阅
         if (usePredictWsMode) {
             const sportsMarketIds = sportsService.getMarkets().map(m => m.predictMarketId).filter(Boolean);
-            const liveOnlySportsIds = sportsService.getLiveOnlySportsMarketIds();  // MVP/Champion 市场
+            const liveOnlySportsIds = sportsService.getLiveOnlySportsMarketIds();  // 多选事件 (非对阵)
             const allSportsMarketIds = [...sportsMarketIds, ...liveOnlySportsIds];
 
             if (allSportsMarketIds.length > 0) {
                 const unifiedCache = getPredictOrderbookCache();
                 if (unifiedCache) {
                     await unifiedCache.subscribeMarkets(allSportsMarketIds);
-                    console.log(`✅ 体育市场 Predict 订单簿已补订阅: ${sportsMarketIds.length} 个体育面板市场 + ${liveOnlySportsIds.length} 个特殊市场(MVP/Champion)`);
+                    console.log(`✅ 体育市场 Predict 订单簿已补订阅: ${sportsMarketIds.length} 个体育面板市场 + ${liveOnlySportsIds.length} 个多选事件市场`);
 
                     // REST 预热：Predict WS 无初始快照，订阅后用 REST 填充缓存
                     console.log(`🔥 正在预热体育市场订单簿 (${allSportsMarketIds.length} 个)...`);

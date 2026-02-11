@@ -932,7 +932,7 @@ export class TaskExecutor extends EventEmitter {
     /**
      * 暂停所有运行中的任务（不停止过期检查）
      */
-    async pauseTasks(reason: string, options?: { concurrency?: number; timeoutMs?: number }): Promise<string[]> {
+    async pauseTasks(reason: string, options?: { concurrency?: number; timeoutMs?: number; excludeSports?: boolean }): Promise<string[]> {
         if (this.pausing) {
             console.log('[TaskExecutor] pauseTasks() 已在进行中，跳过重复调用');
             return [];
@@ -940,7 +940,16 @@ export class TaskExecutor extends EventEmitter {
         this.pausing = true;
 
         try {
-            const taskIdsToPause = this.collectTaskIdsToPause();
+            let taskIdsToPause = this.collectTaskIdsToPause();
+
+            // WS 断连时排除体育市场任务（体育市场使用 REST 轮询，不依赖 WS）
+            if (options?.excludeSports) {
+                taskIdsToPause = taskIdsToPause.filter(id => {
+                    const task = this.taskService.getTask(id);
+                    return task && !task.isSportsMarket;
+                });
+            }
+
             if (taskIdsToPause.length === 0) {
                 console.log('[TaskExecutor] 没有需要暂停/取消挂单的任务');
                 return [];
