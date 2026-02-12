@@ -1,0 +1,81 @@
+--- task-executor.ts.original
++++ task-executor.ts.fixed
+@@ -3005,6 +3005,7 @@
+                         // 再次检查 abort 状态（深度检测是异步的，期间可能任务已被取消）
+                         if (ctx.signal.aborted || ctx.priceGuardAbort?.signal.aborted) {
+                             console.log(`[TaskExecutor] Depth recovery aborted (task cancelled during async depth check)`);
+                             ctx.isSubmitting = false;
++                            ctx.isDepthAdjusting = false;
+                             return;
+                         }
+
+@@ -3014,6 +3015,7 @@
+                         const terminalStatuses: TaskStatus[] = ['COMPLETED', 'FAILED', 'CANCELLED', 'HEDGE_FAILED', 'UNWIND_COMPLETED'];
+                         if (!currentTaskAfterDepthCheck || terminalStatuses.includes(currentTaskAfterDepthCheck.status)) {
+                             console.log(`[TaskExecutor] Depth recovery aborted: task in terminal state ${currentTaskAfterDepthCheck?.status}`);
+                             ctx.isSubmitting = false;
++                            ctx.isDepthAdjusting = false;
+                             return;
+                         }
+@@ -3123,6 +3125,7 @@
+                                     }
+                                     if (preStatus && preStatus.status === 'FILLED') {
+                                         console.log(`[TaskExecutor] Depth expand: order already FILLED, skip expand → main loop will hedge`);
++                                        ctx.isDepthAdjusting = false;
+                                         setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                                         return;
+                                     }
+@@ -3135,6 +3138,7 @@
+                                     if (postStatus && postStatus.status === 'FILLED') {
+                                         // cancel 返回 noop 但订单实际已成交，让主循环处理对冲
+                                         console.log(`[TaskExecutor] Depth expand: cancel noop but order FILLED → main loop will hedge`);
++                                        ctx.isDepthAdjusting = false;
+                                         setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                                         return;
+                                     }
+@@ -3157,6 +3161,7 @@
+                                 ctx.currentOrderHash = undefined;
+                             } else {
+                                 // 取消失败，跳过本次扩增
++                                ctx.isDepthAdjusting = false;
+                                 setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                                 return;
+                             }
+@@ -3165,6 +3169,7 @@
+                             // 再次检查 abort 状态（取消订单是异步的，期间可能任务已被取消）
+                             if (ctx.signal.aborted || ctx.priceGuardAbort?.signal.aborted) {
+                                 console.log(`[TaskExecutor] Depth expand aborted after cancel (task cancelled during async operation)`);
++                                ctx.isDepthAdjusting = false;
+                                 return;
+                             }
+
+@@ -3173,6 +3178,7 @@
+                             const terminalStatuses: TaskStatus[] = ['COMPLETED', 'FAILED', 'CANCELLED', 'HEDGE_FAILED', 'UNWIND_COMPLETED'];
+                             if (!currentTaskAfterCancel || terminalStatuses.includes(currentTaskAfterCancel.status)) {
+                                 console.log(`[TaskExecutor] Depth expand aborted: task in terminal state ${currentTaskAfterCancel?.status}`);
++                                ctx.isDepthAdjusting = false;
+                                 return;
+                             }
+@@ -3358,6 +3364,7 @@
+                             } else {
+                                 // 取消失败，不能安全地重新下单，跳过本次调整
+                                 console.warn('[TaskExecutor] Depth adjustment skipped: cancel failed, retaining current order');
++                                ctx.isDepthAdjusting = false;
+                                 setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                                 return;
+                             }
+@@ -3374,6 +3381,7 @@
+                         const taskBeforeResubmit = this.taskService.getTask(ctx.task.id);
+                         if (!taskBeforeResubmit || terminalStatuses.includes(taskBeforeResubmit.status)) {
+                             console.log(`[TaskExecutor] Depth adjustment: task ${ctx.task.id} became ${taskBeforeResubmit?.status} after order cancel, aborting resubmit`);
++                            ctx.isDepthAdjusting = false;
+                             return;
+                         }
+
+@@ -3381,6 +3389,7 @@
+                         // 再次检查 abort 状态（取消订单是异步的，期间可能任务已被取消）
+                         if (ctx.signal.aborted || ctx.priceGuardAbort?.signal.aborted) {
+                             console.log(`[TaskExecutor] Depth adjustment aborted after cancel (task cancelled during async operation)`);
++                            ctx.isDepthAdjusting = false;
+                             return;
+                         }

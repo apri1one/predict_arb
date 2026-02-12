@@ -413,6 +413,10 @@ export class PredictOrderbookCache {
             console.log('[OrderbookCache] WS 已断开');
         });
 
+        this.wsClient.on('error', (err: any) => {
+            console.error('[OrderbookCache] WS error:', err?.message || err);
+        });
+
         // 连接
         try {
             await this.wsClient.connect();

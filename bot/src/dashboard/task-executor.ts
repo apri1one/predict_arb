@@ -809,7 +809,8 @@ export class TaskExecutor extends EventEmitter {
                 const remainingQty = orderStatus?.remainingQty ?? (task.quantity - task.predictFilledQty);
 
                 if (orderStatus && (orderStatus.status === 'FILLED' || orderStatus.remainingQty === 0)) {
-                    console.log(`[TaskExecutor] ℹ️ Predict 订单已全部成交，无需取消`);
+                    console.log(`[TaskExecutor] ℹ️ Predict 订单已全部成交，无需取消 — 检查是否需要对冲`);
+                    await this.handleFilledOrderOnCancel(task, orderStatus, ctx);
                 } else if (orderStatus && (orderStatus.status === 'CANCELLED' || orderStatus.status === 'EXPIRED')) {
                     console.log(`[TaskExecutor] ℹ️ Predict 订单已取消/过期，无需操作`);
                 } else {
@@ -830,6 +831,11 @@ export class TaskExecutor extends EventEmitter {
                             avgPrice: task.avgPredictPrice,
                             cancelReason: 'User cancelled',
                         });
+
+                        // 取消成功后，检查是否有已成交但未对冲的部分
+                        if (orderStatus && orderStatus.filledQty > 0) {
+                            await this.handleFilledOrderOnCancel(task, orderStatus, ctx);
+                        }
                     } else {
                         console.warn(`[TaskExecutor] ⚠️ Predict 订单取消失败 (hash: ${orderHashToCancel.slice(0, 20)}..., 状态: ${task.status}, 已成交: ${task.predictFilledQty}/${task.quantity})`);
                     }
@@ -1481,6 +1487,7 @@ export class TaskExecutor extends EventEmitter {
             {
                 onPriceInvalid: async (currentPrice) => {
                     if (signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
+                    task = ctx.task; // 同步深度监控可能更新的 task.quantity
 
                     priceGuardGeneration++; // 中断旧的 onPriceValid 复查循环
 
@@ -1597,6 +1604,7 @@ export class TaskExecutor extends EventEmitter {
                 onPriceValid: async (currentPrice) => {
                     if (signal.aborted || ctx.priceGuardAbort?.signal.aborted) return;
                     if (!ctx.isPaused) return;
+                    task = ctx.task; // 同步深度监控可能更新的 task.quantity
 
                     // 关键检查：任务可能已在其他地方被取消，不应再提交订单
                     const currentTask = this.taskService.getTask(task.id);
@@ -1844,7 +1852,9 @@ export class TaskExecutor extends EventEmitter {
          */
         const mergeFilledQty = (): boolean => {
             const merged = ctx.baseFilledBeforeOrder + Math.max(ctx.wssFilledQty, ctx.restFilledQty);
-            const clamped = Math.min(Math.max(0, merged), task.quantity);
+            // 用 totalQuantity (原始不可变目标量) 作为上限，而非 task.quantity (深度动态调整值)
+            // 防止深度缩减后 clamp 截断已确认的成交量
+            const clamped = Math.min(Math.max(0, merged), task.totalQuantity);
             if (clamped > ctx.totalPredictFilled) {
                 ctx.totalPredictFilled = clamped;
                 return true;
@@ -1984,6 +1994,10 @@ export class TaskExecutor extends EventEmitter {
 
         try {
             while (!signal.aborted && !ctx.priceGuardAbort?.signal.aborted) {
+                // 同步局部 task 变量，防止深度监控/价格守护更新 ctx.task 后主循环使用过期值
+                // (尤其是 task.quantity 被深度扩增修改后，mergeFilledQty 的 clamp 上限必须同步)
+                task = ctx.task;
+
                 // 如果暂停中，等待恢复（WSS 事件可打断）
                 if (ctx.isPaused) {
                     await Promise.race([this.delay(500), wssEventPromise]);
@@ -3632,6 +3646,328 @@ export class TaskExecutor extends EventEmitter {
     // ========================================================================
     // 延迟结算填充检测
     // ========================================================================
+
+    /**
+     * cancelTask 发现已成交订单时的智能对冲
+     *
+     * 当用户取消任务时发现 Predict 订单已全部/部分成交但未对冲，
+     * 自动在 Polymarket 下对冲单以消除裸露头寸。
+     *
+     * 三种场景:
+     * A) 最优价在保本范围内 + 深度充足 → IOC 全量对冲
+     * B) 最优价在保本范围内 + 深度不足 → IOC 吃掉可用深度 + GTC 挂单剩余
+     * C) 最优价超出保本范围 → GTC 挂单在保本价
+     */
+    private async handleFilledOrderOnCancel(
+        task: Task,
+        orderStatus: { filledQty: number; remainingQty: number; status: string },
+        ctx?: TaskContext
+    ): Promise<void> {
+        const filledQty = orderStatus.filledQty;
+        const hedgedQty = task.hedgedQty || 0;
+        const unhedgedQty = filledQty - hedgedQty;
+
+        if (unhedgedQty < MIN_HEDGE_QTY) {
+            console.log(`[TaskExecutor] cancelTask 对冲检查: 未对冲量 ${unhedgedQty.toFixed(2)} < ${MIN_HEDGE_QTY}，跳过`);
+            return;
+        }
+
+        console.warn(`[TaskExecutor] 🚨 cancelTask 发现未对冲头寸: task=${task.id}, filled=${filledQty}, hedged=${hedgedQty}, unhedged=${unhedgedQty}`);
+
+        const hedgeTokenId = this.getHedgeTokenId(task);
+        const attemptId = `cancel-hedge-${Math.random().toString(36).substring(2, 8)}`;
+        const feeRateBps = task.feeRateBps ?? 200;
+        const predictFee = calculatePredictFee(task.predictPrice, feeRateBps);
+
+        // 计算保本价 (breakeven)
+        let breakevenPrice: number;
+        let hedgeSide: 'BUY' | 'SELL';
+
+        if (task.type === 'BUY') {
+            // BUY: predictPrice + predictFee + polyAsk = 1.0
+            breakevenPrice = Number((1.0 - task.predictPrice - predictFee).toFixed(4));
+            hedgeSide = 'BUY';
+        } else {
+            // SELL: predictPrice - predictFee + polyBid = 1.0
+            breakevenPrice = Number((1.0 - task.predictPrice + predictFee).toFixed(4));
+            hedgeSide = 'SELL';
+        }
+
+        console.log(`[TaskExecutor] 保本价计算: predictPrice=${task.predictPrice}, fee=${predictFee.toFixed(4)}, breakeven=${breakevenPrice.toFixed(4)}, hedgeSide=${hedgeSide}`);
+
+        // 获取 Polymarket 订单簿
+        const orderbook = await this.getPolymarketOrderbook(hedgeTokenId, task.isSportsMarket);
+        if (!orderbook) {
+            const msg = `🚨🚨 取消任务 ${task.id} 发现 ${filledQty} 股已成交未对冲\n`
+                + `无法获取 Polymarket 订单簿，无法自动对冲\n`
+                + `⚠️⚠️ 需立即人工干预！`;
+            console.error(`[TaskExecutor] ${msg}`);
+            this.emit('alert:pin', msg);
+            await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_FAILED', {
+                hedgeQty: unhedgedQty,
+                totalHedged: hedgedQty,
+                totalPredictFilled: filledQty,
+                avgHedgePrice: 0,
+                retryCount: 0,
+                reason: 'cancelTask: 无法获取订单簿',
+            }, attemptId);
+            return;
+        }
+
+        // 分析订单簿
+        let bestPrice: number;
+        let depthWithinBudget = 0;
+
+        if (hedgeSide === 'BUY') {
+            if (orderbook.asks.length === 0) {
+                const msg = `🚨🚨 取消任务 ${task.id} 发现 ${filledQty} 股已成交未对冲\n`
+                    + `Polymarket 无卖单，无法自动对冲\n`
+                    + `⚠️⚠️ 需立即人工干预！`;
+                console.error(`[TaskExecutor] ${msg}`);
+                this.emit('alert:pin', msg);
+                return;
+            }
+            bestPrice = orderbook.asks[0].price;
+            // 累计 breakeven 范围内的深度
+            for (const level of orderbook.asks) {
+                if (level.price <= breakevenPrice) {
+                    depthWithinBudget += level.size;
+                } else {
+                    break;
+                }
+            }
+        } else {
+            if (orderbook.bids.length === 0) {
+                const msg = `🚨🚨 取消任务 ${task.id} 发现 ${filledQty} 股已成交未对冲\n`
+                    + `Polymarket 无买单，无法自动对冲\n`
+                    + `⚠️⚠️ 需立即人工干预！`;
+                console.error(`[TaskExecutor] ${msg}`);
+                this.emit('alert:pin', msg);
+                return;
+            }
+            bestPrice = orderbook.bids[0].price;
+            // 累计 breakeven 范围内的深度
+            for (const level of orderbook.bids) {
+                if (level.price >= breakevenPrice) {
+                    depthWithinBudget += level.size;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        const isWithinBreakeven = hedgeSide === 'BUY'
+            ? bestPrice <= breakevenPrice
+            : bestPrice >= breakevenPrice;
+
+        console.log(`[TaskExecutor] 订单簿分析: bestPrice=${bestPrice.toFixed(4)}, breakeven=${breakevenPrice.toFixed(4)}, withinBreakeven=${isWithinBreakeven}, depthWithinBudget=${depthWithinBudget.toFixed(2)}`);
+
+        await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_STARTED', {
+            hedgeQty: unhedgedQty,
+            totalHedged: hedgedQty,
+            totalPredictFilled: filledQty,
+            avgHedgePrice: 0,
+            retryCount: 0,
+            reason: 'cancelTask: 发现未对冲头寸',
+        }, attemptId);
+
+        // ========== 场景 A/B: 最优价在保本范围内 ==========
+        if (isWithinBreakeven) {
+            const iocQty = Math.min(unhedgedQty, depthWithinBudget);
+
+            if (iocQty >= MIN_HEDGE_QTY) {
+                // IOC 吃掉可用深度
+                try {
+                    const iocResult = await this.polyTrader.placeOrder({
+                        tokenId: hedgeTokenId,
+                        side: hedgeSide,
+                        price: bestPrice,
+                        quantity: iocQty,
+                        orderType: 'IOC',
+                        negRisk: task.negRisk,
+                        marketTitle: task.title,
+                        conditionId: task.polymarketConditionId,
+                    });
+
+                    let iocFilled = 0;
+                    if (iocResult.success && iocResult.orderId) {
+                        // 等待 IOC 成交确认
+                        const fillResult = await new Promise<OrderWatchResult>((resolve) => {
+                            this.orderMonitor.watchPolymarketOrder(
+                                iocResult.orderId!,
+                                (result) => resolve(result),
+                                { intervalMs: 250, maxRetries: 8 }
+                            );
+                        });
+                        iocFilled = fillResult.filledQty;
+                    }
+
+                    if (iocFilled > 0) {
+                        // 更新 task
+                        const newHedgedQty = hedgedQty + iocFilled;
+                        const avgPrice = task.avgPolymarketPrice
+                            ? (task.avgPolymarketPrice * hedgedQty + bestPrice * iocFilled) / newHedgedQty
+                            : bestPrice;
+                        this.updateTask(task.id, {
+                            hedgedQty: newHedgedQty,
+                            avgPolymarketPrice: avgPrice,
+                            remainingQty: filledQty - newHedgedQty,
+                        });
+
+                        // 同步 ctx (防止 schedulePostCancelVerification 的 emergencyHedge 重复对冲)
+                        if (ctx) {
+                            ctx.totalHedged += iocFilled;
+                            ctx.hedgePriceSum += iocFilled * bestPrice;
+                        }
+
+                        console.log(`[TaskExecutor] ✅ cancelTask IOC 对冲成交: ${iocFilled.toFixed(2)} @ ${bestPrice.toFixed(4)}`);
+                    }
+
+                    const gtcQty = unhedgedQty - iocFilled;
+
+                    // 场景 A: IOC 全量成交
+                    if (gtcQty < MIN_HEDGE_QTY) {
+                        const msg = `🚨 取消任务 ${task.id} 发现已成交 ${filledQty} 股，已紧急 IOC 对冲 ${iocFilled.toFixed(1)} 股`;
+                        console.log(`[TaskExecutor] ${msg}`);
+                        this.emit('alert:pin', msg);
+                        await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_COMPLETED', {
+                            hedgeQty: iocFilled,
+                            totalHedged: hedgedQty + iocFilled,
+                            totalPredictFilled: filledQty,
+                            avgHedgePrice: bestPrice,
+                            retryCount: 0,
+                            reason: 'cancelTask: IOC 全量对冲完成',
+                        }, attemptId);
+                        return;
+                    }
+
+                    // 场景 B: IOC 部分成交，GTC 挂单剩余
+                    await this.placeGtcHedgeForCancel(task, hedgeTokenId, hedgeSide, breakevenPrice, gtcQty, attemptId, {
+                        iocFilled,
+                        filledQty,
+                        hedgedQty,
+                        bestPrice,
+                    });
+                } catch (err: any) {
+                    console.error(`[TaskExecutor] cancelTask IOC 对冲异常: ${err.message}`);
+                    // IOC 失败，降级为 GTC
+                    await this.placeGtcHedgeForCancel(task, hedgeTokenId, hedgeSide, breakevenPrice, unhedgedQty, attemptId, {
+                        iocFilled: 0,
+                        filledQty,
+                        hedgedQty,
+                        bestPrice,
+                    });
+                }
+            } else {
+                // 深度太浅，全部 GTC
+                await this.placeGtcHedgeForCancel(task, hedgeTokenId, hedgeSide, breakevenPrice, unhedgedQty, attemptId, {
+                    iocFilled: 0,
+                    filledQty,
+                    hedgedQty,
+                    bestPrice,
+                });
+            }
+        } else {
+            // ========== 场景 C: 最优价超出保本范围 → GTC 挂单 ==========
+            await this.placeGtcHedgeForCancel(task, hedgeTokenId, hedgeSide, breakevenPrice, unhedgedQty, attemptId, {
+                iocFilled: 0,
+                filledQty,
+                hedgedQty,
+                bestPrice,
+                outOfRange: true,
+            });
+        }
+    }
+
+    /**
+     * cancelTask 对冲辅助: 在保本价挂 GTC 限价单
+     */
+    private async placeGtcHedgeForCancel(
+        task: Task,
+        hedgeTokenId: string,
+        hedgeSide: 'BUY' | 'SELL',
+        breakevenPrice: number,
+        gtcQty: number,
+        attemptId: string,
+        info: { iocFilled: number; filledQty: number; hedgedQty: number; bestPrice: number; outOfRange?: boolean }
+    ): Promise<void> {
+        // 确保 GTC 价格在 Polymarket 有效范围内 (0.01-0.99)
+        const gtcPrice = Math.max(0.01, Math.min(0.99, breakevenPrice));
+
+        // 检查 Polymarket $1 最小名义金额
+        const notional = gtcQty * gtcPrice;
+        if (notional < MIN_HEDGE_NOTIONAL) {
+            const msg = `🚨🚨 取消任务 ${task.id} 发现 ${info.filledQty} 股已成交\n`
+                + `GTC 名义金额 $${notional.toFixed(2)} < $${MIN_HEDGE_NOTIONAL}，无法挂单\n`
+                + `⚠️⚠️ 需立即人工干预！`;
+            console.warn(`[TaskExecutor] ${msg}`);
+            this.emit('alert:pin', msg);
+            await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_FAILED', {
+                hedgeQty: gtcQty,
+                totalHedged: info.hedgedQty + info.iocFilled,
+                totalPredictFilled: info.filledQty,
+                avgHedgePrice: 0,
+                retryCount: 0,
+                reason: `cancelTask: GTC 名义金额 $${notional.toFixed(2)} < $${MIN_HEDGE_NOTIONAL}`,
+            }, attemptId + '-gtc');
+            return;
+        }
+
+        try {
+            const gtcResult = await this.polyTrader.placeOrder({
+                tokenId: hedgeTokenId,
+                side: hedgeSide,
+                price: gtcPrice,
+                quantity: gtcQty,
+                orderType: 'GTC',
+                negRisk: task.negRisk,
+                marketTitle: task.title,
+                conditionId: task.polymarketConditionId,
+            });
+
+            const gtcOrderId = gtcResult.success ? gtcResult.orderId : 'FAILED';
+
+            if (info.outOfRange) {
+                const msg = `🚨🚨 取消任务 ${task.id} 发现 ${info.filledQty} 股已成交\n`
+                    + `当前价格超出保本范围 (best=${info.bestPrice.toFixed(4)} vs breakeven=${breakevenPrice.toFixed(4)})\n`
+                    + `已挂 GTC 限价单 ${gtcQty.toFixed(1)} 股 @ ${gtcPrice.toFixed(4)} (orderId: ${gtcOrderId})\n`
+                    + `⚠️⚠️ 需立即人工干预！`;
+                console.warn(`[TaskExecutor] ${msg}`);
+                this.emit('alert:pin', msg);
+            } else {
+                const msg = `🚨 取消任务 ${task.id} 发现 ${info.filledQty} 股已成交\n`
+                    + (info.iocFilled > 0 ? `IOC 对冲 ${info.iocFilled.toFixed(1)} 股 @ ${info.bestPrice.toFixed(4)}\n` : '')
+                    + `GTC 挂单 ${gtcQty.toFixed(1)} 股 @ ${gtcPrice.toFixed(4)} (orderId: ${gtcOrderId})\n`
+                    + `⚠️ 需手动关注 GTC 订单成交情况`;
+                console.warn(`[TaskExecutor] ${msg}`);
+                this.emit('alert:pin', msg);
+            }
+
+            await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_STARTED', {
+                hedgeQty: gtcQty,
+                totalHedged: info.hedgedQty + info.iocFilled,
+                totalPredictFilled: info.filledQty,
+                avgHedgePrice: gtcPrice,
+                retryCount: 0,
+                reason: `cancelTask: GTC 挂单 @ ${gtcPrice.toFixed(4)}`,
+            }, attemptId + '-gtc');
+        } catch (err: any) {
+            const msg = `🚨🚨 取消任务 ${task.id} 发现 ${info.filledQty} 股已成交\n`
+                + `GTC 挂单失败: ${err.message}\n`
+                + `⚠️⚠️ 需立即人工干预！`;
+            console.error(`[TaskExecutor] ${msg}`);
+            this.emit('alert:pin', msg);
+
+            await this.taskLogger.logHedgeEvent(task.id, 'HEDGE_FAILED', {
+                hedgeQty: gtcQty,
+                totalHedged: info.hedgedQty + info.iocFilled,
+                totalPredictFilled: info.filledQty,
+                avgHedgePrice: 0,
+                retryCount: 0,
+                reason: `cancelTask: GTC 挂单失败 ${err.message}`,
+            }, attemptId + '-gtc');
+        }
+    }
 
     /**
      * 撤单后调度延迟结算验证

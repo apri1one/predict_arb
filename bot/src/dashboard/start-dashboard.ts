@@ -4489,6 +4489,16 @@ async function main(): Promise<void> {
     // 监听 TaskExecutor 事件
     taskExecutor.on('task:updated', (task: Task) => broadcastTaskUpdate(task));
 
+    // 关键告警 → TG 置顶消息
+    taskExecutor.on('alert:pin', (msg: string) => {
+        const tg = getTelegramNotifier();
+        if (tg) {
+            tg.sendAndPin(msg).catch(err =>
+                console.warn(`[TaskExecutor TG] sendAndPin 失败: ${err.message}`)
+            );
+        }
+    });
+
     // 连接 TaskLogger SSE 通知 (独立于 Telegram，用于前端浮窗通知)
     {
         const taskLogger = getTaskLogger();
@@ -5427,6 +5437,46 @@ function setupGracefulShutdown(): void {
             rl.on('SIGINT', () => process.emit('SIGINT' as any));
         }).catch(() => { /* ignore */ });
     }
+
+    // ---- 崩溃防护: uncaughtException / unhandledRejection ----
+    // 注意: uncaughtException 处理器不使用 async/await — 事件循环可能已损坏
+    process.on('uncaughtException', (err) => {
+        console.error(`\n🔥 uncaughtException: ${err.message}`);
+        console.error(err.stack);
+
+        // 如果已在优雅关闭流程中，直接退出避免冲突
+        if (isShuttingDown) {
+            console.error('[Emergency] 关闭期间崩溃，立即退出');
+            process.exit(1);
+        }
+
+        // 强制退出定时器 (5s 后无论如何退出，防止进程挂起)
+        setTimeout(() => {
+            console.error('[Emergency] 强制退出');
+            process.exit(1);
+        }, 5000).unref();
+
+        // fire-and-forget: 暂停所有任务 (触发取消挂单，重启后 autoRecover 可恢复)
+        taskExecutor.pauseTasks('uncaughtException 崩溃', { concurrency: 8, timeoutMs: 4000 })
+            .catch(e => console.error(`[Emergency] 暂停任务异常: ${e?.message}`));
+
+        // fire-and-forget: TG 置顶告警
+        try {
+            const tg = getTelegramNotifier();
+            if (tg) {
+                tg.sendAndPin(`🔥 Dashboard 崩溃!\n\nuncaughtException: ${err.message}\n\n已尝试暂停所有任务并撤单，PM2 将自动重启`)
+                    .catch(() => { /* ignore */ });
+            }
+        } catch { /* ignore */ }
+    });
+
+    process.on('unhandledRejection', (reason: any) => {
+        console.error(`\n⚠️ unhandledRejection:`, reason instanceof Error ? reason.message : reason);
+        if (reason instanceof Error && reason.stack) {
+            console.error(reason.stack);
+        }
+        // 不退出进程，仅记录
+    });
 
     console.log('📌 已注册优雅关闭处理 (Ctrl+C 暂停所有任务)\n');
 }

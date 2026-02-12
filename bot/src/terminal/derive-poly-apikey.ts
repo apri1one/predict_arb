@@ -84,31 +84,53 @@ async function main() {
         'Content-Type': 'application/json',
     };
 
-    // 尝试派生 API Key (如果之前已创建)
-    console.log('\n🔑 尝试派生 API Key...');
+    const forceNew = process.argv.includes('--new');
     interface ApiCreds { apiKey: string; secret: string; passphrase: string }
     let creds: ApiCreds | null = null;
 
-    try {
-        const deriveRes = await fetch(`${CLOB_BASE_URL}/auth/derive-api-key`, {
-            method: 'GET',
-            headers,
-        });
-
-        if (deriveRes.ok) {
-            creds = await deriveRes.json() as ApiCreds;
-            console.log('  ✅ 派生成功!');
-        } else {
-            const errorText = await deriveRes.text();
-            console.log(`  派生失败 (${deriveRes.status}): ${errorText}`);
+    // --new 模式: 删除旧 key 再创建新的
+    if (forceNew) {
+        console.log('\n🗑️  删除旧 API Key...');
+        try {
+            const delRes = await fetch(`${CLOB_BASE_URL}/auth/api-key`, {
+                method: 'DELETE',
+                headers,
+            });
+            if (delRes.ok) {
+                console.log('  ✅ 旧 Key 已删除');
+            } else {
+                const errorText = await delRes.text();
+                console.log(`  删除失败 (${delRes.status}): ${errorText} (可能无旧 Key)`);
+            }
+        } catch (e: any) {
+            console.log(`  删除错误: ${e.message}`);
         }
-    } catch (e: any) {
-        console.log(`  派生错误: ${e.message}`);
     }
 
-    // 如果派生失败，尝试创建新的
+    if (!forceNew) {
+        // 尝试派生 API Key (如果之前已创建)
+        console.log('\n🔑 尝试派生 API Key...');
+        try {
+            const deriveRes = await fetch(`${CLOB_BASE_URL}/auth/derive-api-key`, {
+                method: 'GET',
+                headers,
+            });
+
+            if (deriveRes.ok) {
+                creds = await deriveRes.json() as ApiCreds;
+                console.log('  ✅ 派生成功!');
+            } else {
+                const errorText = await deriveRes.text();
+                console.log(`  派生失败 (${deriveRes.status}): ${errorText}`);
+            }
+        } catch (e: any) {
+            console.log(`  派生错误: ${e.message}`);
+        }
+    }
+
+    // 派生失败或 --new 模式: 创建新 Key
     if (!creds) {
-        console.log('\n🔑 尝试创建新 API Key...');
+        console.log('\n🔑 创建新 API Key...');
         try {
             const createRes = await fetch(`${CLOB_BASE_URL}/auth/api-key`, {
                 method: 'POST',
