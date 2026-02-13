@@ -2677,7 +2677,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, onCancelTask, 
                         style={{ background: getTaskColor(awayTask) }}
                         title={`Away 任务 #${awayTask.id?.slice(0, 8)} - ${awayTask.status} | ${awayTask.filledShares || 0}/${awayTask.quantity} shares`}
                     >
-                        {market.awayTeam?.slice(0, 3)} {getTaskLabel(awayTask)} {awayTask.filledShares || 0}/{awayTask.quantity}
+                        {market.awayTeam?.slice(0, 3)} {getTaskLabel(awayTask)}
                     </div>
                 )}
                 {/* 任务标签 (斜角丝带) - Home 任务 (显示在右上角) */}
@@ -2687,7 +2687,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, onCancelTask, 
                         style={{ background: getTaskColor(homeTask) }}
                         title={`Home 任务 #${homeTask.id?.slice(0, 8)} - ${homeTask.status} | ${homeTask.filledShares || 0}/${homeTask.quantity} shares`}
                     >
-                        {market.homeTeam?.slice(0, 3)} {getTaskLabel(homeTask)} {homeTask.filledShares || 0}/{homeTask.quantity}
+                        {market.homeTeam?.slice(0, 3)} {getTaskLabel(homeTask)}
                     </div>
                 )}
 
@@ -2846,7 +2846,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, onCancelTask, 
                                     >
                                         {cancelling === 'away' ? '取消中...'
                                             : cancelConfirm === 'away' ? `确认取消 ${market.awayTeam}`
-                                            : `✕ ${market.awayTeam}`}
+                                            : `✕ ${market.awayTeam} ${awayTask.filledShares || 0}/${awayTask.quantity}`}
                                     </button>
                                 ) : <div />}
                                 {homeTask ? (
@@ -2863,7 +2863,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, onCancelTask, 
                                     >
                                         {cancelling === 'home' ? '取消中...'
                                             : cancelConfirm === 'home' ? `确认取消 ${market.homeTeam}`
-                                            : `✕ ${market.homeTeam}`}
+                                            : `✕ ${market.homeTeam} ${homeTask.filledShares || 0}/${homeTask.quantity}`}
                                     </button>
                                 ) : <div />}
                             </div>
