@@ -3997,8 +3997,23 @@ export class TaskExecutor extends EventEmitter {
 
         const verify = async () => {
             checks++;
+
+            // 防旧定时器写入新上下文：若 hash 已被新一轮撤单覆盖，静默退出
+            if (ctx.cancelledOrderHash !== orderHash) {
+                console.log(`[TaskExecutor] 延迟验证 ${checks}/${MAX_CHECKS}: hash 已变更 (${orderHash.slice(0, 16)}... → ${ctx.cancelledOrderHash?.slice(0, 16)}...), 跳过旧定时器`);
+                return;
+            }
+
             try {
                 const status = await this.predictTrader.getOrderStatus(orderHash);
+
+                // await 后统一二次校验：getOrderStatus 期间上下文可能已被新撤单覆盖
+                // 前移到 !status 分支之前，防止旧协程在查询失败时重挂定时器覆盖句柄
+                if (ctx.cancelledOrderHash !== orderHash) {
+                    console.log(`[TaskExecutor] 延迟验证 ${checks}/${MAX_CHECKS}: await 后 hash 已变更, 放弃后续`);
+                    return;
+                }
+
                 if (!status) {
                     console.log(`[TaskExecutor] 延迟验证 ${checks}/${MAX_CHECKS}: hash=${orderHash.slice(0, 16)}... 状态查询失败，跳过`);
                     if (checks < MAX_CHECKS) {
@@ -4009,10 +4024,12 @@ export class TaskExecutor extends EventEmitter {
                     return;
                 }
 
-                if (status.filledQty > baseQty) {
-                    const delta = status.filledQty - baseQty;
+                // 用上次确认的基准比较，避免闭包捕获的 baseQty 过期导致重复计数
+                const prev = ctx.cancelledOrderBaseQty ?? baseQty;
+                if (status.filledQty > prev + 1e-6) {
+                    const delta = status.filledQty - prev;
 
-                    console.warn(`[TaskExecutor] 🚨 延迟结算检测: task=${task.id}, hash=${orderHash.slice(0, 16)}..., 新增成交=${delta.toFixed(2)} (${baseQty.toFixed(2)} → ${status.filledQty.toFixed(2)})`);
+                    console.warn(`[TaskExecutor] 🚨 延迟结算检测: task=${task.id}, hash=${orderHash.slice(0, 16)}..., 新增成交=${delta.toFixed(2)} (${prev.toFixed(2)} → ${status.filledQty.toFixed(2)})`);
 
                     // 更新跟踪
                     ctx.totalPredictFilled += delta;
@@ -4056,6 +4073,11 @@ export class TaskExecutor extends EventEmitter {
                     this.cleanupCancelVerification(ctx);
                 }
             } catch (err: any) {
+                // catch 分支同样校验：异常期间 hash 可能已切换，不重挂旧定时器
+                if (ctx.cancelledOrderHash !== orderHash) {
+                    console.log(`[TaskExecutor] 延迟验证 ${checks}/${MAX_CHECKS}: catch 中 hash 已变更, 放弃重试`);
+                    return;
+                }
                 console.warn(`[TaskExecutor] 延迟验证异常 ${checks}/${MAX_CHECKS}: ${err.message}`);
                 if (checks < MAX_CHECKS) {
                     ctx.cancelSettlementTimer = setTimeout(verify, VERIFY_INTERVALS[checks] ?? VERIFY_INTERVALS[VERIFY_INTERVALS.length - 1]);
