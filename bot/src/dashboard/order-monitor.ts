@@ -18,6 +18,7 @@ import { getSportsService } from './sports-service.js';
 // ============================================================================
 
 export interface PriceGuardConfig {
+    taskId?: string;                // 任务 ID (用于 per-task 隔离，避免同 token 并发冲突)
     predictPrice: number;           // Predict 挂单价格
     polymarketTokenId: string;      // Polymarket token ID (NO)
     feeRateBps: number;             // 费率基点
@@ -40,7 +41,7 @@ export interface OrderWatchResult {
 
 export class OrderMonitor extends EventEmitter {
     private predictWatches: Map<string, { active: boolean; intervalId?: NodeJS.Timeout }> = new Map();
-    private polymarketWatches: Map<string, { active: boolean }> = new Map();
+    private polymarketWatches: Map<string, { active: boolean; abortController: AbortController }> = new Map();
     private priceGuards: Map<string, { active: boolean; wsClient?: PolymarketWebSocketClient; restTimer?: NodeJS.Timeout }> = new Map();
 
     constructor() {
@@ -173,16 +174,23 @@ export class OrderMonitor extends EventEmitter {
             return;
         }
 
-        const watch = { active: true };
+        const abortController = new AbortController();
+        const watch = { active: true, abortController };
         this.polymarketWatches.set(orderId, watch);
 
         const polyTrader = getPolymarketTrader();
 
         console.log(`[OrderMonitor] Watching Polymarket order: ${orderId.slice(0, 10)}...`);
 
-        const status = await polyTrader.pollOrderStatus(orderId, maxRetries, intervalMs);
+        const status = await polyTrader.pollOrderStatus(orderId, maxRetries, intervalMs, abortController.signal);
 
         this.polymarketWatches.delete(orderId);
+
+        // 被取消后不再回调，避免旧监控结果写回当前流程
+        if (!watch.active) {
+            console.log(`[OrderMonitor] Polymarket watch aborted, skipping callback: ${orderId.slice(0, 10)}...`);
+            return;
+        }
 
         if (status) {
             // MATCHED: 完全成交
@@ -230,6 +238,7 @@ export class OrderMonitor extends EventEmitter {
         const watch = this.polymarketWatches.get(orderId);
         if (watch) {
             watch.active = false;
+            watch.abortController.abort();
             this.polymarketWatches.delete(orderId);
             console.log(`[OrderMonitor] Stopped watching Polymarket order: ${orderId.slice(0, 10)}...`);
         }
@@ -254,14 +263,15 @@ export class OrderMonitor extends EventEmitter {
             onDepthUnstable?: (flipCount: number) => void;
         }
     ): Promise<void> {
-        const guardId = config.polymarketTokenId;
+        // 使用 taskId 作为 guard key (per-task 隔离)，回退到 tokenId (兼容旧调用)
+        const guardId = config.taskId || config.polymarketTokenId;
 
         if (this.priceGuards.has(guardId)) {
             console.warn(`[OrderMonitor] Price guard already active for: ${guardId.slice(0, 10)}...`);
             return;
         }
 
-        console.log(`[OrderMonitor] Starting price guard for token: ${guardId.slice(0, 10)}...`);
+        console.log(`[OrderMonitor] Starting price guard for token: ${config.polymarketTokenId.slice(0, 10)}... (guardId: ${guardId.slice(0, 10)}...)`);
         console.log(`  Side: ${config.side}`);
         console.log(`  Predict price: ${config.predictPrice}`);
         console.log(`  Max Poly price: ${config.maxPolymarketPrice}`);
@@ -378,7 +388,8 @@ export class OrderMonitor extends EventEmitter {
             }
 
             this.emit('priceGuard:update', {
-                tokenId: guardId,
+                tokenId: config.polymarketTokenId,
+                guardId,
                 polyPrice: checkPrice,
                 isValid,
                 side: config.side,
@@ -389,7 +400,7 @@ export class OrderMonitor extends EventEmitter {
         wsClient.setHandlers({
             onOrderBookUpdate: (book) => {
                 if (!guard.active) return;
-                if (book.assetId !== guardId) return;
+                if (book.assetId !== config.polymarketTokenId) return;
 
                 lastWsUpdateTime = Date.now();
                 checkOrderBook(book.bids, book.asks, 'WS');
@@ -404,7 +415,7 @@ export class OrderMonitor extends EventEmitter {
                     // 非体育 WS 断连 → 触发全局任务暂停
                     console.warn(`[OrderMonitor] 非体育 WS 断连: code=${code} reason=${reason} → 触发全局任务暂停`);
                     lastValidState = false;
-                    this.emit('priceGuard:wsDisconnect', { tokenId: guardId });
+                    this.emit('priceGuard:wsDisconnect', { tokenId: config.polymarketTokenId });
                 } else {
                     console.log(`[OrderMonitor] Price guard WS disconnected: ${code} ${reason}`);
                 }
@@ -420,7 +431,7 @@ export class OrderMonitor extends EventEmitter {
             const sportsRestPoll = async () => {
                 if (!guard.active) return;
                 try {
-                    const cached = getSportsService().getPolyOrderbookFromCache(guardId);
+                    const cached = getSportsService().getPolyOrderbookFromCache(config.polymarketTokenId);
                     if (cached && guard.active) {
                         checkOrderBook(cached.bids, cached.asks, 'REST');
                     }
@@ -436,12 +447,12 @@ export class OrderMonitor extends EventEmitter {
             // ====== 非体育: WS only，断连时由 onDisconnect 触发全局暂停 ======
             try {
                 await wsClient.connect();
-                wsClient.subscribe([guardId]);
+                wsClient.subscribe([config.polymarketTokenId]);
             } catch (error: any) {
                 console.error(`[OrderMonitor] Price guard WS connect failed:`, error.message);
                 // 连接失败也触发全局暂停
                 lastValidState = false;
-                this.emit('priceGuard:wsDisconnect', { tokenId: guardId });
+                this.emit('priceGuard:wsDisconnect', { tokenId: config.polymarketTokenId });
             }
         }
     }

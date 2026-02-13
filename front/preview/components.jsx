@@ -2387,11 +2387,13 @@ const TaskLogModal = ({ isOpen, onClose, taskId, apiBaseUrl }) => {
 };
 
 // --- Sports Card ---
-const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, tasks = [] }) => {
+const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, onCancelTask, accounts, tasks = [] }) => {
     const [expanded, setExpanded] = useState(false);
     const isBoosted = Boolean(market.boosted || market.boostStartTime || market.boostEndTime);
     const [takerConfirm, setTakerConfirm] = useState(null); // { direction: 'away'|'home', opp: SportsArbOpportunity }
     const [takerQuantity, setTakerQuantity] = useState(100); // Taker 数量输入
+    const [cancelConfirm, setCancelConfirm] = useState(null); // 'away' | 'home' | null
+    const [cancelling, setCancelling] = useState(null); // 'away' | 'home' | null
 
     // 体育图标映射
     const sportIcons = {
@@ -2407,13 +2409,16 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, task
     const sportIcon = sportIcons[market.sport] || '🏅';
 
     // 查找该市场的活跃任务 (Away/Home 两个方向)
+    // NBA 双市场: 两个方向都用 predictAwayMarketId，通过 arbSide 区分 (away=YES, home=NO)
     const terminalStatuses = ['COMPLETED', 'FAILED', 'CANCELLED', 'UNWIND_COMPLETED', 'TIMEOUT_CANCELLED'];
     const awayTask = tasks.find(t =>
         t.marketId === market.predictAwayMarketId &&
+        (t.arbSide === 'YES' || t.arbSide === undefined) &&
         !terminalStatuses.includes(t.status)
     );
     const homeTask = tasks.find(t =>
-        t.marketId === market.predictHomeMarketId &&
+        (t.marketId === market.predictAwayMarketId || t.marketId === market.predictHomeMarketId) &&
+        t.arbSide === 'NO' &&
         !terminalStatuses.includes(t.status)
     );
     const hasActiveTask = awayTask || homeTask;
@@ -2439,6 +2444,23 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, task
         if (!task) return false;
         return ['PREDICT_SUBMITTED', 'PARTIALLY_FILLED', 'HEDGING', 'HEDGE_PENDING', 'HEDGE_RETRY'].includes(task.status);
     };
+
+    // 取消任务: 两段确认
+    const handleCancelClick = (direction) => {
+        if (cancelConfirm === direction) {
+            // 第二次点击: 执行取消
+            const task = direction === 'away' ? awayTask : homeTask;
+            if (!task || !onCancelTask) return;
+            setCancelling(direction);
+            setCancelConfirm(null);
+            onCancelTask(task.id).finally(() => setCancelling(null));
+        } else {
+            // 第一次点击: 进入确认状态，3 秒后自动重置
+            setCancelConfirm(direction);
+            setTimeout(() => setCancelConfirm(prev => prev === direction ? null : prev), 3000);
+        }
+    };
+
     const orderbook = market.orderbook || {};
     const pred = orderbook.predict || {};
     const poly = orderbook.polymarket || {};
@@ -2807,6 +2829,45 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, accounts, task
                             {renderTakerButton('away')}
                             {renderTakerButton('home')}
                         </div>
+                        {/* Cancel Task Row - 仅在有活跃任务时显示 */}
+                        {(awayTask || homeTask) && (
+                            <div className="grid grid-cols-2 gap-1.5">
+                                {awayTask ? (
+                                    <button
+                                        onClick={() => handleCancelClick('away')}
+                                        disabled={cancelling === 'away'}
+                                        className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] transition-all ${
+                                            cancelling === 'away'
+                                                ? 'bg-zinc-800/50 text-zinc-600 cursor-wait'
+                                                : cancelConfirm === 'away'
+                                                    ? 'bg-rose-500/20 border border-rose-500/50 text-rose-400 animate-pulse'
+                                                    : 'bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20'
+                                        }`}
+                                    >
+                                        {cancelling === 'away' ? '取消中...'
+                                            : cancelConfirm === 'away' ? `确认取消 ${market.awayTeam}`
+                                            : `✕ ${market.awayTeam}`}
+                                    </button>
+                                ) : <div />}
+                                {homeTask ? (
+                                    <button
+                                        onClick={() => handleCancelClick('home')}
+                                        disabled={cancelling === 'home'}
+                                        className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] transition-all ${
+                                            cancelling === 'home'
+                                                ? 'bg-zinc-800/50 text-zinc-600 cursor-wait'
+                                                : cancelConfirm === 'home'
+                                                    ? 'bg-rose-500/20 border border-rose-500/50 text-rose-400 animate-pulse'
+                                                    : 'bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20'
+                                        }`}
+                                    >
+                                        {cancelling === 'home' ? '取消中...'
+                                            : cancelConfirm === 'home' ? `确认取消 ${market.homeTeam}`
+                                            : `✕ ${market.homeTeam}`}
+                                    </button>
+                                ) : <div />}
+                            </div>
+                        )}
                     </div>
                 </div>
 

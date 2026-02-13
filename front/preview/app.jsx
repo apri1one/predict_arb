@@ -428,6 +428,7 @@ const App = () => {
                                         market={market}
                                         onOpenTaskModal={handleOpenTaskModal}
                                         onCreateTakerTask={handleCreateSportsTakerTask}
+                                        onCancelTask={handleCancelTask}
                                         accounts={accounts}
                                         tasks={tasks}
                                     />

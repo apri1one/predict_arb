@@ -44,6 +44,11 @@ const MIN_HEDGE_NOTIONAL = Number(process.env.MIN_HEDGE_NOTIONAL) || 1.0;  // US
 const POLY_FILL_RECHECK_MAX_RETRIES = Number(process.env.POLY_FILL_RECHECK_MAX_RETRIES) || 6;   // 6 * 400ms = 2.4s
 const POLY_FILL_RECHECK_INTERVAL_MS = Number(process.env.POLY_FILL_RECHECK_INTERVAL_MS) || 400;
 
+// 终态 Poly 订单在 polyOrderFills 中的 TTL: 超过此时间后自动清理，避免 Map 无限增长
+const POLY_FILL_TERMINAL_TTL_MS = Number(process.env.POLY_FILL_TERMINAL_TTL_MS) || 60_000;  // 1 分钟
+// refreshTrackedPolyFills 并发上限
+const POLY_FILL_REFRESH_CONCURRENCY = Number(process.env.POLY_FILL_REFRESH_CONCURRENCY) || 3;
+
 // ============================================================================
 // 类型
 // ============================================================================
@@ -52,7 +57,8 @@ interface PolyOrderFillTracker {
     filledQty: number;
     avgPrice: number;
     lastCheckedAt: number;
-    isTerminal?: boolean;  // MATCHED/CANCELLED 已确认，refreshTrackedPolyFills 可跳过
+    isTerminal?: boolean;   // MATCHED/CANCELLED 已确认，refreshTrackedPolyFills 可跳过
+    terminalAt?: number;    // 标记终态的时间戳，用于 TTL 清理
 }
 
 interface TaskContext {
@@ -129,6 +135,8 @@ export class TaskExecutor extends EventEmitter {
     private expiryCheckInterval?: ReturnType<typeof setInterval>;
     private shuttingDown = false;
     private pausing = false;
+    /** 同一 poly order 的 in-flight refresh 去重，避免并发重复 API 调用 */
+    private inFlightRefreshes: Map<string, Promise<{ filledQty: number; avgPrice: number; delta: number }>> = new Map();
 
     constructor() {
         super();
@@ -881,7 +889,7 @@ export class TaskExecutor extends EventEmitter {
         // 停止监控
         this.orderMonitor.stopPredictWatch(orderHashToCancel || '');
         this.orderMonitor.stopPolymarketWatch(task.currentPolyOrderId || '');
-        this.orderMonitor.stopPriceGuard(this.getHedgeTokenId(task));
+        this.orderMonitor.stopPriceGuard(task.id);
 
         // 记录 TASK_CANCELLED
         await this.taskLogger.logTaskLifecycle(taskId, 'TASK_CANCELLED', {
@@ -1070,7 +1078,7 @@ export class TaskExecutor extends EventEmitter {
         console.log(`[TaskExecutor] 停止任务 ${taskId} 的监控...`);
         this.orderMonitor.stopPredictWatch(orderHashToCancel || '');
         this.orderMonitor.stopPolymarketWatch(task.currentPolyOrderId || '');
-        this.orderMonitor.stopPriceGuard(this.getHedgeTokenId(task));
+        this.orderMonitor.stopPriceGuard(taskId);
 
         // 清理运行上下文
         this.runningTasks.delete(taskId);
@@ -1476,6 +1484,7 @@ export class TaskExecutor extends EventEmitter {
 
         this.orderMonitor.startPriceGuard(
             {
+                taskId: task.id,
                 predictPrice: task.predictPrice,
                 polymarketTokenId: hedgeTokenId,
                 feeRateBps: 0, // Maker 无费用
@@ -1801,7 +1810,7 @@ export class TaskExecutor extends EventEmitter {
             await this.monitorAndHedge(ctx, side);
         } finally {
             // 清理价格守护
-            this.orderMonitor.stopPriceGuard(hedgeTokenId);
+            this.orderMonitor.stopPriceGuard(task.id);
         }
     }
 
@@ -4273,8 +4282,7 @@ export class TaskExecutor extends EventEmitter {
     private cleanup(ctx: TaskContext): void {
         ctx.priceGuardAbort?.abort();
         ctx.predictWatchAbort?.abort();
-        const hedgeTokenId = this.getHedgeTokenId(ctx.task);
-        this.orderMonitor.stopPriceGuard(hedgeTokenId);
+        this.orderMonitor.stopPriceGuard(ctx.task.id);
         if (ctx.currentOrderHash) {
             this.orderMonitor.stopPredictWatch(ctx.currentOrderHash);
         }
@@ -4350,45 +4358,16 @@ export class TaskExecutor extends EventEmitter {
             return { filledQty: current.filledQty, avgPrice: current.avgPrice, delta: 0 };
         }
 
-        try {
-            // WS 缓存短路: 先查 WS 缓存（同步，0ms），终态直接返回，避免 REST poll 的 2.4s
-            const wsCached = this.polyTrader.getWsCachedFillStatus(orderId);
-            if (wsCached && wsCached.isTerminal) {
-                const filledQty = wsCached.filledQty > 0 ? wsCached.filledQty
-                    : (options?.fallbackFilledQty ?? current.filledQty);
-                const avgPrice = options?.fallbackAvgPrice ?? current.avgPrice;
-                const delta = this.applyPolyFillDelta(ctx, orderId, filledQty, avgPrice);
-                const updated = ctx.polyOrderFills.get(orderId)!;
-                updated.isTerminal = true;  // 标记终态，后续 refreshTrackedPolyFills 跳过
-
-                if (delta > 0) {
-                    const avgHedgePrice = ctx.totalHedged > 0 ? ctx.hedgePriceSum / ctx.totalHedged : 0;
-                    ctx.task = this.updateTask(ctx.task.id, {
-                        hedgedQty: ctx.totalHedged,
-                        avgPolymarketPrice: avgHedgePrice,
-                        remainingQty: ctx.totalPredictFilled - ctx.totalHedged,
-                    });
-                }
-
-                return { filledQty: updated.filledQty, avgPrice: updated.avgPrice, delta };
-            }
-
-            // WS 缓存未命中或非终态，降级到 REST poll
-            const status = await this.polyTrader.pollOrderStatus(
-                orderId,
-                POLY_FILL_RECHECK_MAX_RETRIES,
-                POLY_FILL_RECHECK_INTERVAL_MS
-            );
-
-            const filledQty = status?.filledQty ?? options?.fallbackFilledQty ?? current.filledQty;
+        // WS 缓存短路: 同步操作，不需要去重
+        const wsCached = this.polyTrader.getWsCachedFillStatus(orderId);
+        if (wsCached && wsCached.isTerminal) {
+            const filledQty = wsCached.filledQty > 0 ? wsCached.filledQty
+                : (options?.fallbackFilledQty ?? current.filledQty);
             const avgPrice = options?.fallbackAvgPrice ?? current.avgPrice;
             const delta = this.applyPolyFillDelta(ctx, orderId, filledQty, avgPrice);
             const updated = ctx.polyOrderFills.get(orderId)!;
-
-            // REST poll 也标记终态
-            if (status?.status === 'MATCHED' || status?.status === 'CANCELLED') {
-                updated.isTerminal = true;
-            }
+            updated.isTerminal = true;
+            updated.terminalAt = updated.terminalAt || Date.now();
 
             if (delta > 0) {
                 const avgHedgePrice = ctx.totalHedged > 0 ? ctx.hedgePriceSum / ctx.totalHedged : 0;
@@ -4400,6 +4379,57 @@ export class TaskExecutor extends EventEmitter {
             }
 
             return { filledQty: updated.filledQty, avgPrice: updated.avgPrice, delta };
+        }
+
+        // In-flight 去重: 如果已有相同 orderId 的 REST poll 在进行中，复用其结果
+        const existing = this.inFlightRefreshes.get(orderId);
+        if (existing) {
+            return existing;
+        }
+
+        const doRefresh = async (): Promise<{ filledQty: number; avgPrice: number; delta: number }> => {
+            try {
+                // WS 缓存未命中或非终态，降级到 REST poll
+                const status = await this.polyTrader.pollOrderStatus(
+                    orderId,
+                    POLY_FILL_RECHECK_MAX_RETRIES,
+                    POLY_FILL_RECHECK_INTERVAL_MS
+                );
+
+                const filledQty = status?.filledQty ?? options?.fallbackFilledQty ?? current.filledQty;
+                const avgPrice = options?.fallbackAvgPrice ?? current.avgPrice;
+                const delta = this.applyPolyFillDelta(ctx, orderId, filledQty, avgPrice);
+                const updated = ctx.polyOrderFills.get(orderId)!;
+
+                // REST poll 也标记终态
+                if (status?.status === 'MATCHED' || status?.status === 'CANCELLED') {
+                    updated.isTerminal = true;
+                    updated.terminalAt = updated.terminalAt || Date.now();
+                }
+
+                if (delta > 0) {
+                    const avgHedgePrice = ctx.totalHedged > 0 ? ctx.hedgePriceSum / ctx.totalHedged : 0;
+                    ctx.task = this.updateTask(ctx.task.id, {
+                        hedgedQty: ctx.totalHedged,
+                        avgPolymarketPrice: avgHedgePrice,
+                        remainingQty: ctx.totalPredictFilled - ctx.totalHedged,
+                    });
+                }
+
+                return { filledQty: updated.filledQty, avgPrice: updated.avgPrice, delta };
+            } catch (err: any) {
+                console.warn(`[TaskExecutor] Failed to refresh Poly order ${orderId.slice(0, 10)}...: ${err.message}`);
+                return { filledQty: current.filledQty, avgPrice: current.avgPrice, delta: 0 };
+            } finally {
+                this.inFlightRefreshes.delete(orderId);
+            }
+        };
+
+        const promise = doRefresh();
+        this.inFlightRefreshes.set(orderId, promise);
+
+        try {
+            return await promise;
         } catch (err: any) {
             console.warn(`[TaskExecutor] Failed to refresh Poly order ${orderId.slice(0, 10)}...: ${err.message}`);
             return { filledQty: current.filledQty, avgPrice: current.avgPrice, delta: 0 };
@@ -4409,10 +4439,28 @@ export class TaskExecutor extends EventEmitter {
     private async refreshTrackedPolyFills(ctx: TaskContext): Promise<void> {
         if (ctx.polyOrderFills.size === 0) return;
 
-        // 顺序刷新，跳过已确认终态的订单
+        // TTL 清理: 删除已确认终态且超过 TTL 的订单，避免 Map 无限增长
+        const now = Date.now();
         for (const [orderId, tracker] of ctx.polyOrderFills) {
-            if (tracker.isTerminal) continue;
-            await this.refreshSinglePolyFill(ctx, orderId);
+            if (tracker.isTerminal && tracker.terminalAt && now - tracker.terminalAt > POLY_FILL_TERMINAL_TTL_MS) {
+                ctx.polyOrderFills.delete(orderId);
+            }
+        }
+
+        // 收集需要刷新的订单 (跳过已确认终态)
+        const toRefresh: string[] = [];
+        for (const [orderId, tracker] of ctx.polyOrderFills) {
+            if (!tracker.isTerminal) {
+                toRefresh.push(orderId);
+            }
+        }
+
+        if (toRefresh.length === 0) return;
+
+        // 有并发上限的并行刷新
+        for (let i = 0; i < toRefresh.length; i += POLY_FILL_REFRESH_CONCURRENCY) {
+            const batch = toRefresh.slice(i, i + POLY_FILL_REFRESH_CONCURRENCY);
+            await Promise.all(batch.map(orderId => this.refreshSinglePolyFill(ctx, orderId)));
         }
     }
 

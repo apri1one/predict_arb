@@ -490,25 +490,28 @@ export class PolymarketTrader extends EventEmitter {
     async pollOrderStatus(
         orderId: string,
         maxRetries: number = 3,
-        intervalMs: number = 150
+        intervalMs: number = 150,
+        signal?: AbortSignal
     ): Promise<PolyOrderStatus | null> {
         if (this.useWsForPolling && this.userWs?.connected()) {
-            return this.pollOrderStatusViaWs(orderId, maxRetries, intervalMs);
+            return this.pollOrderStatusViaWs(orderId, maxRetries, intervalMs, signal);
         }
 
-        return this.pollOrderStatusViaApi(orderId, maxRetries, intervalMs);
+        return this.pollOrderStatusViaApi(orderId, maxRetries, intervalMs, signal);
     }
 
     private async pollOrderStatusViaWs(
         orderId: string,
         maxRetries: number,
-        intervalMs: number
+        intervalMs: number,
+        abortSignal?: AbortSignal
     ): Promise<PolyOrderStatus | null> {
         if (!this.userWs) return null;
 
         let lastStatus: PolyOrderStatus | null = null;
 
         for (let i = 0; i < maxRetries; i++) {
+            if (abortSignal?.aborted) return lastStatus;
             const signal = await this.userWs.waitForOrderFinal(orderId, intervalMs);
 
             // WS-first: return immediately on final WS status; REST is fallback only.
@@ -534,6 +537,8 @@ export class PolymarketTrader extends EventEmitter {
                 };
             }
 
+            if (abortSignal?.aborted) return lastStatus;
+
             // No final WS signal; REST as fallback.
             const status = await this.getOrderStatus(orderId);
             if (status) {
@@ -556,11 +561,13 @@ export class PolymarketTrader extends EventEmitter {
     private async pollOrderStatusViaApi(
         orderId: string,
         maxRetries: number,
-        intervalMs: number
+        intervalMs: number,
+        abortSignal?: AbortSignal
     ): Promise<PolyOrderStatus | null> {
         let lastStatus: PolyOrderStatus | null = null;
 
         for (let i = 0; i < maxRetries; i++) {
+            if (abortSignal?.aborted) return lastStatus;
             const status = await this.getOrderStatus(orderId);
 
             if (status) {

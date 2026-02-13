@@ -46,7 +46,7 @@ interface OrderApiResponse {
 const API_BASE_URL = 'https://api.predict.fun';
 const DEFAULT_POLL_INTERVAL = Number(process.env.ORDER_CACHE_POLL_MS) || 3000;
 const CACHE_STALE_MS = 5000;  // 缓存过期时间 5 秒
-const DEFAULT_SOURCE = (process.env.PREDICT_ORDER_STATUS_SOURCE || 'ws').toLowerCase(); // ws | poll | ws+poll
+const DEFAULT_SOURCE = (process.env.PREDICT_ORDER_STATUS_SOURCE || 'ws+poll').toLowerCase(); // ws | poll | ws+poll
 
 // ============================================================================
 // 单例
