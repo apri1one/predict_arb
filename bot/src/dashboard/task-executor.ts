@@ -32,7 +32,7 @@ const MAX_PAUSE_COUNT = 5;          // 最大价格守护暂停次数
 const HEDGE_TIMEOUT_MS = 30000;     // 对冲超时
 const PREDICT_POLL_INTERVAL = 500;  // Predict 轮询间隔
 const UNWIND_MAX_RETRIES = 3;       // 反向平仓最大重试
-const BSC_WATCHER_TIMEOUT = 4 * 60 * 60 * 1000; // BSC watcher 超时 (4小时，Maker 订单可存活数小时)
+const BSC_WATCHER_TIMEOUT = 0; // 不超时，Maker 订单可存活任意时长，由主循环/cleanup 负责取消注册
 const MIN_HEDGE_QTY = 1;            // 最小对冲数量阈值 (shares)，低于此值跳过对冲
 const POLY_WS_STALE_MS = 15000;
 

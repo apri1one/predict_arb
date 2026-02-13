@@ -223,12 +223,13 @@ export class BscOrderWatcher extends EventEmitter {
 
         entry.callbacks.add(callback);
 
-        const timer = setTimeout(() => {
-            this.unwatchOrderCallback(key, callback);
-        }, timeoutMs);
+        // timeoutMs <= 0 表示不超时（Maker 订单可存活数小时甚至更久）
+        const timer = timeoutMs > 0
+            ? setTimeout(() => { this.unwatchOrderCallback(key, callback); }, timeoutMs)
+            : null;
 
         return () => {
-            clearTimeout(timer);
+            if (timer) clearTimeout(timer);
             this.unwatchOrderCallback(key, callback);
         };
     }
