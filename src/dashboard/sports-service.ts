@@ -449,34 +449,16 @@ export class SportsService {
         try {
             const markets = this.matchedMarketsCache;
 
-            // WS 模式: 从 provider 或统一缓存读取，未命中则 REST fallback
+            // WS 模式: 只从 provider/统一缓存读取，不再回退到 REST
             if (predictOrderbookProvider) {
-                const wsMissMarkets: InternalMatchedMarket[] = [];
+                let wsMissCount = 0;
                 for (const match of markets) {
                     const book = predictOrderbookProvider(match.predictId);
                     if (book && (book.bids.length > 0 || book.asks.length > 0)) {
                         this.predictOrderbookCache.set(match.predictId, book);
                     } else {
-                        wsMissMarkets.push(match);
-                    }
-                }
-
-                // WS 未命中的市场使用 REST fallback
-                if (wsMissMarkets.length > 0) {
-                    const keys = sportsApiKeys.getAllKeys();
-                    if (keys.length > 0) {
-                        const restPromises = wsMissMarkets.map(async (match, index) => {
-                            const apiKey = keys[index % keys.length];
-                            try {
-                                const book = await this.fetchPredictOrderbookWithKey(match.predictId, apiKey);
-                                if (book && (book.bids.length > 0 || book.asks.length > 0)) {
-                                    this.predictOrderbookCache.set(match.predictId, book);
-                                }
-                            } catch {
-                                // REST 也失败，使用已有缓存
-                            }
-                        });
-                        await Promise.all(restPromises);
+                        // WS miss 时保留已有缓存，避免频繁 REST fallback 日志与请求
+                        wsMissCount++;
                     }
                 }
 
@@ -486,8 +468,8 @@ export class SportsService {
                 // 每 10 次输出一次日志（WS 模式更频繁，减少日志量）
                 if (this.predictRefreshCount % 10 === 0) {
                     const withArb = this.cachedMarkets.filter(m => (m.bestOpportunity?.profitPercent ?? 0) > 0);
-                    const wsHit = markets.length - wsMissMarkets.length;
-                    console.log(`[Sports] Predict(WS) #${this.predictRefreshCount} | ${this.cachedMarkets.length} 市场, ${withArb.length} 有套利 | WS ${wsHit}/${markets.length}, REST fallback ${wsMissMarkets.length}`);
+                    const wsHit = markets.length - wsMissCount;
+                    console.log(`[Sports] Predict(WS) #${this.predictRefreshCount} | ${this.cachedMarkets.length} 市场, ${withArb.length} 有套利 | WS ${wsHit}/${markets.length}, MISS ${wsMissCount}`);
                 }
                 return;
             }

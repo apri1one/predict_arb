@@ -522,12 +522,42 @@ export class TaskExecutor extends EventEmitter {
     /**
      * 获取 Polymarket 订单簿
      * 优先使用 WS 缓存，缓存 miss 时回退到 REST API
-     * 注: 体育市场没有 WS 订阅，总是需要 REST 回退
+     * 注: 体育市场不走 WS，直接使用 REST
      */
     private async getPolymarketOrderbook(
         tokenId: string,
         isSportsMarket: boolean = false
     ): Promise<{ bids: { price: number; size: number }[]; asks: { price: number; size: number }[] } | null> {
+        const normalizeRestOrderbook = (restBook: any) => {
+            if (!restBook || !Array.isArray(restBook.bids) || !Array.isArray(restBook.asks)) {
+                return null;
+            }
+            return {
+                bids: restBook.bids.map((b: any) => ({
+                    price: parseFloat(b.price),
+                    size: parseFloat(b.size),
+                })).sort((a: any, b: any) => b.price - a.price),
+                asks: restBook.asks.map((a: any) => ({
+                    price: parseFloat(a.price),
+                    size: parseFloat(a.size),
+                })).sort((a: any, b: any) => a.price - b.price),
+            };
+        };
+
+        // 体育市场: Polymarket 不走 WS，直接 REST
+        if (isSportsMarket) {
+            try {
+                const restBook = await this.polyRestClient.getOrderBook(tokenId);
+                const normalized = normalizeRestOrderbook(restBook);
+                if (normalized && normalized.bids.length > 0 && normalized.asks.length > 0) {
+                    return normalized;
+                }
+            } catch (error: any) {
+                console.error(`[TaskExecutor] Sports REST orderbook failed:`, error.message);
+            }
+            return null;
+        }
+
         // 尝试 WS 缓存
         const wsClient = this.polyWsClient;
         if (wsClient && wsClient.isConnected()) {
@@ -545,26 +575,12 @@ export class TaskExecutor extends EventEmitter {
         }
 
         // WS 缓存 miss 时回退到 REST API
-        // 注: 总是尝试 REST 回退，以支持旧任务和体育市场
+        // 注: 非体育任务保留 REST 回退，避免 WS 抖动导致完全无报价
         try {
-            if (isSportsMarket) {
-                console.log(`[TaskExecutor] Sports market REST fallback for token: ${tokenId.slice(0, 10)}...`);
-            } else {
-                console.log(`[TaskExecutor] WS miss, REST fallback for token: ${tokenId.slice(0, 10)}...`);
-            }
             const restBook = await this.polyRestClient.getOrderBook(tokenId);
-            if (restBook && restBook.bids.length > 0 && restBook.asks.length > 0) {
-                // REST 返回的格式是 { price: string, size: string }[]
-                return {
-                    bids: restBook.bids.map((b: any) => ({
-                        price: parseFloat(b.price),
-                        size: parseFloat(b.size),
-                    })).sort((a, b) => b.price - a.price),  // 按价格降序排列
-                    asks: restBook.asks.map((a: any) => ({
-                        price: parseFloat(a.price),
-                        size: parseFloat(a.size),
-                    })).sort((a, b) => a.price - b.price),  // 按价格升序排列
-                };
+            const normalized = normalizeRestOrderbook(restBook);
+            if (normalized && normalized.bids.length > 0 && normalized.asks.length > 0) {
+                return normalized;
             }
         } catch (error: any) {
             console.error(`[TaskExecutor] REST orderbook failed:`, error.message);
