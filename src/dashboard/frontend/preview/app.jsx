@@ -206,10 +206,98 @@ const App = () => {
         console.log('💰 账户状态更新:', { predictAccount, polymarketAccount, rawAccounts: accounts });
     }, [accounts]);
 
+    // 体育市场索引：用于 Live 面板识别“对阵事件”并按赛事去重
+    const sportsEventMeta = useMemo(() => {
+        const markets = Array.isArray(sports.markets) ? sports.markets : [];
+        const sportsPredictIdToEventKey = new Map();
+
+        const normalizeText = (value) => String(value || '').trim().toLowerCase();
+        const normalizeConditionId = (value) => String(value || '').trim();
+        const buildFallbackEventKey = (market) => {
+            const away = normalizeText(market.awayTeam);
+            const home = normalizeText(market.homeTeam);
+            const start = normalizeText(market.gameStartTime);
+            return `teams:${away}|${home}|${start}`;
+        };
+        const isHeadToHeadEvent = (market) => {
+            const away = normalizeText(market.awayTeam);
+            const home = normalizeText(market.homeTeam);
+            return away && home && away !== home;
+        };
+
+        for (const market of markets) {
+            // 仅收录“对阵事件”，冠军盘/多选事件不参与 Live 去重
+            if (!isHeadToHeadEvent(market)) continue;
+            const conditionId = normalizeConditionId(market.polymarketConditionId);
+            const eventKey = conditionId ? `cond:${conditionId}` : buildFallbackEventKey(market);
+
+            [market.predictMarketId, market.predictAwayMarketId, market.predictHomeMarketId].forEach((predictId) => {
+                if (Number.isFinite(predictId)) {
+                    sportsPredictIdToEventKey.set(predictId, eventKey);
+                }
+            });
+        }
+
+        return { sportsPredictIdToEventKey };
+    }, [sports.markets]);
+
+    // Sports 面板默认按开赛时间升序；无开赛时间排到末尾
+    const sortedSportsMarkets = useMemo(() => {
+        const markets = Array.isArray(sports.markets) ? sports.markets : [];
+        return markets
+            .map((market, index) => ({ market, index }))
+            .sort((a, b) => {
+                const aStart = a.market.gameStartTime ? new Date(a.market.gameStartTime).getTime() : NaN;
+                const bStart = b.market.gameStartTime ? new Date(b.market.gameStartTime).getTime() : NaN;
+                const aHasStart = Number.isFinite(aStart);
+                const bHasStart = Number.isFinite(bStart);
+
+                if (aHasStart && bHasStart && aStart !== bStart) return aStart - bStart;
+                if (aHasStart !== bHasStart) return aHasStart ? -1 : 1;
+                return a.index - b.index;
+            })
+            .map(({ market }) => market);
+    }, [sports.markets]);
+
     const filteredOpps = useMemo(() => {
         let result = [...opportunities];
         if (filters.strategy !== 'ALL') result = result.filter(o => o.strategy === filters.strategy);
         if (filters.minProfit > 0) result = result.filter(o => o.profitPercent >= filters.minProfit);
+
+        // Live 面板中体育事件去重：同一赛事只保留“最佳”机会卡片
+        const pickBetterSportsOpp = (nextOpp, currentOpp) => {
+            if ((nextOpp.estimatedProfit || 0) !== (currentOpp.estimatedProfit || 0)) {
+                return (nextOpp.estimatedProfit || 0) > (currentOpp.estimatedProfit || 0);
+            }
+            if ((nextOpp.profitPercent || 0) !== (currentOpp.profitPercent || 0)) {
+                return (nextOpp.profitPercent || 0) > (currentOpp.profitPercent || 0);
+            }
+            if ((nextOpp.maxQuantity || 0) !== (currentOpp.maxQuantity || 0)) {
+                return (nextOpp.maxQuantity || 0) > (currentOpp.maxQuantity || 0);
+            }
+            if ((nextOpp.lastUpdate || 0) !== (currentOpp.lastUpdate || 0)) {
+                return (nextOpp.lastUpdate || 0) > (currentOpp.lastUpdate || 0);
+            }
+            return (nextOpp.marketId || 0) < (currentOpp.marketId || 0);
+        };
+
+        const dedupedResult = [];
+        const bestSportsByEvent = new Map();
+        for (const opp of result) {
+            const mappedEventKey = sportsEventMeta.sportsPredictIdToEventKey.get(opp.marketId);
+            // 只对“对阵事件”去重，其他市场（如冠军盘多选）保持原样
+            if (!mappedEventKey) {
+                dedupedResult.push(opp);
+                continue;
+            }
+
+            const currentBest = bestSportsByEvent.get(mappedEventKey);
+            if (!currentBest || pickBetterSportsOpp(opp, currentBest)) {
+                bestSportsByEvent.set(mappedEventKey, opp);
+            }
+        }
+        result = dedupedResult.concat(Array.from(bestSportsByEvent.values()));
+
         result.sort((a, b) => {
             if (filters.sortBy === 'PROFIT') return b.estimatedProfit - a.estimatedProfit;
             if (filters.sortBy === 'PROFIT_PCT') return b.profitPercent - a.profitPercent;
@@ -225,7 +313,7 @@ const App = () => {
             return 0;
         });
         return result;
-    }, [opportunities, filters]);
+    }, [opportunities, filters, sportsEventMeta]);
 
     return (
         <div className="min-h-screen font-sans selection:bg-amber-500 selection:text-black pb-20">
@@ -401,7 +489,7 @@ const App = () => {
                                 {sports.stats?.withArbitrage || 0} / {sports.stats?.totalMatched || 0} 场有套利
                             </div>
                         </div>
-                        {(!sports.markets || sports.markets.length === 0) ? (
+                        {sortedSportsMarkets.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-32 rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/30">
                                 {isConnected ? (
                                     <>
@@ -418,7 +506,7 @@ const App = () => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {sports.markets.map(market => (
+                                {sortedSportsMarkets.map(market => (
                                     <SportsCard
                                         key={`${market.predictMarketId}-${market.polymarketConditionId}`}
                                         market={market}
