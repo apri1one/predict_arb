@@ -104,6 +104,38 @@ const BoostCountdown = ({ boostStartTime, boostEndTime }) => {
     );
 };
 
+const parseGameStartMs = (value) => {
+    if (!value) return null;
+    const ts = Date.parse(value);
+    return Number.isNaN(ts) ? null : ts;
+};
+
+const getGameStartMeta = (gameStartTime, nowMs) => {
+    const startMs = parseGameStartMs(gameStartTime);
+    if (!startMs) {
+        return { hasStart: false, isStarted: false, countdownText: '' };
+    }
+    const diffMs = startMs - nowMs;
+    if (diffMs <= 0) {
+        return { hasStart: true, isStarted: true, countdownText: '' };
+    }
+    const mins = Math.max(1, Math.ceil(diffMs / 60000));
+    return { hasStart: true, isStarted: false, countdownText: `start in ${mins} mins` };
+};
+
+const useGameStartMeta = (gameStartTime) => {
+    const [nowMs, setNowMs] = useState(Date.now());
+
+    useEffect(() => {
+        setNowMs(Date.now());
+        if (!gameStartTime) return;
+        const timer = setInterval(() => setNowMs(Date.now()), 30000);
+        return () => clearInterval(timer);
+    }, [gameStartTime]);
+
+    return useMemo(() => getGameStartMeta(gameStartTime, nowMs), [gameStartTime, nowMs]);
+};
+
 const Badge = ({ children, variant = 'default', icon }) => {
     const styles = {
         default: "bg-zinc-800/50 text-zinc-400 border-zinc-700/50",
@@ -2394,6 +2426,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, onCancelTask, 
     const [takerQuantity, setTakerQuantity] = useState(100); // Taker 数量输入
     const [cancelConfirm, setCancelConfirm] = useState(null); // 'away' | 'home' | null
     const [cancelling, setCancelling] = useState(null); // 'away' | 'home' | null
+    const gameStartMeta = useGameStartMeta(market.gameStartTime);
 
     // 体育图标映射
     const sportIcons = {
@@ -2464,6 +2497,22 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, onCancelTask, 
     const orderbook = market.orderbook || {};
     const pred = orderbook.predict || {};
     const poly = orderbook.polymarket || {};
+    const formatOrderbookPrice = (price, depth) => {
+        const p = Number(price);
+        const d = Number(depth);
+        if (!Number.isFinite(p) || !Number.isFinite(d) || d <= 0 || p <= 0 || p >= 1) {
+            return '--';
+        }
+        return `${(p * 100).toFixed(1)}¢`;
+    };
+    const flashValueSafe = (price, depth) => {
+        const p = Number(price);
+        const d = Number(depth);
+        if (!Number.isFinite(p) || !Number.isFinite(d) || d <= 0 || p <= 0 || p >= 1) {
+            return -1;
+        }
+        return p;
+    };
 
     // 找到最佳机会
     const bestOpp = market.bestOpportunity;
@@ -2699,6 +2748,7 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, onCancelTask, 
                             <div className="flex flex-wrap items-center gap-2 mb-1.5">
                                 <span className="text-lg">{sportIcon}</span>
                                 <Badge variant="default">{market.sport?.toUpperCase()}</Badge>
+                                {gameStartMeta.isStarted && <Badge variant="danger">已开赛</Badge>}
                                 {hasArb && <Badge variant="success">ARB</Badge>}
                                 {isBoosted && <BoostCountdown boostStartTime={market.boostStartTime} boostEndTime={market.boostEndTime} />}
                                 {!market.consistency?.isValid && <Badge variant="danger" icon="alert-triangle">异常</Badge>}
@@ -2716,9 +2766,14 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, onCancelTask, 
                             </div>
                             <div className="flex items-center gap-3 text-xs text-zinc-500 mt-1">
                                 {market.gameStartTime && (
-                                    <span>
-                                        <Icon name="clock" size={12} className="inline mr-1" />
-                                        {new Date(market.gameStartTime).toLocaleString()}
+                                    <span className="flex flex-col leading-tight">
+                                        <span>
+                                            <Icon name="clock" size={12} className="inline mr-1" />
+                                            {new Date(market.gameStartTime).toLocaleString()}
+                                        </span>
+                                        {!gameStartMeta.isStarted && gameStartMeta.countdownText && (
+                                            <span className="text-[10px] text-amber-400 pl-4">{gameStartMeta.countdownText}</span>
+                                        )}
                                     </span>
                                 )}
                                 {(market.predictVolume > 0 || market.polymarketVolume > 0) && (
@@ -2749,72 +2804,28 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, onCancelTask, 
                         <div className="text-center text-zinc-400">{market.homeTeam}</div>
 
                         <div className="text-zinc-500">P.Bid</div>
-                        <FlashValue value={pred.awayBid || 0} className="text-center text-blue-400 block">
-                            {((pred.awayBid || 0) * 100).toFixed(1)}¢
+                        <FlashValue value={flashValueSafe(pred.awayBid, pred.awayBidDepth)} className="text-center text-blue-400 block">
+                            {formatOrderbookPrice(pred.awayBid, pred.awayBidDepth)}
                         </FlashValue>
-                        <FlashValue value={pred.homeBid || 0} className="text-center text-blue-400 block">
-                            {((pred.homeBid || 0) * 100).toFixed(1)}¢
+                        <FlashValue value={flashValueSafe(pred.homeBid, pred.homeBidDepth)} className="text-center text-blue-400 block">
+                            {formatOrderbookPrice(pred.homeBid, pred.homeBidDepth)}
                         </FlashValue>
 
                         <div className="text-zinc-500">P.Ask</div>
-                        <FlashValue value={pred.awayAsk || 0} className="text-center text-blue-400 block">
-                            {((pred.awayAsk || 0) * 100).toFixed(1)}¢
+                        <FlashValue value={flashValueSafe(pred.awayAsk, pred.awayAskDepth)} className="text-center text-blue-400 block">
+                            {formatOrderbookPrice(pred.awayAsk, pred.awayAskDepth)}
                         </FlashValue>
-                        <FlashValue value={pred.homeAsk || 0} className="text-center text-blue-400 block">
-                            {((pred.homeAsk || 0) * 100).toFixed(1)}¢
+                        <FlashValue value={flashValueSafe(pred.homeAsk, pred.homeAskDepth)} className="text-center text-blue-400 block">
+                            {formatOrderbookPrice(pred.homeAsk, pred.homeAskDepth)}
                         </FlashValue>
 
                         <div className="text-zinc-500">M.Ask</div>
-                        <FlashValue value={poly.awayAsk || 0} className="text-center text-purple-400 block">
-                            {((poly.awayAsk || 0) * 100).toFixed(1)}¢
+                        <FlashValue value={flashValueSafe(poly.awayAsk, poly.awayAskDepth)} className="text-center text-purple-400 block">
+                            {formatOrderbookPrice(poly.awayAsk, poly.awayAskDepth)}
                         </FlashValue>
-                        <FlashValue value={poly.homeAsk || 0} className="text-center text-purple-400 block">
-                            {((poly.homeAsk || 0) * 100).toFixed(1)}¢
+                        <FlashValue value={flashValueSafe(poly.homeAsk, poly.homeAskDepth)} className="text-center text-purple-400 block">
+                            {formatOrderbookPrice(poly.homeAsk, poly.homeAskDepth)}
                         </FlashValue>
-                    </div>
-
-                    {/* Arbitrage Stats - M-T & T-T profits and depths */}
-                    <div className="grid grid-cols-2 gap-2 text-[10px] mb-3">
-                        {/* M-T Stats */}
-                        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2">
-                            <div className="text-emerald-400 font-medium mb-1">M-T</div>
-                            <div className="space-y-1">
-                                <div className="flex justify-between">
-                                    <span className="text-zinc-500">{market.awayTeam}</span>
-                                    <span className={market.awayMT?.isValid ? 'text-emerald-400' : 'text-zinc-600'}>
-                                        {market.awayMT?.isValid ? `+${market.awayMT.profitPercent.toFixed(2)}%` : '--'}
-                                        {market.awayMT?.isValid && <span className="text-zinc-500 ml-1">({Math.floor(market.awayMT.maxQuantity)})</span>}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-zinc-500">{market.homeTeam}</span>
-                                    <span className={market.homeMT?.isValid ? 'text-emerald-400' : 'text-zinc-600'}>
-                                        {market.homeMT?.isValid ? `+${market.homeMT.profitPercent.toFixed(2)}%` : '--'}
-                                        {market.homeMT?.isValid && <span className="text-zinc-500 ml-1">({Math.floor(market.homeMT.maxQuantity)})</span>}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        {/* T-T Stats */}
-                        <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2">
-                            <div className="text-amber-400 font-medium mb-1">T-T</div>
-                            <div className="space-y-1">
-                                <div className="flex justify-between">
-                                    <span className="text-zinc-500">{market.awayTeam}</span>
-                                    <span className={market.awayTT?.isValid ? 'text-amber-400' : 'text-zinc-600'}>
-                                        {market.awayTT?.isValid ? `+${market.awayTT.profitPercent.toFixed(2)}%` : '--'}
-                                        {market.awayTT?.isValid && <span className="text-zinc-500 ml-1">({Math.floor(market.awayTT.maxQuantity)})</span>}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-zinc-500">{market.homeTeam}</span>
-                                    <span className={market.homeTT?.isValid ? 'text-amber-400' : 'text-zinc-600'}>
-                                        {market.homeTT?.isValid ? `+${market.homeTT.profitPercent.toFixed(2)}%` : '--'}
-                                        {market.homeTT?.isValid && <span className="text-zinc-500 ml-1">({Math.floor(market.homeTT.maxQuantity)})</span>}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     {/* Arb Buttons - 4 buttons in 2x2 grid */}
@@ -3049,6 +3060,501 @@ const SportsCard = ({ market, onOpenTaskModal, onCreateTakerTask, onCancelTask, 
     );
 };
 
+// --- Football Three-Way Demo Card (A / Draw / B, 12 buttons) ---
+const FootballThreeWayCardDemo = ({ eventTitle, marketsByKind, onOpenTaskModal, onCreateTakerTask, onCancelTask, accounts, tasks = [] }) => {
+    const [takerConfirm, setTakerConfirm] = useState(null); // { market, selectionName, side, opp }
+    const [takerQuantity, setTakerQuantity] = useState(100);
+    const [cancelConfirmTaskId, setCancelConfirmTaskId] = useState(null);
+    const [cancellingTaskId, setCancellingTaskId] = useState(null);
+
+    const orderedKinds = ['teamA', 'draw', 'teamB'];
+    const orderedButtons = [
+        { side: 'YES', mode: 'MAKER', label: 'YES-MT' },
+        { side: 'NO', mode: 'MAKER', label: 'NO-MT' },
+        { side: 'YES', mode: 'TAKER', label: 'YES-TT' },
+        { side: 'NO', mode: 'TAKER', label: 'NO-TT' },
+    ];
+
+    const selectionMarkets = orderedKinds
+        .map((kind) => marketsByKind?.[kind])
+        .filter(Boolean);
+    const baseMarket = selectionMarkets[0] || null;
+    if (!baseMarket) return null;
+    const boostSourceMarket = selectionMarkets.find(m => Boolean(m?.boosted || m?.boostStartTime || m?.boostEndTime)) || null;
+    const isBoosted = Boolean(boostSourceMarket);
+    const boostStartTime = boostSourceMarket?.boostStartTime;
+    const boostEndTime = boostSourceMarket?.boostEndTime;
+
+    const getSelectionName = (market) => {
+        if (!market) return 'Unknown';
+        if (market.selectionKind === 'draw') return 'Draw';
+        return market.selectionLabel || market.predictTitle || 'Unknown';
+    };
+
+    const terminalStatuses = ['COMPLETED', 'FAILED', 'CANCELLED', 'UNWIND_COMPLETED', 'TIMEOUT_CANCELLED'];
+    const executingStatuses = ['PREDICT_SUBMITTED', 'PARTIALLY_FILLED', 'HEDGING', 'HEDGE_PENDING', 'HEDGE_RETRY'];
+    const isTaskExecuting = (task) => !!task && executingStatuses.includes(task.status);
+
+    const activeTaskEntries = selectionMarkets.flatMap((market) => {
+        const selectionName = getSelectionName(market);
+        const marketId = market.predictAwayMarketId || market.predictMarketId;
+        const yesTask = tasks.find(t =>
+            Number(t.marketId) === Number(marketId) &&
+            (t.arbSide === 'YES' || t.arbSide === undefined) &&
+            !terminalStatuses.includes(t.status)
+        );
+        const noTask = tasks.find(t =>
+            Number(t.marketId) === Number(marketId) &&
+            t.arbSide === 'NO' &&
+            !terminalStatuses.includes(t.status)
+        );
+        const entries = [];
+        if (yesTask) entries.push({ market, selectionName, side: 'YES', task: yesTask });
+        if (noTask) entries.push({ market, selectionName, side: 'NO', task: noTask });
+        return entries;
+    });
+    const hasActiveTask = activeTaskEntries.length > 0;
+    const anyTaskExecuting = activeTaskEntries.some(entry => isTaskExecuting(entry.task));
+    const getCancelEntry = (market, side) => {
+        if (!market) return null;
+        const marketId = market.predictAwayMarketId || market.predictMarketId;
+        return activeTaskEntries.find(entry =>
+            Number(entry.task?.marketId) === Number(marketId) &&
+            entry.side === side
+        ) || null;
+    };
+
+    const getOpp = (market, side, mode) => {
+        if (!market) return null;
+        if (side === 'YES') return mode === 'MAKER' ? market.awayMT : market.awayTT;
+        return mode === 'MAKER' ? market.homeMT : market.homeTT;
+    };
+
+    const formatOutcomeAsk = (price, depth) => {
+        const p = Number(price);
+        const d = Number(depth);
+        if (!Number.isFinite(p) || !Number.isFinite(d) || d <= 0 || p <= 0 || p >= 1) return '--';
+        return `${(p * 100).toFixed(1)}¢`;
+    };
+
+    const getOutcomeAskCompare = (market) => {
+        const pred = market?.orderbook?.predict || {};
+        const poly = market?.orderbook?.polymarket || {};
+        // 三项盘子市场中，当前 outcome 对应 YES 侧，按 YES 的卖一做平台对比
+        return {
+            predictAsk: formatOutcomeAsk(pred.awayAsk, pred.awayAskDepth),
+            polymarketAsk: formatOutcomeAsk(poly.awayAsk, poly.awayAskDepth),
+        };
+    };
+
+    const totalPredictVol = selectionMarkets.reduce((sum, m) => sum + (m.predictVolume || 0), 0);
+    const totalPolyVol = selectionMarkets.reduce((sum, m) => sum + (m.polymarketVolume || 0), 0);
+    const gameStartTime = selectionMarkets.find(m => m.gameStartTime)?.gameStartTime || null;
+    const gameStartMeta = useGameStartMeta(gameStartTime);
+    const teamALabel = getSelectionName(marketsByKind?.teamA);
+    const teamBLabel = getSelectionName(marketsByKind?.teamB);
+    const sportsTeams = [teamALabel, teamBLabel].filter(Boolean).join(' ');
+
+    const buildTaskTitle = (market, selectionName, side) => {
+        const prefix = eventTitle || market.eventTitle || market.predictTitle;
+        return `${prefix} - ${selectionName} ${side}`;
+    };
+
+    const handleCancelTaskClick = (entry) => {
+        if (!entry?.task?.id || !onCancelTask) return;
+        const taskId = entry.task.id;
+        if (cancelConfirmTaskId === taskId) {
+            setCancellingTaskId(taskId);
+            setCancelConfirmTaskId(null);
+            Promise.resolve(onCancelTask(taskId))
+                .finally(() => setCancellingTaskId(prev => prev === taskId ? null : prev));
+            return;
+        }
+        setCancelConfirmTaskId(taskId);
+        setTimeout(() => setCancelConfirmTaskId(prev => prev === taskId ? null : prev), 3000);
+    };
+
+    const openMakerTask = (market, selectionName, side, opp) => {
+        if (!opp || !opp.isValid) return;
+        const pred = market.orderbook?.predict || {};
+
+        const taskData = {
+            marketId: market.predictAwayMarketId || market.predictMarketId,
+            title: buildTaskTitle(market, selectionName, side),
+            strategy: 'MAKER',
+            side,
+            arbSide: side,
+            predictPrice: opp.predictPrice,
+            polymarketPrice: opp.polyHedgePrice,
+            profitPercent: opp.profitPercent,
+            maxQuantity: opp.maxQuantity,
+            estimatedProfit: opp.profit * opp.maxQuantity,
+            polymarketConditionId: market.polymarketConditionId,
+            polymarketYesTokenId: market.polymarketAwayTokenId,
+            polymarketNoTokenId: market.polymarketHomeTokenId,
+            negRisk: market.negRisk,
+            tickSize: market.tickSize,
+            feeRateBps: market.feeRateBps,
+            isInverted: false,
+            predictBid: side === 'YES' ? pred.awayBid : pred.homeBid,
+            predictAsk: side === 'YES' ? pred.awayAsk : pred.homeAsk,
+            isSportsMarket: true,
+            gameStartTime: market.gameStartTime,
+            predictSlug: market.predictSlug,
+            polymarketSlug: market.polymarketSlug,
+        };
+
+        onOpenTaskModal(taskData, 'BUY');
+    };
+
+    const openTakerConfirm = (market, selectionName, side, opp) => {
+        if (!opp || !opp.isValid) return;
+        const initialQty = Math.max(5, Math.min(Math.floor((opp.maxQuantity || 0) / 2), 500));
+        setTakerQuantity(initialQty);
+        setTakerConfirm({ market, selectionName, side, opp });
+    };
+
+    const confirmTaker = () => {
+        if (!takerConfirm) return;
+        const { market, selectionName, side, opp } = takerConfirm;
+
+        const feeRateBps = market.feeRateBps || 200;
+        const tickSize = market.tickSize || 1;
+        const alignedQuantity = Math.floor((Number(takerQuantity) || 0) / tickSize) * tickSize;
+        const quantity = Math.max(alignedQuantity, 5);
+
+        const taskParams = {
+            type: 'BUY',
+            strategy: 'TAKER',
+            marketId: market.predictAwayMarketId || market.predictMarketId,
+            title: buildTaskTitle(market, selectionName, side),
+            arbSide: side,
+            predictAskPrice: Number((opp.predictPrice || 0).toFixed(4)),
+            maxTotalCost: 1,
+            polymarketMaxAsk: Number(((opp.polyHedgePrice || 0) + 0.02).toFixed(4)),
+            polymarketConditionId: market.polymarketConditionId,
+            polymarketYesTokenId: market.polymarketAwayTokenId,
+            polymarketNoTokenId: market.polymarketHomeTokenId,
+            quantity,
+            negRisk: market.negRisk,
+            tickSize,
+            feeRateBps,
+            isInverted: false,
+            isSportsMarket: true,
+            predictSlug: market.predictSlug,
+            polymarketSlug: market.polymarketSlug,
+        };
+
+        if (onCreateTakerTask) {
+            onCreateTakerTask(taskParams);
+        }
+        setTakerConfirm(null);
+    };
+
+    const renderActionButton = (market, selectionName, cfg) => {
+        const opp = getOpp(market, cfg.side, cfg.mode);
+        const canClick = opp && opp.isValid;
+        const baseClass = cfg.mode === 'MAKER'
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+            : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20';
+
+        if (!canClick) {
+            return (
+                <button key={cfg.label} disabled className="px-1.5 py-1 rounded-md bg-zinc-800/30 text-zinc-600 text-[10px] cursor-not-allowed">
+                    <span className="block font-mono">{cfg.label}</span>
+                    <span className="block text-[9px]">Max --</span>
+                    <span className="block">--</span>
+                </button>
+            );
+        }
+
+        const clickHandler = cfg.mode === 'MAKER'
+            ? () => openMakerTask(market, selectionName, cfg.side, opp)
+            : () => openTakerConfirm(market, selectionName, cfg.side, opp);
+
+        return (
+            <button
+                key={cfg.label}
+                onClick={clickHandler}
+                className={`px-1.5 py-1 rounded-md border text-[10px] transition-all ${baseClass}`}
+            >
+                <span className="block font-mono">{cfg.label}</span>
+                <span className="block text-[9px] text-zinc-500">Max {Math.floor(opp.maxQuantity || 0)}</span>
+                <span className="block font-mono">+{opp.profitPercent.toFixed(2)}%</span>
+            </button>
+        );
+    };
+
+    return (
+        <div className="group">
+            <div className={`glass-card rounded-xl transition-all duration-300 overflow-hidden h-full
+                relative
+                ${isBoosted ? 'border-2 border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.15)]' : 'border border-zinc-800/50'}
+                hover:border-white/10`}>
+                {hasActiveTask && (
+                    <div
+                        className={`absolute top-2 -left-8 transform -rotate-45 text-[9px] font-semibold uppercase tracking-wider text-white px-9 py-0.5 z-10 pointer-events-none ${anyTaskExecuting ? 'animate-pulse' : ''}`}
+                        style={{ background: anyTaskExecuting ? '#3b82f6' : '#10b981' }}
+                        title={`活跃任务: ${activeTaskEntries.length}`}
+                    >
+                        任务 x{activeTaskEntries.length}
+                    </div>
+                )}
+                <div className="p-5">
+                    <div className="flex items-start justify-between mb-4">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <span className="text-lg">⚽</span>
+                                <Badge variant="default">FOOTBALL</Badge>
+                                {gameStartMeta.isStarted && <Badge variant="danger">已开赛</Badge>}
+                                {isBoosted && <BoostCountdown boostStartTime={boostStartTime} boostEndTime={boostEndTime} />}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-base font-medium text-white">
+                                    {eventTitle || baseMarket.eventTitle || `${baseMarket.awayTeam} vs ${baseMarket.homeTeam}`}
+                                </h3>
+                                <ViewLinks
+                                    predictId={baseMarket.predictMarketId}
+                                    predictSlug={baseMarket.predictSlug}
+                                    polymarketSlug={baseMarket.polymarketSlug}
+                                    polymarketConditionId={baseMarket.polymarketConditionId}
+                                    title={eventTitle || baseMarket.eventTitle || baseMarket.predictTitle}
+                                    sportsTeams={sportsTeams}
+                                />
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-zinc-500 mt-1">
+                                {gameStartTime && (
+                                    <span className="flex flex-col leading-tight">
+                                        <span>
+                                            <Icon name="clock" size={12} className="inline mr-1" />
+                                            {new Date(gameStartTime).toLocaleString()}
+                                        </span>
+                                        {!gameStartMeta.isStarted && gameStartMeta.countdownText && (
+                                            <span className="text-[10px] text-amber-400 pl-4">{gameStartMeta.countdownText}</span>
+                                        )}
+                                    </span>
+                                )}
+                                <span>
+                                    <Icon name="activity" size={12} className="inline mr-1" />
+                                    Vol: ${(totalPredictVol / 1000).toFixed(0)}K | ${(totalPolyVol / 1000).toFixed(0)}K
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        {orderedKinds.map((kind) => {
+                            const market = marketsByKind?.[kind];
+                            if (!market) {
+                                return (
+                                    <div key={kind} className="rounded-lg border border-zinc-800/60 p-2">
+                                        <div className="text-xs text-zinc-500">N/A</div>
+                                    </div>
+                                );
+                            }
+
+                            const selectionName = getSelectionName(market);
+                            const askCompare = getOutcomeAskCompare(market);
+                            return (
+                                <div key={kind} className="rounded-lg border border-zinc-800/60 bg-zinc-900/40 p-2">
+                                    <div className="text-xs font-semibold text-white truncate mb-2" title={selectionName}>
+                                        {selectionName}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-1 text-[10px] font-mono mb-2">
+                                        <div className="text-blue-400/90">P.Ask {askCompare.predictAsk}</div>
+                                        <div className="text-purple-400/90 text-right">M.Ask {askCompare.polymarketAsk}</div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-1">
+                                        {orderedButtons.map((cfg) => renderActionButton(market, selectionName, cfg))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {hasActiveTask && (
+                        <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
+                            {orderedKinds.map((kind) => {
+                                const market = marketsByKind?.[kind];
+                                if (!market) {
+                                    return (
+                                        <div key={`cancel-${kind}`} className="rounded-lg border border-zinc-800/40 bg-zinc-900/20 p-2">
+                                            <div className="text-xs text-zinc-500">N/A</div>
+                                        </div>
+                                    );
+                                }
+
+                                const selectionName = getSelectionName(market);
+                                const yesEntry = getCancelEntry(market, 'YES');
+                                const noEntry = getCancelEntry(market, 'NO');
+
+                                const renderCancelButton = (entry, sideLabel) => {
+                                    if (!entry) {
+                                        return (
+                                            <button
+                                                key={`${kind}-${sideLabel}-empty`}
+                                                disabled
+                                                className="px-1.5 py-1 rounded-md bg-zinc-800/30 text-zinc-600 text-[10px] cursor-not-allowed"
+                                            >
+                                                <span className="block font-mono">{sideLabel}</span>
+                                                <span className="block">--</span>
+                                            </button>
+                                        );
+                                    }
+
+                                    const taskId = entry.task.id;
+                                    const isCancelling = cancellingTaskId === taskId;
+                                    const isConfirming = cancelConfirmTaskId === taskId;
+                                    return (
+                                        <button
+                                            key={taskId}
+                                            onClick={() => handleCancelTaskClick(entry)}
+                                            disabled={isCancelling}
+                                            className={`px-1.5 py-1 rounded-md text-[10px] transition-all ${
+                                                isCancelling
+                                                    ? 'bg-zinc-800/50 text-zinc-600 cursor-wait'
+                                                    : isConfirming
+                                                        ? 'bg-rose-500/20 border border-rose-500/50 text-rose-400 animate-pulse'
+                                                        : 'bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20'
+                                            }`}
+                                            title={`任务 #${String(taskId).slice(0, 8)} | ${entry.task.status}`}
+                                        >
+                                            <span className="block font-mono">{sideLabel}</span>
+                                            <span className="block">
+                                                {isCancelling
+                                                    ? '取消中...'
+                                                    : isConfirming
+                                                        ? '确认取消'
+                                                        : `${entry.task.filledShares || 0}/${entry.task.quantity}`}
+                                            </span>
+                                        </button>
+                                    );
+                                };
+
+                                return (
+                                    <div key={`cancel-${kind}`} className="rounded-lg border border-zinc-800/60 bg-zinc-900/30 p-2">
+                                        <div className="text-xs font-semibold text-zinc-300 truncate mb-2" title={selectionName}>
+                                            {selectionName}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-1">
+                                            {renderCancelButton(yesEntry, 'YES')}
+                                            {renderCancelButton(noEntry, 'NO')}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Taker 二次确认 */}
+            {takerConfirm && ReactDOM.createPortal((() => {
+                const { market, selectionName, side, opp } = takerConfirm;
+                const feeRateBps = market.feeRateBps || 200;
+                const baseFeePercent = feeRateBps / 10000;
+                const minPrice = Math.min(opp.predictPrice, 1 - opp.predictPrice);
+                const predictFee = baseFeePercent * minPrice * 0.9;
+                const predictRequired = opp.predictPrice * takerQuantity + predictFee * takerQuantity;
+                const polyRequired = opp.polyHedgePrice * takerQuantity;
+                const predictBalance = accounts?.predict?.available || 0;
+                const polyBalance = accounts?.polymarket?.available || 0;
+                const predictInsufficient = predictRequired > predictBalance;
+                const polyInsufficient = polyRequired > polyBalance;
+                const polyBelowMin = polyRequired > 0 && polyRequired < 1;
+                const canSubmit = !predictInsufficient && !polyInsufficient && !polyBelowMin && takerQuantity >= 5;
+
+                return (
+                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+                        <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 max-w-md w-full mx-4 shadow-xl">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <Icon name="zap" size={20} className="text-amber-400" />
+                                    <h3 className="text-lg font-medium text-white">Taker 确认 - {selectionName} {side}</h3>
+                                </div>
+                                <button
+                                    onClick={() => setTakerConfirm(null)}
+                                    className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-all flex items-center justify-center"
+                                    title="关闭">
+                                    <Icon name="x" size={18} />
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                                <div className="bg-zinc-800/50 rounded-lg p-3">
+                                    <div className="text-zinc-500 text-xs mb-1">Predict Ask</div>
+                                    <div className="text-blue-400 font-mono text-lg">{(opp.predictPrice * 100).toFixed(2)}¢</div>
+                                </div>
+                                <div className="bg-zinc-800/50 rounded-lg p-3">
+                                    <div className="text-zinc-500 text-xs mb-1">Poly 对冲</div>
+                                    <div className="text-purple-400 font-mono text-lg">{(opp.polyHedgePrice * 100).toFixed(2)}¢</div>
+                                </div>
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-xs text-zinc-500 mb-1">买入数量 (Shares)</label>
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    value={takerQuantity}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === '' || /^\d+$/.test(val)) {
+                                            setTakerQuantity(val === '' ? '' : parseInt(val));
+                                        }
+                                    }}
+                                    onBlur={(e) => {
+                                        if (e.target.value === '' || parseInt(e.target.value) < 5) {
+                                            setTakerQuantity(5);
+                                        }
+                                    }}
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-amber-500"
+                                />
+                                <div className="text-xs text-zinc-500 mt-1">最大深度: {opp.maxQuantity?.toFixed(0) || '-'} shares</div>
+                            </div>
+
+                            <div className="bg-zinc-800/50 rounded-lg p-3 mb-4 space-y-2">
+                                <div className="text-xs text-zinc-500 font-medium">资金占用</div>
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-zinc-400">Predict</span>
+                                    <span className={predictInsufficient ? 'text-rose-400' : 'text-white'}>
+                                        ${predictRequired.toFixed(2)} / ${predictBalance.toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-zinc-400">Polymarket</span>
+                                    <span className={(polyInsufficient || polyBelowMin) ? 'text-rose-400' : 'text-white'}>
+                                        ${polyRequired.toFixed(2)} / ${polyBalance.toFixed(2)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setTakerConfirm(null)}
+                                    className="flex-1 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+                                >
+                                    取消
+                                </button>
+                                <button
+                                    onClick={confirmTaker}
+                                    disabled={!canSubmit}
+                                    className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                                        canSubmit ? 'bg-amber-500 text-black hover:bg-amber-400' : 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                                    }`}
+                                >
+                                    确认买入
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })(), document.body)}
+        </div>
+    );
+};
+
 // 敞口预警 Banner (常驻，需手动关闭)
 const ExposureAlertBanner = ({ alert, onDismiss }) => {
     if (!alert) return null;
@@ -3103,5 +3609,6 @@ Preview.Components = {
     LatencyBar,
     AccountCard,
     SportsCard,
+    FootballThreeWayCardDemo,
     ExposureAlertBanner,
 };

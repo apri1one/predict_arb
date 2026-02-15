@@ -74,6 +74,8 @@ export type SportType = 'nba' | 'nfl' | 'nhl' | 'mlb' | 'epl' | 'mma' | 'lol' | 
 
 export type MatchMethod = 'conditionId' | 'slug' | 'nba-slug' | 'title';
 
+export type SportsSelectionKind = 'teamA' | 'draw' | 'teamB' | 'unknown';
+
 export interface MatchedMarket {
     predictId: number;
     predictTitle: string;
@@ -174,6 +176,12 @@ export interface SportsMatchedMarket {
     polymarketConditionId: string;
     polymarketQuestion: string;
     polymarketSlug: string;
+    eventKey?: string;                // 事件键（默认 categorySlug）
+    eventTitle?: string;              // 事件标题（优先 Poly events[0].title）
+    isThreeWayEvent?: boolean;        // 是否足球三项盘（同 slug 3 个子市场且含 draw）
+    selectionKind?: SportsSelectionKind;   // 当前子市场属于 teamA/draw/teamB
+    selectionLabel?: string;          // 当前子市场展示名（如 "Oviedo" / "Draw"）
+    selectionCanonical?: string;      // 当前子市场 canonical 名（用于分组归并）
 
     // NBA 双市场 ID (其他体育类型两个值相同)
     predictAwayMarketId: number;    // 客队获胜市场 ID
@@ -292,7 +300,9 @@ export const POLY_SPORTS_TAGS: Record<SportType, number> = {
 };
 
 export const SPORTS_KEYWORDS: string[] = [
-    'nba', 'nfl', 'nhl', 'mlb', 'epl', 'soccer', 'tennis', 'mma', 'ufc', 'lol', 'dota', 'cs'
+    'nba', 'nfl', 'nhl', 'mlb', 'epl', 'soccer', 'tennis', 'mma', 'ufc', 'lol', 'dota', 'cs',
+    // 足球联赛关键词（覆盖 categorySlug 里不含 epl/soccer 的场景）
+    'la-liga', 'laliga', 'lal-', 'la liga', 'serie-a', 'bundesliga', 'ligue-1', 'premier-league'
 ];
 
 // NBA 城市名 -> 缩写 (用于匹配 Predict "X-at-Y" 格式)

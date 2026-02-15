@@ -17,6 +17,7 @@ import { calculatePredictFee } from '../trading/depth-calculator.js';
 import { getPredictSlug, getPredictSlugByTitle } from './url-mapper.js';
 import { getPredictOrderbookCache } from '../services/predict-orderbook-cache.js';
 import { isMarketBoosted } from './boost-cache.js';
+import { isSameTeam, toCanonicalTeam } from './team-name-mapper.js';
 
 // ============================================================================
 // Predict 订单簿 Provider (WS 模式支持)
@@ -42,6 +43,7 @@ import type {
     SportType,
     MatchMethod,
     MatchedMarket,
+    SportsSelectionKind,
 } from './sports-types.js';
 import { POLY_SPORTS_TAGS, SPORTS_KEYWORDS, CONSISTENCY_EPSILON, NBA_CITY_TO_ABBR, NBA_ABBR_TO_TEAM } from './sports-types.js';
 
@@ -118,11 +120,22 @@ const sportsApiKeys = new SportsApiKeyRotator();
 interface InternalMatchedMarket extends MatchedMarket {
     predictMarket: any;  // PredictMarket from API (非 NBA)
     polyMarket: PolyMarket;
+    eventKey?: string;
+    eventTitle?: string;
+    isThreeWayEvent?: boolean;
+    selectionKind?: SportsSelectionKind;
+    selectionLabel?: string;
+    selectionCanonical?: string;
 
     // NBA 双市场支持
     isNbaMultiMarket?: boolean;         // 是否是 NBA 多市场结构
     predictAwayMarket?: any;            // NBA 客队获胜市场
     predictHomeMarket?: any;            // NBA 主队获胜市场
+}
+
+interface SlugGroupMeta {
+    count: number;
+    hasDraw: boolean;
 }
 
 // ============================================================================
@@ -152,6 +165,8 @@ export class SportsService {
     // 多选事件市场 ID (非对阵，走主市场 WS 链路，不进入体育面板)
     private liveOnlySportsMarketIds: Set<number> = new Set();
     private predictRefreshCount: number = 0;
+    // WS miss/空簿时触发一次 REST 补热，避免长期显示 100/0
+    private predictRestWarmupAt: Map<number, number> = new Map();
 
     constructor() {
         this.predictClient = new PredictRestClient();
@@ -181,6 +196,20 @@ export class SportsService {
      */
     getLiveOnlySportsMarketIds(): number[] {
         return Array.from(this.liveOnlySportsMarketIds);
+    }
+
+    private hasBookDepth(book: { bids: [number, number][]; asks: [number, number][] } | null | undefined): boolean {
+        if (!book) return false;
+        return (Array.isArray(book.bids) && book.bids.length > 0) || (Array.isArray(book.asks) && book.asks.length > 0);
+    }
+
+    private shouldWarmPredictRest(marketId: number, now: number): boolean {
+        const lastAt = this.predictRestWarmupAt.get(marketId) || 0;
+        // 10 秒冷却，避免在 WS 冷启动阶段频繁打 REST
+        const COOLDOWN_MS = 10000;
+        if (now - lastAt < COOLDOWN_MS) return false;
+        this.predictRestWarmupAt.set(marketId, now);
+        return true;
     }
 
     /**
@@ -437,7 +466,7 @@ export class SportsService {
     /**
      * 只刷新 Predict 订单簿 (低频: 1s)
      *
-     * WS 模式: 从统一缓存读取（无 REST 调用）
+     * WS 模式: 从统一缓存读取，miss/空簿时做一次 REST 补热
      * Legacy 模式: 使用多个 API key 并发请求
      */
     async refreshPredictOrderbooks(): Promise<void> {
@@ -449,16 +478,58 @@ export class SportsService {
         try {
             const markets = this.matchedMarketsCache;
 
-            // WS 模式: 只从 provider/统一缓存读取，不再回退到 REST
+            // WS 模式: 先读 provider；当 miss/空簿且本地无有效缓存时，用 REST 做一次补热
             if (predictOrderbookProvider) {
                 let wsMissCount = 0;
+                let wsCacheHitCount = 0;
+                let wsEmptyBookCount = 0;
+                let restWarmCount = 0;
+                const restWarmCandidates = new Set<number>();
+                const now = Date.now();
                 for (const match of markets) {
-                    const book = predictOrderbookProvider(match.predictId);
-                    if (book && (book.bids.length > 0 || book.asks.length > 0)) {
-                        this.predictOrderbookCache.set(match.predictId, book);
+                    const marketId = match.predictId;
+                    const book = predictOrderbookProvider(marketId);
+                    const cachedBook = this.predictOrderbookCache.get(marketId);
+                    const hasCachedDepth = this.hasBookDepth(cachedBook);
+
+                    if (book) {
+                        wsCacheHitCount++;
+                        // 仅当 WS 返回有效深度时覆盖本地缓存，避免空簿覆盖真实盘口
+                        if (this.hasBookDepth(book)) {
+                            this.predictOrderbookCache.set(marketId, book);
+                        } else {
+                            wsEmptyBookCount++;
+                            if (!hasCachedDepth && this.shouldWarmPredictRest(marketId, now)) {
+                                restWarmCandidates.add(marketId);
+                            }
+                        }
                     } else {
-                        // WS miss 时保留已有缓存，避免频繁 REST fallback 日志与请求
                         wsMissCount++;
+                        if (!hasCachedDepth && this.shouldWarmPredictRest(marketId, now)) {
+                            restWarmCandidates.add(marketId);
+                        }
+                    }
+                }
+
+                if (restWarmCandidates.size > 0) {
+                    const unifiedCache = getPredictOrderbookCache();
+                    if (unifiedCache) {
+                        await Promise.all(Array.from(restWarmCandidates).map(async (marketId) => {
+                            try {
+                                const warm = await unifiedCache.getOrderbook(marketId);
+                                if (!warm) return;
+                                const tupleBook = {
+                                    bids: (warm.bids || []).map(level => [Number(level.price), Number(level.size)] as [number, number]),
+                                    asks: (warm.asks || []).map(level => [Number(level.price), Number(level.size)] as [number, number]),
+                                };
+                                if (this.hasBookDepth(tupleBook)) {
+                                    this.predictOrderbookCache.set(marketId, tupleBook);
+                                    restWarmCount++;
+                                }
+                            } catch {
+                                // 静默失败，等待下一轮冷却后重试
+                            }
+                        }));
                     }
                 }
 
@@ -468,8 +539,10 @@ export class SportsService {
                 // 每 10 次输出一次日志（WS 模式更频繁，减少日志量）
                 if (this.predictRefreshCount % 10 === 0) {
                     const withArb = this.cachedMarkets.filter(m => (m.bestOpportunity?.profitPercent ?? 0) > 0);
-                    const wsHit = markets.length - wsMissCount;
-                    console.log(`[Sports] Predict(WS) #${this.predictRefreshCount} | ${this.cachedMarkets.length} 市场, ${withArb.length} 有套利 | WS ${wsHit}/${markets.length}, MISS ${wsMissCount}`);
+                    console.log(
+                        `[Sports] Predict(WS) #${this.predictRefreshCount} | ${this.cachedMarkets.length} 市场, ${withArb.length} 有套利 ` +
+                        `| CacheHit ${wsCacheHitCount}/${markets.length}, EmptyBook ${wsEmptyBookCount}, Miss ${wsMissCount}, RestWarm ${restWarmCount}`
+                    );
                 }
                 return;
             }
@@ -586,8 +659,10 @@ export class SportsService {
                 }
             }
 
-            // 仍然没有数据则跳过
-            if (!predictBook || !polyAwayBook || !polyHomeBook) continue;
+            // 对于无盘口/未命中缓存的场景，保留卡片并回退为空盘口（前端展示为 --）
+            if (!predictBook) predictBook = { bids: [], asks: [] };
+            if (!polyAwayBook) polyAwayBook = { bids: [], asks: [] };
+            if (!polyHomeBook) polyHomeBook = { bids: [], asks: [] };
 
             const orderbook: SportsOrderBook = {
                 predict: {
@@ -728,9 +803,18 @@ export class SportsService {
         // 对阵: 同一 slug 下 1-3 个子市场 (标准二元 / NBA双市场 / +draw)
         // 多选: 同一 slug 下 4+ 个子市场 (如 "NBA Champion" 30个队, "Winter Olympics" 等)
         const slugGroupCounts = new Map<string, number>();
+        const slugGroupMeta = new Map<string, SlugGroupMeta>();
         for (const m of predictMarkets) {
             const slug = m.categorySlug || '';
             slugGroupCounts.set(slug, (slugGroupCounts.get(slug) || 0) + 1);
+
+            const meta = slugGroupMeta.get(slug) ?? { count: 0, hasDraw: false };
+            meta.count += 1;
+            const text = `${m.title || ''} ${m.question || ''}`.toLowerCase();
+            if (/\bdraw\b/i.test(text)) {
+                meta.hasDraw = true;
+            }
+            slugGroupMeta.set(slug, meta);
         }
 
         const MATCHUP_MAX_MARKETS = 3;
@@ -752,6 +836,10 @@ export class SportsService {
 
         // 排除所有多选事件 (非对阵)
         const sportsCandidateMarkets = predictMarkets.filter(m => !outrightSlugs.has(m.categorySlug || ''));
+
+        const getEventSelectionMeta = (predictMarket: any, polyMarket: PolyMarket) => {
+            return this.buildEventSelectionMeta(predictMarket, polyMarket, slugGroupMeta);
+        };
 
         // 筛选体育市场 (关键词匹配)
         const predictSportsMarkets = sportsCandidateMarkets.filter(m => {
@@ -810,6 +898,7 @@ export class SportsService {
                     matchMethod: 'conditionId',
                     predictMarket: matched,
                     polyMarket: pm,
+                    ...getEventSelectionMeta(matched, pm),
                 });
             }
         }
@@ -900,6 +989,7 @@ export class SportsService {
                         isNbaMultiMarket: !!homeMarket,  // 有主队市场才是真正的双市场
                         predictAwayMarket: awayMarket,
                         predictHomeMarket: homeMarket || awayMarket,  // 无主队市场时用客队市场
+                        ...getEventSelectionMeta(awayMarket, pm),
                     });
                     console.log(`[SportsService] NBA match: ${slug} -> ${pm.slug} (Away: ${awayMarket.id}${homeMarket ? `, Home: ${homeMarket.id}` : ' [单市场]'}) [Date: ${predictGameDate}]`);
                     break;  // 找到匹配，跳出内层循环
@@ -945,7 +1035,161 @@ export class SportsService {
                     matchMethod: 'slug',
                     predictMarket: matched,
                     polyMarket: pm,
+                    ...getEventSelectionMeta(matched, pm),
                 });
+            }
+        }
+
+        // 方法 E: 足球三项盘事件标题匹配（球队别名归一化 + 日期匹配）
+        // 目标场景：Predict 与 Polymarket slug 缩写不一致（如 "ath" vs "bil"）
+        const threeWayPredictGroups = new Map<string, any[]>();
+        for (const m of predictSportsMarkets) {
+            const slug = String(m.categorySlug || '').trim();
+            if (!slug) continue;
+            const meta = slugGroupMeta.get(slug);
+            if (!meta || meta.count !== 3 || !meta.hasDraw) continue;
+            if (!threeWayPredictGroups.has(slug)) threeWayPredictGroups.set(slug, []);
+            threeWayPredictGroups.get(slug)!.push(m);
+        }
+
+        if (threeWayPredictGroups.size > 0) {
+            type PredictEventGroup = {
+                slug: string;
+                date: string;
+                teamSig: string;
+                markets: any[];
+            };
+            type PolyEventGroup = {
+                key: string;
+                date: string;
+                teamSig: string;
+                markets: PolyMarket[];
+            };
+
+            const predictEventGroups: PredictEventGroup[] = [];
+            for (const [slug, groupMarkets] of threeWayPredictGroups) {
+                if (!Array.isArray(groupMarkets) || groupMarkets.length === 0) continue;
+                if (groupMarkets.every(m => matches.some(x => x.predictId === m.id))) continue;
+
+                const date = this.extractDateToken(slug) || this.extractPredictGameDate(groupMarkets[0]);
+                if (!date) continue;
+
+                const teamCanonicals = Array.from(
+                    new Set(
+                        groupMarkets
+                            .map(m => this.toSelectionCanonical(this.getPredictSelectionLabel(m)))
+                            .filter(c => c && c !== 'draw')
+                    )
+                ).sort();
+                if (teamCanonicals.length !== 2) continue;
+
+                predictEventGroups.push({
+                    slug,
+                    date,
+                    teamSig: teamCanonicals.join('|'),
+                    markets: groupMarkets,
+                });
+            }
+
+            const polyEventMap = new Map<string, PolyEventGroup>();
+            for (const pm of polyMarkets) {
+                if (matches.some(m => m.polymarketId === pm.id)) continue;
+
+                const eventTitle = String(pm.events?.[0]?.title || '').trim();
+                const parsedTeams = this.parseTeamsFromVsFormat(eventTitle);
+                if (!parsedTeams) continue;
+
+                const eventDate =
+                    this.extractDateToken(String(pm.events?.[0]?.slug || ''))
+                    || this.extractDateToken(pm.slug)
+                    || this.extractDateToken(pm.endDate);
+                if (!eventDate) continue;
+
+                const teamCanonicals = Array.from(
+                    new Set(
+                        [toCanonicalTeam(parsedTeams.away), toCanonicalTeam(parsedTeams.home)]
+                            .filter(Boolean)
+                    )
+                ).sort();
+                if (teamCanonicals.length !== 2) continue;
+
+                const eventKey = String(pm.events?.[0]?.slug || `${eventTitle}|${eventDate}`);
+                if (!polyEventMap.has(eventKey)) {
+                    polyEventMap.set(eventKey, {
+                        key: eventKey,
+                        date: eventDate,
+                        teamSig: teamCanonicals.join('|'),
+                        markets: [],
+                    });
+                }
+                polyEventMap.get(eventKey)!.markets.push(pm);
+            }
+
+            const polyByTeamSig = new Map<string, PolyEventGroup[]>();
+            for (const group of polyEventMap.values()) {
+                if (!polyByTeamSig.has(group.teamSig)) polyByTeamSig.set(group.teamSig, []);
+                polyByTeamSig.get(group.teamSig)!.push(group);
+            }
+
+            const usedPolyIds = new Set(matches.map(m => m.polymarketId));
+            let titleMatches = 0;
+
+            for (const predictGroup of predictEventGroups) {
+                const polyCandidates = (polyByTeamSig.get(predictGroup.teamSig) || [])
+                    .filter(group => this.datesMatch(predictGroup.date, group.date));
+                if (polyCandidates.length === 0) continue;
+
+                // 同队名+同日期通常只对应一个事件，命中首个候选即可
+                const polyGroup = polyCandidates[0];
+                const polySelectionMap = new Map<string, PolyMarket>();
+                for (const pm of polyGroup.markets) {
+                    if (usedPolyIds.has(pm.id)) continue;
+                    const canonical = this.toSelectionCanonical(this.getPolySelectionLabel(pm));
+                    if (!canonical) continue;
+                    if (!polySelectionMap.has(canonical)) {
+                        polySelectionMap.set(canonical, pm);
+                    }
+                }
+
+                for (const predictMarket of predictGroup.markets) {
+                    if (matches.some(x => x.predictId === predictMarket.id)) continue;
+
+                    const selectionCanonical = this.toSelectionCanonical(this.getPredictSelectionLabel(predictMarket));
+                    if (!selectionCanonical) continue;
+
+                    const matchedPoly = polySelectionMap.get(selectionCanonical);
+                    if (!matchedPoly) continue;
+
+                    let betterTitle = predictMarket.title;
+                    if (String(predictMarket.title || '').toLowerCase() === 'match winner') {
+                        betterTitle = matchedPoly.question || this.formatCategorySlugAsTitle(predictMarket.categorySlug) || predictMarket.title;
+                    }
+
+                    matches.push({
+                        predictId: predictMarket.id,
+                        predictTitle: betterTitle,
+                        predictCategorySlug: predictMarket.categorySlug,
+                        polymarketId: matchedPoly.id,
+                        polymarketQuestion: matchedPoly.question,
+                        polymarketConditionId: matchedPoly.conditionId,
+                        polymarketSlug: matchedPoly.slug,
+                        polymarketLiquidity: parseFloat(matchedPoly.liquidity),
+                        polymarketVolume: parseFloat(matchedPoly.volume) || 0,
+                        predictVolume: predictMarket.volume || 0,
+                        matchMethod: 'title',
+                        predictMarket,
+                        polyMarket: matchedPoly,
+                        ...getEventSelectionMeta(predictMarket, matchedPoly),
+                    });
+
+                    usedPolyIds.add(matchedPoly.id);
+                    polySelectionMap.delete(selectionCanonical);
+                    titleMatches++;
+                }
+            }
+
+            if (titleMatches > 0) {
+                console.log(`[SportsService] Method E: ${titleMatches} matched via title/team-map`);
             }
         }
 
@@ -988,7 +1232,15 @@ export class SportsService {
                             closed: data.closed === true,
                             gameStartTime: data.game_start_time,
                             neg_risk: data.neg_risk,
+                            groupItemTitle: data.groupItemTitle || data.group_item_title,
+                            events: Array.isArray(data.events)
+                                ? data.events.map((e: any) => ({ title: e?.title, slug: e?.slug }))
+                                : undefined,
                         };
+
+                        if (!this.isVsHeadToHead(polyMarket)) {
+                            return null;
+                        }
 
                         let betterTitle = m.title;
                         if (m.title.toLowerCase() === 'match winner') {
@@ -1009,6 +1261,7 @@ export class SportsService {
                             matchMethod: 'conditionId' as MatchMethod,
                             predictMarket: m,
                             polyMarket,
+                            ...getEventSelectionMeta(m, polyMarket),
                         } as InternalMatchedMarket;
                     } catch {
                         return null;
@@ -1025,7 +1278,8 @@ export class SportsService {
         const conditionIdMatches = matches.filter(m => m.matchMethod === 'conditionId').length;
         const nbaSlugMatches = matches.filter(m => m.matchMethod === 'nba-slug').length;
         const slugMatches = matches.filter(m => m.matchMethod === 'slug').length;
-        console.log(`[SportsService] Matched: ${matches.length} markets (conditionId: ${conditionIdMatches}, nba-slug: ${nbaSlugMatches}, slug: ${slugMatches})`);
+        const titleMatches = matches.filter(m => m.matchMethod === 'title').length;
+        console.log(`[SportsService] Matched: ${matches.length} markets (conditionId: ${conditionIdMatches}, nba-slug: ${nbaSlugMatches}, slug: ${slugMatches}, title: ${titleMatches})`);
 
         // 4. 获取 Predict volume 数据 (单独 API 调用)
         await this.fetchPredictVolumeStats(matches);
@@ -1255,6 +1509,65 @@ export class SportsService {
         return diffDays <= 1;
     }
 
+    private extractDateToken(text: string): string | null {
+        const value = String(text || '');
+        const match = value.match(/(\d{4}-\d{2}-\d{2})/);
+        return match ? match[1] : null;
+    }
+
+    private isDrawSelectionText(text: string): boolean {
+        return /\bdraw\b/i.test(String(text || '').trim());
+    }
+
+    private getPredictSelectionLabel(predictMarket: any): string {
+        const rawTitle = String(predictMarket?.title || '').trim();
+        const lowered = rawTitle.toLowerCase();
+        const generic = new Set(['yes', 'no', 'match winner']);
+
+        if (rawTitle && !generic.has(lowered)) {
+            return rawTitle;
+        }
+
+        const question = String(predictMarket?.question || '').trim();
+        if (this.isDrawSelectionText(question)) {
+            return 'Draw';
+        }
+
+        const willWinMatch = question.match(/^will\s+(.+?)\s+win/i);
+        if (willWinMatch?.[1]) {
+            return willWinMatch[1].trim();
+        }
+
+        return rawTitle || question || 'Unknown';
+    }
+
+    private getPolySelectionLabel(polyMarket: PolyMarket): string {
+        const groupItem = String(polyMarket.groupItemTitle || '').trim();
+        if (groupItem) {
+            if (this.isDrawSelectionText(groupItem)) {
+                return 'Draw';
+            }
+            return groupItem.replace(/^team\s*:\s*/i, '').trim();
+        }
+
+        const question = String(polyMarket.question || '').trim();
+        if (this.isDrawSelectionText(question)) {
+            return 'Draw';
+        }
+
+        const willWinMatch = question.match(/^will\s+(.+?)\s+win/i);
+        if (willWinMatch?.[1]) {
+            return willWinMatch[1].trim();
+        }
+
+        return question || 'Unknown';
+    }
+
+    private toSelectionCanonical(label: string): string {
+        if (this.isDrawSelectionText(label)) return 'draw';
+        return toCanonicalTeam(label);
+    }
+
     private async fetchPolymarketSportsMarkets(): Promise<PolyMarket[]> {
         const tagIds = Object.values(POLY_SPORTS_TAGS).filter(id => id > 1);  // 排除 placeholder
         const timeoutMs = 10000;  // 增加超时时间
@@ -1283,18 +1596,62 @@ export class SportsService {
             }
         }));
 
+        // 额外拉取 moneyline 全量分页（offset），覆盖未纳入固定 tag 的联赛
+        const BROAD_LIMIT = 500;
+        const BROAD_MAX_PAGES = 12; // 兜底上限，避免异常分页导致无限拉取
+        let broadMarkets: PolyMarket[] = [];
+        let broadPages = 0;
+        for (let page = 0; page < BROAD_MAX_PAGES; page++) {
+            const offset = page * BROAD_LIMIT;
+            const broadUrl = `https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=${BROAD_LIMIT}&offset=${offset}&sports_market_types=moneyline`;
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                const res = await fetch(broadUrl, { signal: controller.signal }).finally(() => clearTimeout(timeoutId));
+                if (!res.ok) {
+                    console.warn(`[SportsService] Polymarket broad page ${page} failed: HTTP ${res.status}`);
+                    break;
+                }
+
+                const pageMarkets = await res.json() as PolyMarket[];
+                if (!Array.isArray(pageMarkets) || pageMarkets.length === 0) {
+                    break;
+                }
+
+                broadMarkets.push(...pageMarkets);
+                broadPages++;
+
+                if (pageMarkets.length < BROAD_LIMIT) {
+                    break;
+                }
+            } catch (error: any) {
+                const msg = error.name === 'AbortError' ? 'timeout' : error.message;
+                console.warn(`[SportsService] Polymarket broad page ${page} error: ${msg}`);
+                break;
+            }
+        }
+
         // 输出每个 tag 的结果
         const tagSummary = tagResults.map(r => `${r.tagId}:${r.count}`).join(', ');
-        console.log(`[SportsService] Polymarket tags: ${tagSummary}`);
+        console.log(`[SportsService] Polymarket tags: ${tagSummary} | broad:${broadMarkets.length}(${broadPages}p)`);
 
         // 合并并去重
-        const allMarkets = results.flat();
-        return Array.from(new Map(allMarkets.map(m => [m.id, m])).values());
+        const allMarkets = [...results.flat(), ...broadMarkets];
+        const deduped = Array.from(new Map(allMarkets.map(m => [m.id, m])).values());
+        const vsMarkets = deduped.filter(m => this.isVsHeadToHead(m));
+        const dropped = deduped.length - vsMarkets.length;
+        if (dropped > 0) {
+            console.log(`[SportsService] Polymarket vs-filter: kept ${vsMarkets.length}, dropped ${dropped}`);
+        }
+        return vsMarkets;
     }
 
     private parsePolySlug(slug: string): { sport: string; team1: string; team2: string; date: string } | null {
-        // Format: nba-mia-chi-2026-01-08
-        const match = slug.match(/^([a-z]+)-([a-z]{2,4})-([a-z]{2,4})-(\d{4}-\d{2}-\d{2})$/i);
+        // Format variants:
+        // 1) nba-mia-chi-2026-01-08
+        // 2) epl-wol-ars-2026-02-18-wol
+        // 3) la-liga-ath-ovi-2026-02-15-draw
+        const match = slug.match(/^([a-z]+(?:-[a-z]+)*)-([a-z0-9]{2,10})-([a-z0-9]{2,10})-(\d{4}-\d{2}-\d{2})(?:-[a-z0-9-]+)?$/i);
         if (match) {
             return {
                 sport: match[1].toLowerCase(),
@@ -1367,31 +1724,36 @@ export class SportsService {
         const homeTokenId = clobTokenIds[1];  // outcomes[1] = 主队
 
         // 分别获取订单簿，记录具体哪个 API 失败
-        let predictBook: { bids: [number, number][]; asks: [number, number][] };
-        let polyAwayBook: { bids: [number, number][]; asks: [number, number][] } | null;
-        let polyHomeBook: { bids: [number, number][]; asks: [number, number][] } | null;
+        let predictBook: { bids: [number, number][]; asks: [number, number][] } | null = null;
+        let polyAwayBook: { bids: [number, number][]; asks: [number, number][] } | null = null;
+        let polyHomeBook: { bids: [number, number][]; asks: [number, number][] } | null = null;
+        const emptyBook = { bids: [] as [number, number][], asks: [] as [number, number][] };
 
         try {
             predictBook = await this.predictClient.getOrderBook(match.predictId);
-            // 填充分离缓存 (供独立刷新使用)
+        } catch {
+            // REST 失败时优先使用 WS provider/缓存，最后回退为空盘口
+            predictBook = predictOrderbookProvider?.(match.predictId) || this.predictOrderbookCache.get(match.predictId) || null;
+        }
+        if (predictBook) {
             this.predictOrderbookCache.set(match.predictId, predictBook);
-        } catch (e: any) {
-            throw new Error(`Predict API failed for ${match.predictId}: ${e.message}`);
+        } else {
+            predictBook = emptyBook;
         }
 
-        try {
-            [polyAwayBook, polyHomeBook] = await Promise.all([
-                this.getPolyOrderBook(awayTokenId),
-                this.getPolyOrderBook(homeTokenId),
-            ]);
-            if (!polyAwayBook || !polyHomeBook) {
-                throw new Error('Polymarket orderbook empty');
-            }
-            // 填充分离缓存 (供独立刷新使用)
+        [polyAwayBook, polyHomeBook] = await Promise.all([
+            this.getPolyOrderBook(awayTokenId),
+            this.getPolyOrderBook(homeTokenId),
+        ]);
+        if (polyAwayBook) {
             this.polyOrderbookCache.set(awayTokenId, polyAwayBook);
+        } else {
+            polyAwayBook = this.polyOrderbookCache.get(awayTokenId) || emptyBook;
+        }
+        if (polyHomeBook) {
             this.polyOrderbookCache.set(homeTokenId, polyHomeBook);
-        } catch (e: any) {
-            throw new Error(`Polymarket API failed: ${e.message}`);
+        } else {
+            polyHomeBook = this.polyOrderbookCache.get(homeTokenId) || emptyBook;
         }
 
         // 构建订单簿数据
@@ -1613,6 +1975,12 @@ export class SportsService {
             polymarketConditionId: match.polymarketConditionId,
             polymarketQuestion: match.polymarketQuestion,
             polymarketSlug: match.polymarketSlug,
+            eventKey: match.eventKey || match.predictCategorySlug,
+            eventTitle: match.eventTitle || polyMarket.events?.[0]?.title || match.predictTitle,
+            isThreeWayEvent: match.isThreeWayEvent,
+            selectionKind: match.selectionKind,
+            selectionLabel: match.selectionLabel,
+            selectionCanonical: match.selectionCanonical,
 
             // NBA 双市场 ID
             predictAwayMarketId,
@@ -1912,17 +2280,96 @@ export class SportsService {
         return { away, home };
     }
 
+    /**
+     * 仅保留对阵盘：优先使用 Polymarket events[0].title 判定是否包含 "vs"/"@"
+     */
+    private isVsHeadToHead(polyMarket: PolyMarket): boolean {
+        const eventTitle = (polyMarket.events?.[0]?.title || '').trim();
+        if (!eventTitle) return false;
+        return /\bvs\.?\s+/i.test(eventTitle) || /\s@\s/.test(eventTitle);
+    }
+
+    /**
+     * 构建事件级元信息（供前端三项盘分组）
+     */
+    private buildEventSelectionMeta(
+        predictMarket: any,
+        polyMarket: PolyMarket,
+        slugGroupMeta: Map<string, SlugGroupMeta>
+    ): Pick<InternalMatchedMarket, 'eventKey' | 'eventTitle' | 'isThreeWayEvent' | 'selectionKind' | 'selectionLabel' | 'selectionCanonical'> {
+        const categorySlug = String(predictMarket?.categorySlug || '').trim();
+        const groupMeta = slugGroupMeta.get(categorySlug);
+        const isThreeWayEvent = !!groupMeta && groupMeta.count === 3 && groupMeta.hasDraw;
+
+        const primaryEventTitle = String(polyMarket.events?.[0]?.title || '').trim();
+        const eventTitle = primaryEventTitle || String(polyMarket.question || '').trim() || String(predictMarket?.title || '').trim();
+        const eventKey = categorySlug || String(polyMarket.events?.[0]?.slug || '').trim() || polyMarket.conditionId || polyMarket.id;
+
+        const rawTitle = String(predictMarket?.title || '').trim();
+        const groupItemTitle = String(polyMarket.groupItemTitle || '').trim();
+        const genericTitleSet = new Set(['yes', 'no', 'match winner']);
+
+        let selectionLabel = rawTitle;
+        if (!selectionLabel || genericTitleSet.has(selectionLabel.toLowerCase())) {
+            selectionLabel = groupItemTitle || selectionLabel || 'Unknown';
+        }
+
+        let selectionKind: SportsSelectionKind = 'unknown';
+        const drawHintText = `${selectionLabel} ${predictMarket?.question || ''} ${polyMarket.question || ''} ${groupItemTitle}`.toLowerCase();
+        if (/\bdraw\b/i.test(drawHintText)) {
+            selectionKind = 'draw';
+        } else if (isThreeWayEvent) {
+            const parsedTeams =
+                this.parseTeamsFromVsFormat(primaryEventTitle)
+                || this.parseTeamsFromVsFormat(String(polyMarket.question || ''))
+                || this.parseTeamsFromSlug(categorySlug);
+
+            if (parsedTeams) {
+                if (isSameTeam(selectionLabel, parsedTeams.away) || (groupItemTitle && isSameTeam(groupItemTitle, parsedTeams.away))) {
+                    selectionKind = 'teamA';
+                } else if (isSameTeam(selectionLabel, parsedTeams.home) || (groupItemTitle && isSameTeam(groupItemTitle, parsedTeams.home))) {
+                    selectionKind = 'teamB';
+                }
+            }
+        }
+
+        const canonicalBase = selectionKind === 'draw' ? 'draw' : toCanonicalTeam(selectionLabel || groupItemTitle);
+
+        return {
+            eventKey: eventKey || categorySlug,
+            eventTitle,
+            isThreeWayEvent,
+            selectionKind,
+            selectionLabel,
+            selectionCanonical: canonicalBase || undefined,
+        };
+    }
+
     private detectSport(categorySlug: string, polySlug: string, isNbaBySlug: boolean = false): SportType {
         // 如果通过 slug 格式解析已确认是 NBA，直接返回
         if (isNbaBySlug) return 'nba';
 
         const slug = (categorySlug + ' ' + polySlug).toLowerCase();
 
+        // 优先识别足球联赛，避免 "la-liga" 被 "league" 误判为 lol
+        if (
+            slug.includes('epl')
+            || slug.includes('soccer')
+            || slug.includes('premier')
+            || slug.includes('la-liga')
+            || slug.includes('lal-')
+            || slug.includes('serie-a')
+            || slug.includes('bundesliga')
+            || slug.includes('ligue-1')
+            || slug.includes('laliga')
+        ) {
+            return 'epl';
+        }
+
         if (slug.includes('nba') || slug.includes('basketball')) return 'nba';
         if (slug.includes('nfl') || slug.includes('football')) return 'nfl';
         if (slug.includes('nhl') || slug.includes('hockey')) return 'nhl';
         if (slug.includes('mlb') || slug.includes('baseball')) return 'mlb';
-        if (slug.includes('epl') || slug.includes('soccer') || slug.includes('premier')) return 'epl';
         if (slug.includes('mma') || slug.includes('ufc')) return 'mma';
         if (slug.includes('lol') || slug.includes('league')) return 'lol';
         if (slug.includes('dota')) return 'dota';

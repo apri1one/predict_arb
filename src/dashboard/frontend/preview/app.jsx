@@ -15,6 +15,7 @@ var {
     AccountCard,
     ClosePositionTab,
     SportsCard,
+    FootballThreeWayCardDemo,
     ExposureAlertBanner,
 } = Preview.Components;
 
@@ -241,22 +242,83 @@ const App = () => {
         return { sportsPredictIdToEventKey };
     }, [sports.markets]);
 
-    // Sports 面板默认按开赛时间升序；无开赛时间排到末尾
-    const sortedSportsMarkets = useMemo(() => {
+    // Sports 面板渲染项：
+    // 1) 足球三项盘（teamA/draw/teamB）合并为单卡
+    // 2) 其他市场保持单卡
+    const sportsRenderItems = useMemo(() => {
         const markets = Array.isArray(sports.markets) ? sports.markets : [];
-        return markets
-            .map((market, index) => ({ market, index }))
-            .sort((a, b) => {
-                const aStart = a.market.gameStartTime ? new Date(a.market.gameStartTime).getTime() : NaN;
-                const bStart = b.market.gameStartTime ? new Date(b.market.gameStartTime).getTime() : NaN;
-                const aHasStart = Number.isFinite(aStart);
-                const bHasStart = Number.isFinite(bStart);
+        const grouped = new Map();
+        const items = [];
 
-                if (aHasStart && bHasStart && aStart !== bStart) return aStart - bStart;
-                if (aHasStart !== bHasStart) return aHasStart ? -1 : 1;
-                return a.index - b.index;
-            })
-            .map(({ market }) => market);
+        markets.forEach((market, index) => {
+            const eventKey = String(market.eventKey || '').trim();
+            if (market.isThreeWayEvent && eventKey) {
+                if (!grouped.has(eventKey)) {
+                    grouped.set(eventKey, {
+                        index,
+                        eventTitle: market.eventTitle || market.predictTitle,
+                        markets: [],
+                    });
+                }
+                const entry = grouped.get(eventKey);
+                entry.markets.push(market);
+                entry.index = Math.min(entry.index, index);
+                if (!entry.eventTitle && market.eventTitle) entry.eventTitle = market.eventTitle;
+                return;
+            }
+
+            items.push({
+                type: 'single',
+                key: `single-${market.predictMarketId}-${market.polymarketConditionId}`,
+                market,
+                index,
+                sortTime: market.gameStartTime ? new Date(market.gameStartTime).getTime() : NaN,
+            });
+        });
+
+        for (const [eventKey, entry] of grouped) {
+            const byKind = { teamA: null, draw: null, teamB: null };
+            entry.markets.forEach((market) => {
+                const kind = market.selectionKind;
+                if ((kind === 'teamA' || kind === 'draw' || kind === 'teamB') && !byKind[kind]) {
+                    byKind[kind] = market;
+                }
+            });
+
+            const startTimes = entry.markets
+                .map(m => m.gameStartTime ? new Date(m.gameStartTime).getTime() : NaN)
+                .filter(Number.isFinite);
+            const sortTime = startTimes.length > 0 ? Math.min(...startTimes) : NaN;
+
+            if (byKind.teamA && byKind.draw && byKind.teamB) {
+                items.push({
+                    type: 'football-three-way',
+                    key: `threeway-${eventKey}`,
+                    eventTitle: entry.eventTitle,
+                    marketsByKind: byKind,
+                    index: entry.index,
+                    sortTime,
+                });
+            } else {
+                entry.markets.forEach((market, idx) => {
+                    items.push({
+                        type: 'single',
+                        key: `fallback-${eventKey}-${market.predictMarketId}-${market.polymarketConditionId}`,
+                        market,
+                        index: entry.index + idx / 1000,
+                        sortTime: market.gameStartTime ? new Date(market.gameStartTime).getTime() : NaN,
+                    });
+                });
+            }
+        }
+
+        return items.sort((a, b) => {
+            const aHasStart = Number.isFinite(a.sortTime);
+            const bHasStart = Number.isFinite(b.sortTime);
+            if (aHasStart && bHasStart && a.sortTime !== b.sortTime) return a.sortTime - b.sortTime;
+            if (aHasStart !== bHasStart) return aHasStart ? -1 : 1;
+            return a.index - b.index;
+        });
     }, [sports.markets]);
 
     const filteredOpps = useMemo(() => {
@@ -489,7 +551,7 @@ const App = () => {
                                 {sports.stats?.withArbitrage || 0} / {sports.stats?.totalMatched || 0} 场有套利
                             </div>
                         </div>
-                        {sortedSportsMarkets.length === 0 ? (
+                        {sportsRenderItems.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-32 rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/30">
                                 {isConnected ? (
                                     <>
@@ -506,17 +568,35 @@ const App = () => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {sortedSportsMarkets.map(market => (
-                                    <SportsCard
-                                        key={`${market.predictMarketId}-${market.polymarketConditionId}`}
-                                        market={market}
-                                        onOpenTaskModal={handleOpenTaskModal}
-                                        onCreateTakerTask={handleCreateSportsTakerTask}
-                                        onCancelTask={handleCancelTask}
-                                        accounts={accounts}
-                                        tasks={tasks}
-                                    />
-                                ))}
+                                {sportsRenderItems.map((item) => {
+                                    if (item.type === 'football-three-way') {
+                                        return (
+                                            <FootballThreeWayCardDemo
+                                                key={item.key}
+                                                eventTitle={item.eventTitle}
+                                                marketsByKind={item.marketsByKind}
+                                                onOpenTaskModal={handleOpenTaskModal}
+                                                onCreateTakerTask={handleCreateSportsTakerTask}
+                                                onCancelTask={handleCancelTask}
+                                                accounts={accounts}
+                                                tasks={tasks}
+                                            />
+                                        );
+                                    }
+
+                                    const market = item.market;
+                                    return (
+                                        <SportsCard
+                                            key={item.key}
+                                            market={market}
+                                            onOpenTaskModal={handleOpenTaskModal}
+                                            onCreateTakerTask={handleCreateSportsTakerTask}
+                                            onCancelTask={handleCancelTask}
+                                            accounts={accounts}
+                                            tasks={tasks}
+                                        />
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
