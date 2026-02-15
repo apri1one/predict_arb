@@ -1898,7 +1898,14 @@ export class SportsService {
         // 市场配置
         const feeRateBps = predictMarket.feeRateBps || 200;
         const tickSize = predictMarket.tickSize || 0.01;
-        const negRisk = polyMarket.neg_risk || false;
+        let negRisk = polyMarket.neg_risk === true;
+        // 多选市场 negRisk 强制校正: outcomes > 2 的市场在 Polymarket 上必须是 negRisk
+        let outcomes: string[] = [];
+        try { outcomes = JSON.parse(polyMarket.outcomes || '[]'); } catch {}
+        if (outcomes.length > 2 && !negRisk) {
+            console.warn(`[SportsService] negRisk forced to true: ${polyMarket.conditionId} has ${outcomes.length} outcomes but neg_risk=${polyMarket.neg_risk}`);
+            negRisk = true;
+        }
 
         // 计算 4 个套利机会
         const awayMT = this.calculateOpportunity('away', 'MAKER', orderbook, feeRateBps);

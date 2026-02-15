@@ -717,9 +717,29 @@ export class TaskExecutor extends EventEmitter {
         this.runningTasks.set(taskId, ctx);
 
         // 订阅对冲 token 到 Polymarket WS（arb-service 只订阅了 YES token，对冲常用 NO token）
+        const hedgeTokenId = this.getHedgeTokenId(task);
         if (!task.isSportsMarket) {
-            const hedgeTokenId = this.getHedgeTokenId(task);
             this.polyWsClient?.subscribe([hedgeTokenId]);
+        }
+
+        // Polymarket 签名预检：在 Predict 下单前验证对冲签名能力
+        // 仅在任务从 PENDING 启动（尚未提交 Predict 订单）时执行
+        if (task.status === 'PENDING') {
+            const preflight = await this.polyTrader.preflightCheck({
+                tokenId: hedgeTokenId,
+                negRisk: task.negRisk,
+                conditionId: task.polymarketConditionId,
+            });
+            if (!preflight.success) {
+                this.runningTasks.delete(taskId);
+                const errorMsg = `Polymarket 签名预检失败: ${preflight.error}`;
+                console.error(`[TaskExecutor] Task ${taskId}: ${errorMsg}`);
+                this.updateTask(taskId, {
+                    status: 'FAILED',
+                    error: errorMsg,
+                });
+                throw new Error(errorMsg);
+            }
         }
 
         // 初始化日志目录
@@ -1307,6 +1327,17 @@ export class TaskExecutor extends EventEmitter {
         }
 
         // ===== MAKER 模式 (原有逻辑) =====
+
+        // negRisk 预检: 验证 Polymarket CLOB 实际 negRisk 与任务一致
+        if (task.polymarketConditionId) {
+            const marketInfo = await this.polyTrader.getMarketInfo(task.polymarketConditionId);
+            if (marketInfo && marketInfo.negRisk !== task.negRisk) {
+                throw new Error(
+                    `negRisk mismatch: task=${task.negRisk}, CLOB=${marketInfo.negRisk} (conditionId=${task.polymarketConditionId}). Aborting to prevent signature error.`
+                );
+            }
+        }
+
         // 1. 提交 Predict Maker 买单 (如果还没有)
         if (!ctx.currentOrderHash && task.status === 'PENDING') {
             // Maker 价格安全检查: 等待挂单价 < 卖一价，防止被吃单成交
@@ -1408,6 +1439,16 @@ export class TaskExecutor extends EventEmitter {
                 statusFetchFailures: 0,
             });
             return;
+        }
+
+        // negRisk 预检: 验证 Polymarket CLOB 实际 negRisk 与任务一致
+        if (task.polymarketConditionId) {
+            const marketInfo = await this.polyTrader.getMarketInfo(task.polymarketConditionId);
+            if (marketInfo && marketInfo.negRisk !== task.negRisk) {
+                throw new Error(
+                    `negRisk mismatch: task=${task.negRisk}, CLOB=${marketInfo.negRisk} (conditionId=${task.polymarketConditionId}). Aborting to prevent signature error.`
+                );
+            }
         }
 
         // 1. 提交 Predict Maker 卖单
@@ -1691,9 +1732,6 @@ export class TaskExecutor extends EventEmitter {
                         return; // ctx.isPaused 保持 true，等待深度恢复
                     }
 
-                    // 深度充足，正式恢复
-                    ctx.isPaused = false;
-
                     const threshold = side === 'BUY' ? maxPrice : minPrice;
 
                     // 记录价格守护恢复
@@ -1705,6 +1743,16 @@ export class TaskExecutor extends EventEmitter {
                         arbValid: true,
                         pauseCount: task.pauseCount,
                     });
+
+                    // Maker 价格安全检查: 确保价格保护恢复后不会以 Taker 成交
+                    const priceCheckForResume = await this.isPredictPriceSafeForMaker(task, side);
+                    if (!priceCheckForResume.safe) {
+                        console.log(`[TaskExecutor] Price guard resume: price unsafe (${priceCheckForResume.reason}), staying paused`);
+                        return; // ctx.isPaused 保持 true，无需回滚
+                    }
+
+                    // 价格确认安全后再解除暂停
+                    ctx.isPaused = false;
 
                     // 重新提交 Predict 订单 (使用剩余量)
                     const taskWithRemaining = { ...task, quantity: remainingQty };
@@ -2884,8 +2932,8 @@ export class TaskExecutor extends EventEmitter {
         try {
             const book = await this.predictTrader.getOrderbook(task.marketId);
             if (!book) {
-                // 获取不到订单簿时放行（避免因 API 临时故障永久卡住）
-                return { safe: true, reason: 'orderbook unavailable' };
+                // 获取不到订单簿时阻塞（安全优先，调用方 while 循环会重试）
+                return { safe: false, reason: 'orderbook unavailable, blocking for safety' };
             }
 
             if (side === 'BUY') {
@@ -2910,8 +2958,8 @@ export class TaskExecutor extends EventEmitter {
 
             return { safe: true };
         } catch {
-            // 异常时放行
-            return { safe: true, reason: 'check failed' };
+            // 异常时阻塞（安全优先，调用方 while 循环会重试）
+            return { safe: false, reason: 'price check exception, blocking for safety' };
         }
     }
 
@@ -3103,6 +3151,16 @@ export class TaskExecutor extends EventEmitter {
                         console.log(`[TaskExecutor] Depth recovered: ${recoveredDepth.toFixed(2)}, resumable=${recoverableQty}, resuming task`);
 
                         try {
+                        // Maker 价格安全检查: 确保深度恢复后不会以 Taker 成交
+                        const priceCheckForRecovery = await this.isPredictPriceSafeForMaker(task, side);
+                        if (!priceCheckForRecovery.safe) {
+                            console.log(`[TaskExecutor] Depth recovery: price unsafe (${priceCheckForRecovery.reason}), staying paused`);
+                            ctx.isSubmitting = false;
+                            ctx.isDepthAdjusting = false;
+                            setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                            return;
+                        }
+
                         // 重新提交 Predict 订单
                         const taskWithRemaining = { ...task, quantity: recoverableQty };
                         const result = await this.submitPredictOrder(taskWithRemaining, side);
@@ -3282,6 +3340,18 @@ export class TaskExecutor extends EventEmitter {
                                 return;
                             }
                             ctx.isSubmitting = true;
+
+                            // Maker 价格安全检查: 确保扩量重下时不会以 Taker 成交
+                            const priceCheck = await this.isPredictPriceSafeForMaker(task, side);
+                            if (!priceCheck.safe) {
+                                console.log(`[TaskExecutor] Depth expand: price unsafe (${priceCheck.reason}), pausing`);
+                                ctx.isPaused = true;
+                                this.updateTask(task.id, { status: 'PAUSED', currentOrderHash: undefined });
+                                ctx.isSubmitting = false;
+                                ctx.isDepthAdjusting = false;
+                                setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                                return;
+                            }
 
                             try {
                                 const oldQuantity = task.quantity;
@@ -3507,6 +3577,18 @@ export class TaskExecutor extends EventEmitter {
                 return;
             }
             ctx.isSubmitting = true;
+
+            // Maker 价格安全检查: 确保缩量重下时不会以 Taker 成交
+            const priceCheck = await this.isPredictPriceSafeForMaker(updatedTask, side);
+            if (!priceCheck.safe) {
+                console.log(`[TaskExecutor] Depth shrink: price unsafe (${priceCheck.reason}), pausing`);
+                ctx.isPaused = true;
+                this.updateTask(task.id, { status: 'PAUSED', currentOrderHash: undefined });
+                ctx.isSubmitting = false;
+                ctx.isDepthAdjusting = false;
+                setTimeout(checkDepth, DEPTH_CHECK_INTERVAL);
+                return;
+            }
 
             try {
             // 重新下单（新的剩余量）

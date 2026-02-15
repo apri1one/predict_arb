@@ -8,7 +8,7 @@
  * - HMAC L2 认证
  */
 
-import { Wallet } from 'ethers';
+import { Wallet, verifyTypedData } from 'ethers';
 import * as crypto from 'crypto';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
@@ -110,6 +110,15 @@ export interface PolyPosition {
     tokenId: string;
     quantity: number;
     avgPrice: number;
+}
+
+export interface PreflightResult {
+    success: boolean;
+    error?: string;
+    /** 签名恢复出的地址 */
+    recoveredAddress?: string;
+    /** 市场实际 negRisk 值 (来自 Polymarket API) */
+    actualNegRisk?: boolean;
 }
 
 // ============================================================================
@@ -739,6 +748,82 @@ export class PolymarketTrader extends EventEmitter {
             return parseFloat(data.balance || '0') / 1e6;
         } catch {
             return 0;
+        }
+    }
+
+    // ========================================================================
+    // 签名预检 (Preflight)
+    // ========================================================================
+
+    /**
+     * 对冲前签名预检
+     *
+     * 在 Predict 下单前验证 Polymarket 签名能力，防止 Predict 成交后对冲失败导致全额敞口。
+     * 验证内容:
+     * 1. EIP-712 签名 → 恢复地址是否等于 signer wallet 地址
+     * 2. 如果提供了 conditionId，验证市场实际 negRisk 是否与传入参数一致
+     */
+    async preflightCheck(input: {
+        tokenId: string;
+        negRisk: boolean;
+        conditionId?: string;
+    }): Promise<PreflightResult> {
+        if (!this.initialized) await this.init();
+
+        try {
+            // 1. 构建一个最小测试订单进行签名验证
+            const testOrder = {
+                salt: 1,
+                maker: this.proxyAddress,
+                signer: this.wallet.address,
+                taker: '0x0000000000000000000000000000000000000000',
+                tokenId: BigInt(input.tokenId),
+                makerAmount: BigInt(100000),  // 0.1 USDC
+                takerAmount: BigInt(100000),
+                expiration: BigInt(0),
+                nonce: 0,
+                feeRateBps: 0,
+                side: 0,  // BUY
+                signatureType: 2,
+            };
+
+            const domain = this.getDomain(input.negRisk);
+            const signature = await this.wallet.signTypedData(domain, ORDER_TYPES, testOrder);
+
+            // 验证签名恢复出的地址
+            const recovered = verifyTypedData(domain, ORDER_TYPES, testOrder, signature);
+            if (recovered.toLowerCase() !== this.wallet.address.toLowerCase()) {
+                return {
+                    success: false,
+                    error: `签名恢复地址不匹配: recovered=${recovered}, expected=${this.wallet.address}`,
+                    recoveredAddress: recovered,
+                };
+            }
+
+            // 2. 验证市场 negRisk（如果提供了 conditionId）
+            if (input.conditionId) {
+                const marketInfo = await this.getMarketInfo(input.conditionId);
+                if (marketInfo) {
+                    if (marketInfo.negRisk !== input.negRisk) {
+                        return {
+                            success: false,
+                            error: `negRisk 不匹配: task=${input.negRisk}, market=${marketInfo.negRisk} (conditionId=${input.conditionId})`,
+                            recoveredAddress: recovered,
+                            actualNegRisk: marketInfo.negRisk,
+                        };
+                    }
+                } else {
+                    console.warn(`[PolymarketTrader] preflight: 无法获取市场信息 (conditionId=${input.conditionId})，跳过 negRisk 验证`);
+                }
+            }
+
+            console.log(`[PolymarketTrader] Preflight OK: signer=${this.wallet.address.slice(0, 10)}..., negRisk=${input.negRisk}, contract=${domain.verifyingContract.slice(0, 10)}...`);
+            return { success: true, recoveredAddress: recovered };
+        } catch (error: any) {
+            return {
+                success: false,
+                error: `签名预检异常: ${error.message}`,
+            };
         }
     }
 
