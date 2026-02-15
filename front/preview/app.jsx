@@ -6,8 +6,6 @@ var {
     OpportunityCard,
     FilterBar,
     TasksTab,
-    HistoryTable,
-    AnalyticsDashboard,
     TaskModal,
     TaskLogModal,
     NotificationToast,
@@ -24,7 +22,7 @@ var {
 const App = () => {
     const { notifications, settings, setSettings, addNotification, dismissNotification } = useNotifications();
     const { toasts: orderToasts, addOrderToast } = useOrderToasts();
-    const { opportunities, history, chartData, stats, accounts, tasks, sports, closeOpportunities, isConnected, exposureAlert, setExposureAlert } = useArbScanner(addNotification, addOrderToast);
+    const { opportunities, stats, accounts, tasks, sports, closeOpportunities, isConnected, exposureAlert, setExposureAlert } = useArbScanner(addNotification, addOrderToast);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
     const [taskModalData, setTaskModalData] = useState(null); // { opp, type: 'BUY' | 'SELL' }
     const [logModalOpen, setLogModalOpen] = useState(false);
@@ -381,18 +379,16 @@ const App = () => {
 
                 {/* Tabs */}
                 <div className="flex gap-6 mb-6 border-b border-zinc-800/50">
-                    {['LIVE', 'SPORTS', 'TASKS', 'CLOSE', 'HISTORY', 'ANALYTICS'].map((tab) => (
+                    {['LIVE', 'SPORTS', 'TASKS', 'CLOSE'].map((tab) => (
                         <button key={tab} onClick={() => setActiveTab(tab)}
                             className={`pb-3 text-sm font-medium tracking-wide transition-all relative ${activeTab === tab ? 'text-amber-500' : 'text-zinc-500 hover:text-white'}`}>
-                            {tab === 'CLOSE' ? '平仓' : tab === 'SPORTS' ? '体育' : tab}
+                            {tab === 'CLOSE' ? 'Hedge' : tab === 'SPORTS' ? 'Sports' : tab}
                             {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 shadow-glow-sm"></div>}
                         </button>
                     ))}
                 </div>
 
-                {activeTab === 'ANALYTICS' ? (
-                    <AnalyticsDashboard stats={stats} chartData={chartData} />
-                ) : activeTab === 'CLOSE' ? (
+                {activeTab === 'CLOSE' ? (
                     <ClosePositionTab onSwitchToTasks={() => setActiveTab('TASKS')} tasks={tasks} sseData={closeOpportunities} />
                 ) : activeTab === 'SPORTS' ? (
                     <div className="space-y-3">
@@ -481,48 +477,42 @@ const App = () => {
                     <TasksTab tasks={tasks} onStart={handleStartTask} onCancel={handleCancelTask} onViewLogs={handleViewLogs} apiBaseUrl={API_BASE_URL} />
                 ) : (
                     <>
-                        {activeTab === 'HISTORY' ? (
-                            <HistoryTable history={history} />
-                        ) : (
-                            <>
-                                <FilterBar filters={filters} setFilters={setFilters} onReset={() => setFilters({ strategy: 'ALL', minProfit: 0, sortBy: 'ID' })} />
+                        <FilterBar filters={filters} setFilters={setFilters} onReset={() => setFilters({ strategy: 'ALL', minProfit: 0, sortBy: 'ID' })} />
 
-                                <div className="flex items-center justify-between mb-4 px-1">
-                                    <h3 className="font-display text-sm font-medium text-white flex items-center gap-2">
-                                        <Icon name="activity" size={16} className="text-amber-500" />
-                                        Scanning Results
-                                    </h3>
-                                    <div className="text-xs text-zinc-500 font-mono">{filteredOpps.length} Opportunities</div>
-                                </div>
+                        <div className="flex items-center justify-between mb-4 px-1">
+                            <h3 className="font-display text-sm font-medium text-white flex items-center gap-2">
+                                <Icon name="activity" size={16} className="text-amber-500" />
+                                Scanning Results
+                            </h3>
+                            <div className="text-xs text-zinc-500 font-mono">{filteredOpps.length} Opportunities</div>
+                        </div>
 
-                                {filteredOpps.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-32 rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/30">
-                                        {isConnected ? (
-                                            <>
-                                                <Icon name="search" size={48} className="text-amber-500 opacity-80 mb-6" strokeWidth={1} />
-                                                <p className="font-display text-xl text-white mb-2">No Matches Found</p>
-                                                <p className="text-sm text-zinc-500">Try adjusting your filters.</p>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Icon name="refresh-cw" size={48} className="text-amber-500 animate-spin opacity-50 mb-6" strokeWidth={1} />
-                                                <p className="font-display text-lg text-white">Initializing...</p>
-                                            </>
-                                        )}
-                                    </div>
+                        {filteredOpps.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-32 rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/30">
+                                {isConnected ? (
+                                    <>
+                                        <Icon name="search" size={48} className="text-amber-500 opacity-80 mb-6" strokeWidth={1} />
+                                        <p className="font-display text-xl text-white mb-2">No Matches Found</p>
+                                        <p className="text-sm text-zinc-500">Try adjusting your filters.</p>
+                                    </>
                                 ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 transition-opacity duration-300">
-                                        {filteredOpps.map(opp => {
-                                            // 查找该市场的活跃任务 (非终态: COMPLETED/FAILED/CANCELLED)
-                                            const activeTask = tasks.find(t =>
-                                                t.marketId === opp.marketId &&
-                                                !['COMPLETED', 'FAILED', 'CANCELLED', 'UNWIND_COMPLETED'].includes(t.status)
-                                            );
-                                            return <OpportunityCard key={opp.id} opp={opp} onOpenTaskModal={handleOpenTaskModal} activeTask={activeTask} />;
-                                        })}
-                                    </div>
+                                    <>
+                                        <Icon name="refresh-cw" size={48} className="text-amber-500 animate-spin opacity-50 mb-6" strokeWidth={1} />
+                                        <p className="font-display text-lg text-white">Initializing...</p>
+                                    </>
                                 )}
-                            </>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 transition-opacity duration-300">
+                                {filteredOpps.map(opp => {
+                                    // 查找该市场的活跃任务 (非终态: COMPLETED/FAILED/CANCELLED)
+                                    const activeTask = tasks.find(t =>
+                                        t.marketId === opp.marketId &&
+                                        !['COMPLETED', 'FAILED', 'CANCELLED', 'UNWIND_COMPLETED'].includes(t.status)
+                                    );
+                                    return <OpportunityCard key={opp.id} opp={opp} onOpenTaskModal={handleOpenTaskModal} activeTask={activeTask} />;
+                                })}
+                            </div>
                         )}
                     </>
                 )}
