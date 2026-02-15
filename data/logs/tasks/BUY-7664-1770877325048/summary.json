@@ -1,0 +1,230 @@
+{
+  "taskId": "BUY-7664-1770877325048",
+  "type": "BUY",
+  "marketId": 7664,
+  "title": "LoL: BNK FEARX vs DN Freecs (BO5) - LCK Cup Playoffs - Buy DN Freecs",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 0.9916564,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 68,
+  "totalSnapshots": 20,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 1,
+    "ORDER_SUBMITTED": 11,
+    "ORDER_PARTIAL_FILL": 15,
+    "HEDGE_STARTED": 9,
+    "HEDGE_ATTEMPT": 10,
+    "HEDGE_PARTIAL": 5,
+    "HEDGE_COMPLETED": 9,
+    "ORDER_FILLED": 6,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1770877325050,
+  "endTime": 1770882126556,
+  "durationMs": 4801506,
+  "predictFilledQty": 1000,
+  "hedgedQty": 1000,
+  "avgPredictPrice": 0.21,
+  "avgPolymarketPrice": 0.7816564,
+  "actualProfit": 8.343600000000006,
+  "profitPercent": 3.97314285714286,
+  "unwindLoss": 0,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770877325060,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770877325061,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770877325455,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770879182895,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 206.366"
+    },
+    {
+      "timestamp": 1770879183323,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770879188595,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770879188943,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 206.366"
+    },
+    {
+      "timestamp": 1770880061947,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 101.26579999999998"
+    },
+    {
+      "timestamp": 1770880062259,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770880062533,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 101.26579999999998"
+    },
+    {
+      "timestamp": 1770880067404,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 100"
+    },
+    {
+      "timestamp": 1770880067685,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770880067936,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 100"
+    },
+    {
+      "timestamp": 1770880067937,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 100"
+    },
+    {
+      "timestamp": 1770880072894,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 100"
+    },
+    {
+      "timestamp": 1770880073192,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770880073461,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 100"
+    },
+    {
+      "timestamp": 1770880073461,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 100"
+    },
+    {
+      "timestamp": 1770880087355,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 102"
+    },
+    {
+      "timestamp": 1770880087659,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770880087899,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 102"
+    },
+    {
+      "timestamp": 1770880087899,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 102"
+    },
+    {
+      "timestamp": 1770880188128,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 102"
+    },
+    {
+      "timestamp": 1770880188401,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770880188640,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 102"
+    },
+    {
+      "timestamp": 1770880188640,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 102"
+    },
+    {
+      "timestamp": 1770880985160,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 30"
+    },
+    {
+      "timestamp": 1770880985431,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770880985658,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 30"
+    },
+    {
+      "timestamp": 1770880985658,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 30"
+    },
+    {
+      "timestamp": 1770881435130,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 63.291000000000054"
+    },
+    {
+      "timestamp": 1770881435415,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770881435667,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 63.291000000000054"
+    },
+    {
+      "timestamp": 1770882122071,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 1000"
+    },
+    {
+      "timestamp": 1770882126007,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 195.09000000000003"
+    },
+    {
+      "timestamp": 1770882126288,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770882126543,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 195.09000000000003"
+    },
+    {
+      "timestamp": 1770882126543,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $8.34"
+    }
+  ],
+  "generatedAt": 1770882126556
+}

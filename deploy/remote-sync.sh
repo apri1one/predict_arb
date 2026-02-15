@@ -8,9 +8,25 @@ USER="ubuntu"
 
 echo "📦 同步代码到服务器..."
 ssh -i "$PEM" -o StrictHostKeyChecking=no "$USER@$SERVER" << 'REMOTE'
-    cd predict_arb 2>/dev/null || { echo "首次部署，克隆仓库..."; git clone https://github.com/apri1one/predict_arb.git && cd predict_arb; }
-    cd predict_arb 2>/dev/null
-    git pull
-    cd bot && npm install --production
+    set -e
+    if [ -d predict_arb/.git ]; then
+        cd predict_arb
+        git pull --ff-only
+    else
+        echo "首次部署，克隆仓库..."
+        git clone https://github.com/apri1one/predict_arb.git
+        cd predict_arb
+    fi
+
+    if [ -f package.json ]; then
+        npm install --production
+    elif [ -f bot/package.json ]; then
+        cd bot
+        npm install --production
+    else
+        echo "❌ 未找到 package.json，无法安装依赖"
+        exit 1
+    fi
+
     echo "✅ 代码同步完成"
 REMOTE

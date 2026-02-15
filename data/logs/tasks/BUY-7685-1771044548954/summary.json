@@ -1,0 +1,111 @@
+{
+  "taskId": "BUY-7685-1771044548954",
+  "type": "BUY",
+  "marketId": 7685,
+  "title": "Counter-Strike: MOUZ vs PARIVISION (BO3) - PGL Cluj-Napoca Group Stage - Buy PARIVISION",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 1,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 16,
+  "totalSnapshots": 2,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 1,
+    "ORDER_SUBMITTED": 3,
+    "ORDER_CANCELLED": 2,
+    "TASK_RESUMED": 2,
+    "ORDER_PARTIAL_FILL": 1,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 1,
+    "ORDER_FILLED": 1,
+    "HEDGE_COMPLETED": 1,
+    "PRICE_GUARD_TRIGGERED": 1,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1771044546878,
+  "endTime": 1771049566354,
+  "durationMs": 5019476,
+  "predictFilledQty": 81,
+  "hedgedQty": 81,
+  "avgPredictPrice": 0.35,
+  "avgPolymarketPrice": 0.65,
+  "actualProfit": 0,
+  "profitPercent": 0,
+  "unwindLoss": 0,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1771044546884,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1771044546900,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1771044547242,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1771045722946,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1771045723190,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1771049563444,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1771049563445,
+      "event": "TASK_RESUMED",
+      "detail": "Depth recovered: 81.00 shares, qty=81 (未知)"
+    },
+    {
+      "timestamp": 1771049564278,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 81"
+    },
+    {
+      "timestamp": 1771049564697,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1771049564979,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 81"
+    },
+    {
+      "timestamp": 1771049564979,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 81"
+    },
+    {
+      "timestamp": 1771049566105,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1771049566105,
+      "event": "TASK_RESUMED",
+      "detail": "Price guard: order FILLED after cancel (noop), resuming for hedge (未知)"
+    },
+    {
+      "timestamp": 1771049566346,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $0.00"
+    }
+  ],
+  "generatedAt": 1771049566354
+}

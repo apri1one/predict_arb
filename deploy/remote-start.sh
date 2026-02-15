@@ -8,7 +8,7 @@
 SERVER="${1:?用法: bash deploy/remote-start.sh <server-ip> <pem-file>}"
 PEM="${2:?缺少 pem 文件路径}"
 USER="ubuntu"
-REMOTE_DIR="predict_arb/bot"
+REMOTE_DIR="predict_arb"
 ENV_FILE="$(dirname "$0")/../.env"
 
 if [ ! -f "$ENV_FILE" ]; then
@@ -40,18 +40,28 @@ done < "$ENV_FILE"
 
 # SSH 连接并启动
 ssh -i "$PEM" -o StrictHostKeyChecking=no "$USER@$SERVER" << REMOTE
+    set -e
     cd $REMOTE_DIR || exit 1
+    if [ ! -f package.json ] && [ -f bot/package.json ]; then
+        cd bot
+    fi
 
     # 注入环境变量 (仅存在于当前 shell 进程)
     $ENV_VARS
 
     # 用 nohup 后台运行，日志输出到文件
     echo "🚀 启动 Dashboard..."
-    nohup npx tsx src/dashboard/start-dashboard.ts > /tmp/dashboard.log 2>&1 &
+    if [ -f node_modules/tsx/dist/cli.cjs ]; then
+        START_CMD="node node_modules/tsx/dist/cli.cjs src/dashboard/start-dashboard.ts"
+    else
+        START_CMD="npx tsx src/dashboard/start-dashboard.ts"
+    fi
+    nohup bash -lc "\$START_CMD" > /tmp/dashboard.log 2>&1 &
 
     sleep 2
-    if pgrep -f "start-dashboard" > /dev/null; then
-        echo "✅ Dashboard 已启动 (PID: \$(pgrep -f start-dashboard))"
+    PID="\$(pgrep -f 'start-dashboard.ts' | head -n 1 || true)"
+    if [ -n "\$PID" ]; then
+        echo "✅ Dashboard 已启动 (PID: \$PID)"
         echo "📋 日志: ssh -i $PEM $USER@$SERVER 'tail -f /tmp/dashboard.log'"
     else
         echo "❌ 启动失败，查看日志:"

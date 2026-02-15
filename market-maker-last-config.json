@@ -1,0 +1,32 @@
+{
+  "global": {
+    "pollIntervalMs": 1000,
+    "minAdjustIntervalMs": 500,
+    "maxRetries": 3,
+    "retryDelayMs": 1000,
+    "minSpread": 0,
+    "minOrderValueUsd": 0.9,
+    "maxConsecutiveErrors": 5,
+    "emergencyStop": false,
+    "sizeEpsilon": 0.1
+  },
+  "markets": [
+    {
+      "marketId": 521,
+      "title": "Will the FED change the interest rates in January?",
+      "tokenId": "65007387828745292541803234697216370022860744045592391005849696422923641719057",
+      "outcome": "NO",
+      "feeRateBps": 200,
+      "isNegRisk": false,
+      "isYieldBearing": false,
+      "maxShares": 260,
+      "minOrderSize": 1,
+      "tickSize": 0.001,
+      "strategy": "SCALP",
+      "positionPrecisionDecimals": 2,
+      "maxSpreadCents": 0.3
+    }
+  ],
+  "strategy": "SCALP",
+  "savedAt": "2026-01-16T07:06:12.350Z"
+}

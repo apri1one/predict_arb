@@ -1,0 +1,288 @@
+{
+  "taskId": "BUY-7664-1770875266954",
+  "type": "BUY",
+  "marketId": 7664,
+  "title": "LoL: BNK FEARX vs DN Freecs (BO5) - LCK Cup Playoffs - Buy DN Freecs",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 1.0000102518921952,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 64,
+  "totalSnapshots": 9,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 1,
+    "ORDER_SUBMITTED": 14,
+    "ORDER_PARTIAL_FILL": 8,
+    "HEDGE_STARTED": 4,
+    "HEDGE_ATTEMPT": 4,
+    "HEDGE_PARTIAL": 3,
+    "HEDGE_COMPLETED": 4,
+    "ORDER_FILLED": 1,
+    "ORDER_CANCELLED": 13,
+    "PRICE_GUARD_TRIGGERED": 2,
+    "TASK_PAUSED": 2,
+    "TASK_RESUMED": 2,
+    "DEPTH_RESTORED": 4,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1770875266955,
+  "endTime": 1770877261989,
+  "durationMs": 1995034,
+  "predictFilledQty": 1248.557,
+  "hedgedQty": 1248.55,
+  "avgPredictPrice": 0.22,
+  "avgPolymarketPrice": 0.7800102518921951,
+  "actualProfit": -0.012800000000138085,
+  "profitPercent": -0.004659924871867751,
+  "unwindLoss": 0,
+  "pauseCount": 2,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770875266964,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770875266965,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770875267381,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770875304700,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 51.385"
+    },
+    {
+      "timestamp": 1770875305161,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770875305423,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 51.385"
+    },
+    {
+      "timestamp": 1770875688119,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 260.89"
+    },
+    {
+      "timestamp": 1770875688397,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770875688687,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 260.89"
+    },
+    {
+      "timestamp": 1770875688687,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 260.89"
+    },
+    {
+      "timestamp": 1770875870363,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770875870364,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1770875870364,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.7900 > max=0.7800 (未知)"
+    },
+    {
+      "timestamp": 1770875875716,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770875875716,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 2.5690000000000737"
+    },
+    {
+      "timestamp": 1770875876281,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770875876569,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 2.5690000000000737"
+    },
+    {
+      "timestamp": 1770875891262,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770875891263,
+      "event": "TASK_RESUMED",
+      "detail": "Depth recovered: 344.82 shares, qty=657.557 (未知)"
+    },
+    {
+      "timestamp": 1770875972137,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770875972605,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770876066322,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770876066619,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770876066705,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770876066712,
+      "event": "DEPTH_RESTORED",
+      "detail": "Depth expanded: 652.557 → 999.557 (depth=686.82) (未知)"
+    },
+    {
+      "timestamp": 1770876068373,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770876068742,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770876079133,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770876079438,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770876079509,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770876079517,
+      "event": "DEPTH_RESTORED",
+      "detail": "Depth expanded: 993.557 → 1276.557 (depth=963.72) (未知)"
+    },
+    {
+      "timestamp": 1770876161473,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770876162184,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770876163825,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770876164221,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770876174584,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770876174938,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770876174945,
+      "event": "DEPTH_RESTORED",
+      "detail": "Depth expanded: 651.557 → 653.557 (depth=340.77) (未知)"
+    },
+    {
+      "timestamp": 1770876241795,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770876241796,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1770876241796,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.7900 > max=0.7800 (未知)"
+    },
+    {
+      "timestamp": 1770876242229,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 313.557"
+    },
+    {
+      "timestamp": 1770877259291,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770877259292,
+      "event": "DEPTH_RESTORED",
+      "detail": "Depth recovered: 653.557 → 1248.557 (depth=935.89) (未知)"
+    },
+    {
+      "timestamp": 1770877259292,
+      "event": "TASK_RESUMED",
+      "detail": "Depth recovered: 935.89 shares, qty=1248.557 (未知)"
+    },
+    {
+      "timestamp": 1770877259983,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 935.0210000000002"
+    },
+    {
+      "timestamp": 1770877260379,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770877260658,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 935.0210000000002"
+    },
+    {
+      "timestamp": 1770877261979,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $-0.01"
+    }
+  ],
+  "generatedAt": 1770877261989
+}

@@ -1,0 +1,115 @@
+{
+  "taskId": "BUY-7267-1770615353265",
+  "type": "BUY",
+  "marketId": 7267,
+  "title": "Cleveland Cavaliers vs Denver Nuggets - Buy Nuggets",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 1,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 20,
+  "totalSnapshots": 3,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 5,
+    "ORDER_SUBMITTED": 3,
+    "ORDER_PARTIAL_FILL": 2,
+    "HEDGE_STARTED": 2,
+    "HEDGE_ATTEMPT": 2,
+    "ORDER_FILLED": 2,
+    "HEDGE_COMPLETED": 2,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1770615353267,
+  "endTime": 1770658967521,
+  "durationMs": 43614254,
+  "predictFilledQty": 160,
+  "hedgedQty": 160,
+  "avgPredictPrice": 0.5,
+  "avgPolymarketPrice": 0.5,
+  "actualProfit": 0,
+  "profitPercent": 0,
+  "unwindLoss": 0,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770615353274,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770615353290,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770615425845,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770634957159,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770635495097,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770650322006,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770656454630,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770656624673,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 100"
+    },
+    {
+      "timestamp": 1770656625165,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770656625424,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 100"
+    },
+    {
+      "timestamp": 1770656625424,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 100"
+    },
+    {
+      "timestamp": 1770657291776,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 60"
+    },
+    {
+      "timestamp": 1770657292091,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770657292334,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 60"
+    },
+    {
+      "timestamp": 1770657292335,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 60"
+    },
+    {
+      "timestamp": 1770658967508,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $0.00"
+    }
+  ],
+  "generatedAt": 1770658967521
+}

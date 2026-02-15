@@ -1,0 +1,87 @@
+{
+  "taskId": "BUY-7267-1770661381537",
+  "type": "BUY",
+  "marketId": 7267,
+  "title": "Cleveland Cavaliers vs Denver Nuggets - Buy Nuggets",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 1,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 11,
+  "totalSnapshots": 2,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 2,
+    "ORDER_SUBMITTED": 2,
+    "ORDER_FILLED": 2,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 1,
+    "HEDGE_COMPLETED": 1,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1770661379984,
+  "endTime": 1770672166967,
+  "durationMs": 10786983,
+  "predictFilledQty": 2000,
+  "hedgedQty": 2000,
+  "avgPredictPrice": 0.49,
+  "avgPolymarketPrice": 0.51,
+  "actualProfit": 0,
+  "profitPercent": 0,
+  "unwindLoss": 0,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770661379990,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770661379991,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770661380844,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770665272503,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770672166424,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 2000"
+    },
+    {
+      "timestamp": 1770672166431,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 2000"
+    },
+    {
+      "timestamp": 1770672166730,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770672166960,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 2000"
+    },
+    {
+      "timestamp": 1770672166960,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 2000"
+    },
+    {
+      "timestamp": 1770672166960,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $0.00"
+    }
+  ],
+  "generatedAt": 1770672166967
+}

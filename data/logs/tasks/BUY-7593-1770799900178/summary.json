@@ -1,0 +1,75 @@
+{
+  "taskId": "BUY-7593-1770799900178",
+  "type": "BUY",
+  "marketId": 7593,
+  "title": "New York Knicks vs Philadelphia 76ers - Buy Knicks",
+  "logSchemaVersion": "1.0.0",
+  "status": "HEDGE_FAILED",
+  "isSuccess": false,
+  "strategy": "MAKER",
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 15,
+  "totalSnapshots": 2,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 3,
+    "ORDER_SUBMITTED": 1,
+    "ORDER_PARTIAL_FILL": 1,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 6,
+    "HEDGE_FAILED": 1,
+    "TASK_FAILED": 1
+  },
+  "startTime": 1770799902607,
+  "endTime": 1770821383616,
+  "durationMs": 21481009,
+  "predictFilledQty": 300,
+  "hedgedQty": 0,
+  "avgPredictPrice": 0.44,
+  "avgPolymarketPrice": 0,
+  "actualProfit": 0,
+  "profitPercent": 0,
+  "unwindLoss": 0,
+  "pauseCount": 0,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770799902613,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770799902619,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770799903143,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770806162778,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770806948713,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770821380884,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 300"
+    },
+    {
+      "timestamp": 1770821383603,
+      "event": "HEDGE_FAILED",
+      "detail": "Hedge: 300"
+    },
+    {
+      "timestamp": 1770821383609,
+      "event": "TASK_FAILED",
+      "detail": "Hedge failed, 300 shares unhedged, est. loss: $13.20 (UNWIND disabled) (未知)"
+    }
+  ],
+  "generatedAt": 1770821383616
+}

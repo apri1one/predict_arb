@@ -1,0 +1,84 @@
+{
+  "taskId": "4e22c1241c31a991",
+  "type": "SELL",
+  "marketId": 705,
+  "title": "Will the Seattle Seahawks win Super Bowl 2026?",
+  "logSchemaVersion": "1.0.0",
+  "status": "HEDGE_FAILED",
+  "isSuccess": false,
+  "strategy": "MAKER",
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 16,
+  "totalSnapshots": 3,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 1,
+    "ORDER_SUBMITTED": 1,
+    "PRICE_GUARD_TRIGGERED": 1,
+    "ORDER_PARTIAL_FILL": 1,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 6,
+    "ORDER_CANCELLED": 1,
+    "TASK_PAUSED": 1,
+    "HEDGE_FAILED": 1,
+    "TASK_FAILED": 1
+  },
+  "startTime": 1770591324137,
+  "endTime": 1770591684572,
+  "durationMs": 360435,
+  "predictFilledQty": 2000,
+  "hedgedQty": 0,
+  "avgPredictPrice": 0.326,
+  "avgPolymarketPrice": 0,
+  "actualProfit": 0,
+  "profitPercent": 0,
+  "unwindLoss": 0,
+  "pauseCount": 1,
+  "hedgeRetryCount": 2,
+  "timeline": [
+    {
+      "timestamp": 1770591324143,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770591324144,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770591682111,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770591682958,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1770591683063,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 2000"
+    },
+    {
+      "timestamp": 1770591684007,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 2000"
+    },
+    {
+      "timestamp": 1770591684007,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly bid=0.6700 < min=0.6710 (未知)"
+    },
+    {
+      "timestamp": 1770591684563,
+      "event": "HEDGE_FAILED",
+      "detail": "Hedge: 2000"
+    },
+    {
+      "timestamp": 1770591684568,
+      "event": "TASK_FAILED",
+      "detail": "Hedge failed, 2000 shares unhedged, est. loss: $65.20 (UNWIND disabled) (未知)"
+    }
+  ],
+  "generatedAt": 1770591684572
+}

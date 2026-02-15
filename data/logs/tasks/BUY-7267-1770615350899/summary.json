@@ -1,0 +1,112 @@
+{
+  "taskId": "BUY-7267-1770615350899",
+  "type": "BUY",
+  "marketId": 7267,
+  "title": "Cleveland Cavaliers vs Denver Nuggets - Buy Cavaliers",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 1,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 16,
+  "totalSnapshots": 3,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 1,
+    "ORDER_SUBMITTED": 3,
+    "ORDER_CANCELLED": 2,
+    "PRICE_GUARD_TRIGGERED": 1,
+    "TASK_PAUSED": 1,
+    "TASK_RESUMED": 1,
+    "ORDER_PARTIAL_FILL": 1,
+    "HEDGE_STARTED": 1,
+    "HEDGE_ATTEMPT": 1,
+    "ORDER_FILLED": 1,
+    "HEDGE_COMPLETED": 1,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1770615350901,
+  "endTime": 1770625070487,
+  "durationMs": 9719586,
+  "predictFilledQty": 12,
+  "hedgedQty": 12,
+  "avgPredictPrice": 0.49,
+  "avgPolymarketPrice": 0.51,
+  "actualProfit": 0,
+  "profitPercent": 0,
+  "unwindLoss": 0,
+  "pauseCount": 1,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770615350908,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770615350919,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770615351812,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770616502165,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770616502165,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1770616502165,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.5200 > max=0.5100 (未知)"
+    },
+    {
+      "timestamp": 1770616502252,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770625067586,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770625067587,
+      "event": "TASK_RESUMED",
+      "detail": "Depth recovered: 12.21 shares, qty=12 (未知)"
+    },
+    {
+      "timestamp": 1770625068377,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 12"
+    },
+    {
+      "timestamp": 1770625068692,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770625068946,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 12"
+    },
+    {
+      "timestamp": 1770625068946,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 12"
+    },
+    {
+      "timestamp": 1770625070481,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $0.00"
+    }
+  ],
+  "generatedAt": 1770625070487
+}

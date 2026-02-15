@@ -1,0 +1,370 @@
+{
+  "taskId": "BUY-7593-1770832186766",
+  "type": "BUY",
+  "marketId": 7593,
+  "title": "New York Knicks vs Philadelphia 76ers - Buy Knicks",
+  "logSchemaVersion": "1.0.0",
+  "status": "COMPLETED",
+  "isSuccess": true,
+  "strategy": "MAKER",
+  "avgTotalCost": 1,
+  "costGuardTriggerCount": 0,
+  "orderTimeoutCount": 0,
+  "totalEvents": 69,
+  "totalSnapshots": 5,
+  "eventCounts": {
+    "TASK_CREATED": 1,
+    "TASK_STARTED": 2,
+    "ORDER_SUBMITTED": 20,
+    "ORDER_CANCELLED": 22,
+    "DEPTH_RESTORED": 6,
+    "PRICE_GUARD_TRIGGERED": 2,
+    "TASK_PAUSED": 2,
+    "TASK_RESUMED": 2,
+    "PRICE_GUARD_RESUMED": 1,
+    "ORDER_PARTIAL_FILL": 1,
+    "HEDGE_STARTED": 2,
+    "HEDGE_ATTEMPT": 2,
+    "ORDER_FILLED": 3,
+    "HEDGE_COMPLETED": 2,
+    "TASK_COMPLETED": 1
+  },
+  "startTime": 1770832188625,
+  "endTime": 1770847500587,
+  "durationMs": 15311962,
+  "predictFilledQty": 239,
+  "hedgedQty": 239,
+  "avgPredictPrice": 0.44,
+  "avgPolymarketPrice": 0.56,
+  "actualProfit": 0,
+  "profitPercent": 0,
+  "unwindLoss": 0,
+  "pauseCount": 2,
+  "hedgeRetryCount": 0,
+  "timeline": [
+    {
+      "timestamp": 1770832188631,
+      "event": "TASK_CREATED"
+    },
+    {
+      "timestamp": 1770832188632,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770832189302,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770832407198,
+      "event": "TASK_STARTED"
+    },
+    {
+      "timestamp": 1770832819401,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770832820091,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770832831026,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770832831183,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770832831389,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770832831395,
+      "event": "DEPTH_RESTORED",
+      "detail": "Depth expanded: 381 → 2000 (depth=42227.12) (未知)"
+    },
+    {
+      "timestamp": 1770845477624,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845478434,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845488896,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845489109,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845489632,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845489638,
+      "event": "DEPTH_RESTORED",
+      "detail": "Depth expanded: 184 → 2000 (depth=4434.84) (未知)"
+    },
+    {
+      "timestamp": 1770845532438,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845532832,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845538915,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845539480,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845539658,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845549879,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845550279,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845550284,
+      "event": "DEPTH_RESTORED",
+      "detail": "Depth expanded: 531 → 727 (depth=727.26) (未知)"
+    },
+    {
+      "timestamp": 1770845572960,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845573328,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845682969,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845683312,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845683317,
+      "event": "DEPTH_RESTORED",
+      "detail": "Depth expanded: 537 → 585 (depth=585.75) (未知)"
+    },
+    {
+      "timestamp": 1770845763291,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770845763739,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846008090,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846008131,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846009626,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846009631,
+      "event": "DEPTH_RESTORED",
+      "detail": "Depth expanded: 577 → 1014 (depth=1014.07) (未知)"
+    },
+    {
+      "timestamp": 1770846074468,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846074842,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846103182,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846103182,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1770846103182,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.5700 > max=0.5600 (未知)"
+    },
+    {
+      "timestamp": 1770846107377,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846107377,
+      "event": "TASK_RESUMED",
+      "detail": "Depth recovered: 334.12 shares, qty=334 (未知)"
+    },
+    {
+      "timestamp": 1770846109105,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846109469,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846111083,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846111110,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846111419,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846174373,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770846174374,
+      "event": "PRICE_GUARD_TRIGGERED"
+    },
+    {
+      "timestamp": 1770846174374,
+      "event": "TASK_PAUSED",
+      "detail": "Price guard triggered: poly ask=0.5700 > max=0.5600 (未知)"
+    },
+    {
+      "timestamp": 1770847492590,
+      "event": "PRICE_GUARD_RESUMED"
+    },
+    {
+      "timestamp": 1770847493764,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770847493764,
+      "event": "TASK_RESUMED"
+    },
+    {
+      "timestamp": 1770847494950,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 7.18"
+    },
+    {
+      "timestamp": 1770847495432,
+      "event": "ORDER_CANCELLED",
+      "detail": "Filled: 7.18"
+    },
+    {
+      "timestamp": 1770847495481,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770847495744,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 7.18"
+    },
+    {
+      "timestamp": 1770847495744,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 7.18"
+    },
+    {
+      "timestamp": 1770847495793,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770847495798,
+      "event": "DEPTH_RESTORED",
+      "detail": "Depth expanded: 239 → 2007.18 (depth=2608.00) (未知)"
+    },
+    {
+      "timestamp": 1770847500009,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 239"
+    },
+    {
+      "timestamp": 1770847500017,
+      "event": "HEDGE_STARTED",
+      "detail": "Hedge: 231.82"
+    },
+    {
+      "timestamp": 1770847500315,
+      "event": "ORDER_SUBMITTED",
+      "detail": "Filled: 0"
+    },
+    {
+      "timestamp": 1770847500579,
+      "event": "ORDER_FILLED",
+      "detail": "Filled: 231.82"
+    },
+    {
+      "timestamp": 1770847500579,
+      "event": "HEDGE_COMPLETED",
+      "detail": "Hedge: 231.82"
+    },
+    {
+      "timestamp": 1770847500579,
+      "event": "TASK_COMPLETED",
+      "detail": "Profit: $0.00"
+    }
+  ],
+  "generatedAt": 1770847500587
+}
